@@ -1,0 +1,55 @@
+# Setlist2Playlist
+
+Turns a concert's published setlist on setlist.fm into a Spotify playlist, so you can learn the songs before you see the artist live.
+
+## Language
+
+### Concert side (setlist.fm)
+
+**Setlist**:
+The published, ordered list of what an **Artist** played at one **Show**, as recorded on setlist.fm.
+_Avoid_: Tracklist, set (when meaning the whole show)
+
+**Show**:
+One performance by an **Artist** on a specific date at a specific venue.
+_Avoid_: Gig, event, concert (in code/docs)
+
+**Artist**:
+The performer the **Setlist** belongs to.
+_Avoid_: Band, act, performer
+
+**Set**:
+One labelled section of a **Setlist**, such as the main set, an acoustic set or an **Encore**.
+
+**Encore**:
+A **Set** played after the main set. It stays in the **Setlist Playlist** in its played position.
+
+**Performance**:
+A single slot in a **Setlist** where a song was played. When the same song is played twice it counts as two **Performances**, and both appear in the **Setlist Playlist**.
+_Avoid_: Entry, item
+
+**Tape**:
+A **Performance** played as pre-recorded audio, such as an intro or outro, rather than performed live. A Tape goes into the **Setlist Playlist** only when the user opts in.
+_Avoid_: Intro, outro, backing track
+
+**Cover**:
+A **Performance** of a song written or first released by a different artist, the **Original Artist**.
+
+**Original Artist**:
+The artist whose song a **Cover** performs.
+
+**Latest Setlist**:
+The most recent **Setlist** for an **Artist** that contains at least one **Performance**. Placeholder setlists with no songs are ignored.
+
+### Playlist side (Spotify)
+
+**Setlist Playlist**:
+A newly created Spotify playlist that mirrors one **Setlist** in played order. Each run makes a new one.
+_Avoid_: Mix, concert playlist
+
+**Match**:
+The Spotify track chosen to represent a **Performance**. The studio version is preferred, the **Artist**'s own recording is tried first, and for a **Cover** the **Original Artist**'s recording is tried next.
+
+**Miss**:
+A **Performance** with no **Match**. It is left out of the **Setlist Playlist** and reported to the user.
+_Avoid_: Unmatched, not found, failure
