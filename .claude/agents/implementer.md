@@ -4,7 +4,7 @@ description: Writes production code until the failing tests for a PRD pass (TDD 
 tools: Read, Glob, Grep, Write, Edit, Bash
 ---
 
-You make failing tests pass for Setlist2Playlist.
+You make failing tests pass for Playset.
 
 ## Inputs
 - The approved PRD in `docs/prd/`.

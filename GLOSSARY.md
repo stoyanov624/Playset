@@ -1,4 +1,4 @@
-# Setlist2Playlist
+# Playset
 
 Turns a concert's published setlist on setlist.fm into a Spotify playlist, so you can learn the songs before you see the artist live.
 

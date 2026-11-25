@@ -1,6 +1,6 @@
-# Setlist2Playlist
+# Playset
 
-CLI (`s2p`) that turns a setlist.fm Setlist into a Spotify Setlist Playlist. Domain vocabulary lives in `GLOSSARY.md` — use those terms everywhere (code, tests, PRDs, commits).
+CLI (`playset`) that turns a setlist.fm Setlist into a Spotify Setlist Playlist. Domain vocabulary lives in `GLOSSARY.md` — use those terms everywhere (code, tests, PRDs, commits).
 
 ## Commands
 - `npm test` — Vitest (no network; fixtures only)
@@ -21,7 +21,7 @@ CLI (`s2p`) that turns a setlist.fm Setlist into a Spotify Setlist Playlist. Dom
 - Match: strict normalised artist + title; prefer studio, live only as fallback. Cover → Artist's version first, then Original Artist. Otherwise Miss; list Misses at end.
 - Preview Performance → Match before creating; confirm (skip with `--yes`). Warn if a playlist with the same name exists.
 - New playlist per run, named `Artist – YYYY-MM-DD – City`, private by default (`--public` flag), description includes the setlist.fm URL (attribution required). Always print the share link.
-- Secrets: env vars first (`SETLISTFM_API_KEY`, `SPOTIFY_CLIENT_ID`), then `~/.config/setlist2playlist/`. Spotify auth = Authorization Code + PKCE, redirect `http://127.0.0.1:<port>/callback` (not `localhost`), refresh token cached in the config dir. No client secret.
+- Secrets: env vars first (`SETLISTFM_API_KEY`, `SPOTIFY_CLIENT_ID`), then `~/.config/playset/`. Spotify auth = Authorization Code + PKCE, redirect `http://127.0.0.1:<port>/callback` (not `localhost`), refresh token cached in the config dir. No client secret.
 
 ## External API notes
 - setlist.fm: header `x-api-key`, `Accept: application/json`; non-commercial; throttle (~2 req/s), handle 429.

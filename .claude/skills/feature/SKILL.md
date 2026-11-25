@@ -1,6 +1,6 @@
 ---
 name: feature
-description: Run the Setlist2Playlist feature pipeline — plan → PRD → user approval → failing tests → implementation → PR → user approval to merge. Use when the user types /feature <topic> or asks to build the next slice.
+description: Run the Playset feature pipeline — plan → PRD → user approval → failing tests → implementation → PR → user approval to merge. Use when the user types /feature <topic> or asks to build the next slice.
 ---
 
 # /feature <topic>

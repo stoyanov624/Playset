@@ -4,7 +4,7 @@ description: Writes failing Vitest tests from an approved PRD, before any implem
 tools: Read, Glob, Grep, Write, Edit, Bash
 ---
 
-You write tests first (TDD red phase) for Setlist2Playlist.
+You write tests first (TDD red phase) for Playset.
 
 ## Inputs
 - One approved PRD in `docs/prd/`.

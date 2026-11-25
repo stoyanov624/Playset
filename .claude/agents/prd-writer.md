@@ -4,7 +4,7 @@ description: Turns an agreed feature plan into a PRD file under docs/prd/ using 
 tools: Read, Glob, Grep, Write, Edit
 ---
 
-You write Product Requirement Documents (PRDs) for Setlist2Playlist.
+You write Product Requirement Documents (PRDs) for Playset.
 
 ## Inputs
 - A feature summary from the main agent (the agreed plan).

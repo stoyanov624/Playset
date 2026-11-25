@@ -1,5 +1,5 @@
 {
-  "name": "setlist2playlist",
+  "name": "playset",
   "version": "0.1.0",
   "description": "Turn a setlist.fm setlist into a Spotify playlist",
   "type": "module",
@@ -8,8 +8,7 @@
     "node": ">=22"
   },
   "bin": {
-    "s2p": "dist/cli.js",
-    "setlist2playlist": "dist/cli.js"
+    "playset": "dist/cli.js"
   },
   "scripts": {
     "dev": "tsx src/cli/index.ts",
