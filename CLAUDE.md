@@ -22,6 +22,7 @@ CLI (`playset`) that turns a setlist.fm Setlist into a Spotify Setlist Playlist.
 - Preview Performance → Match before creating; confirm (skip with `--yes`). Warn if a playlist with the same name exists.
 - New playlist per run, named `Artist – YYYY-MM-DD – City`, private by default (`--public` flag), description includes the setlist.fm URL (attribution required). Always print the share link.
 - Secrets: env vars first (`SETLISTFM_API_KEY`, `SPOTIFY_CLIENT_ID`), then `~/.config/playset/`. Spotify auth = Authorization Code + PKCE, redirect `http://127.0.0.1:<port>/callback` (not `localhost`), refresh token cached in the config dir. No client secret.
+- CLI: `--dry-run` shows the preview with Matches (needs Spotify login) and never creates. Exit codes: 0 success / dry run / declined, 1 runtime error (incl. nothing to add, every Performance a Miss), 2 usage error, 130 Ctrl-C. `PLAYSET_DEBUG=1` prints stack traces and causes. `PLAYSET_AUTH_PORT` overrides the login port (default 8888).
 
 ## External API notes
 - setlist.fm: header `x-api-key`, `Accept: application/json`; non-commercial; throttle (~2 req/s), handle 429.

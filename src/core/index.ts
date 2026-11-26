@@ -85,3 +85,18 @@ export {
   type SetlistFmClient,
   type SetlistFmClientDeps,
 } from "./setlistfm/index.js";
+export {
+  runPlayset,
+  type CreatedPlaylist,
+  type MatchProgress,
+  type NotAdded,
+  type PlaylistLink,
+  type Preview,
+  type PreviewRow,
+  type RunFrontEnd,
+  type RunOptions,
+  type RunOutcome,
+  type RunRequest,
+  type RunServices,
+  type ShowSummary,
+} from "./run/index.js";
