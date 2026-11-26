@@ -1,6 +1,6 @@
 # PRD 0005 — Find the Latest Setlist by Artist name, with disambiguation
 
-Status: Approved
+Status: Implemented
 Slice: 4
 Depends on: 0002
 Module: src/core/setlistfm
