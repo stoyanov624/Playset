@@ -1,0 +1,57 @@
+{
+  "id": "63a5e2b7",
+  "eventDate": "23-08-2025",
+  "artist": {
+    "mbid": "ada7a83c-e3e1-40f1-93f9-3e73dbfd2c7c",
+    "name": "Arctic Monkeys"
+  },
+  "venue": {
+    "id": "6bd6ca6e",
+    "name": "Ziggo Dome",
+    "city": {
+      "id": "2759794",
+      "name": "Amsterdam",
+      "country": {
+        "code": "NL",
+        "name": "Netherlands"
+      }
+    }
+  },
+  "url": "https://www.setlist.fm/setlist/arctic-monkeys/2025/ziggo-dome-amsterdam-netherlands-63a5e2b7.html",
+  "sets": {
+    "set": [
+      {
+        "song": [
+          {
+            "name": "Smells Like Teen Spirit",
+            "info": "TEASE"
+          },
+          {
+            "name": "Seven Nation Army",
+            "info": "Teaser"
+          },
+          {
+            "name": "Wonderwall",
+            "info": "acoustic, Snippet only"
+          },
+          {
+            "name": "Alive",
+            "info": "Extended outro"
+          },
+          {
+            "name": "Black",
+            "info": "with 'Hey Jude' tease"
+          },
+          {
+            "name": "Jeremy",
+            "info": "includes 'Crazy Mary' tease"
+          },
+          {
+            "name": "Porch",
+            "info": "  Tease of 'Interstellar Overdrive'"
+          }
+        ]
+      }
+    ]
+  }
+}
