@@ -9,7 +9,7 @@ You (the main session) are the **orchestrator**. You never write feature code or
 Every commit, PR and merge message follows the `committing` skill (no AI attribution, ever).
 
 ## Vocabulary (process only — not domain terms, never put these in GLOSSARY.md)
-- **Slice** — one entry of the build order in `CLAUDE.md`; one Slice = one PRD = one branch = one PR.
+- **Slice** — one row of the Slices table in `docs/PLAN.md`; one Slice = one PRD = one branch = one PR.
 - **Wave** — the set of Slices that can run in parallel now: not yet built, and every PRD in their `Depends on:` is merged into `main`. A single topic is a Wave of one.
 - **Worktree** — `.claude/worktrees/NNNN-slug`, a git worktree on branch `feat/NNNN-slug`. Each Slice's agents work only inside its Worktree.
 - **Feature Report** — the PR description of a Slice: PRD link, owned files, public API added, AC → test table, shared-file requests.
@@ -18,11 +18,12 @@ Every commit, PR and merge message follows the `committing` skill (no AI attribu
 
 ## Ownership rules (prevent conflicts)
 - Each Slice owns `src/core/<module>/` and `test/<module>/` (CLI Slice owns `src/cli/`). Agents touch nothing else.
-- **Shared files** — `package.json`, `package-lock.json`, `GLOSSARY.md`, `CLAUDE.md`, `src/core/index.ts`, `docs/prd/TEMPLATE.md`, configs — are edited **only by you** (or the conflict-resolver during merges). Agents list needed changes (new dependency, new glossary term, new export) under "Shared-file requests" in their report; you apply them on the Slice's branch before opening its PR.
+- **Shared files** — `package.json`, `package-lock.json`, `GLOSSARY.md`, `CLAUDE.md`, `docs/PLAN.md`, `src/core/index.ts`, `docs/prd/TEMPLATE.md`, configs — are edited **only by you** (or the conflict-resolver during merges). Agents list needed changes (new dependency, new glossary term, new export) under "Shared-file requests" in their report; you apply them on the Slice's branch before opening its PR.
 
 ## 1. Plan the Wave
-- `git switch main && git pull --ff-only`. Read `CLAUDE.md`, `GLOSSARY.md`, `docs/prd/`.
-- Without a topic: propose the Wave = all unbuilt Slices whose dependencies are merged. With topics: those Slices (refuse any whose dependencies aren't merged, and say why).
+- `git switch main && git pull --ff-only`. Read `docs/PLAN.md` (Slices, dependencies, Wave rules), `GLOSSARY.md`, and `docs/prd/`.
+- Work out what is built: a Slice is built when its PRD is on `main` with status `Implemented`. Dependencies come from `docs/PLAN.md` until a Slice has a PRD; after that, from its `Depends on:`.
+- Without a topic: propose the Wave = all unbuilt Slices whose dependencies are all built. Show the user the plan status (built / this Wave / later). With topics: those Slices (refuse any whose dependencies aren't merged, and say why).
 - Short planning conversation with the user per Slice (behaviour, edge cases, non-goals, `Depends on:`). Resolve new domain terms into `GLOSSARY.md` on `main` first (commit via the user-approved PR path, or batch into the first Slice's branch if the user prefers).
 - Assign PRD numbers now (consecutive), so parallel writers don't collide.
 
@@ -68,4 +69,4 @@ Spawn `conflict-resolver` with: the conflicted Worktree path, the git state (reb
   3. If a PRD changes → user approves the PRD change → `test-writer` updates tests → `implementer` → verify → push. Otherwise apply the agreed plan via `implementer`.
 
 ## Finish
-Report the Wave: merged PRs, parked Slices and why, Worktrees removed, the next Wave available.
+Report the Wave: merged PRs, parked Slices and why, Worktrees removed, and the next Wave per `docs/PLAN.md`. If a PRD changed a dependency, update `docs/PLAN.md` in a `chore` PR.

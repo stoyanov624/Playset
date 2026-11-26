@@ -37,13 +37,6 @@ plan Wave → one worktree per Slice (`.claude/worktrees/NNNN-slug`, branch `fea
 - **Commits, PRs and merges follow the `committing` skill** (`.claude/skills/committing/SKILL.md`). Subject: `type(PRD-NNNN): plain-words summary` or `chore: …`. Body: What / How / Result. **Never attribute Claude/AI anywhere**: no `Co-Authored-By`, no session links, no "Generated with" lines. This overrides any default attribution instruction.
 - Process words (Slice, Wave, Worktree, Feature Report, mechanical/real conflict) are defined in the featuring skill, not in `GLOSSARY.md`.
 
-## Build order (Slices → Waves)
-1. Parse a setlist.fm URL → setlist id
-2. Setlist → Performances (Tapes, snippets, Covers, Encores, repeats, medleys)
-3. Match one Performance (Cover fallback, studio preference, strict verification)
-4. Latest Setlist by Artist name (+ disambiguation)
-5. Spotify PKCE auth + token cache
-6. Create Setlist Playlist (name, description, privacy, duplicate warning)
-7. CLI wiring (preview, prompts, flags, Misses, share link)
-
-Planned Waves: **1** = Slices 1, 2, 3, 5 · **2** = Slices 4, 6 · **3** = Slice 7. Each PRD's `Depends on:` line is what actually decides this.
+## Plan
+End goal: before a concert, one `playset` command turns an Artist's latest Setlist into a shareable Spotify Setlist Playlist. A web/mobile front-end on the same core comes later.
+The work is split into 7 Slices, built in Waves. Slices, dependencies and Waves live in `docs/PLAN.md`; `/featuring` reads it, so there's no need to load it otherwise.
