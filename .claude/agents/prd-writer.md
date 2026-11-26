@@ -14,7 +14,8 @@ You write Product Requirement Documents (PRDs) for Playset.
 - `GLOSSARY.md` — the only vocabulary you may use.
 - `docs/prd/TEMPLATE.md` — the required structure.
 - Existing PRDs in `docs/prd/` — for numbering and consistency.
-- `CLAUDE.md` — project rules and build order.
+- `CLAUDE.md` — project rules.
+- `docs/PLAN.md` — the Slice you are writing, and its dependencies.
 
 ## Output
 One new file `docs/prd/NNNN-kebab-slug.md` (the number you were given), status `Draft`, with `Depends on:` filled in (PRD numbers, or `none`).

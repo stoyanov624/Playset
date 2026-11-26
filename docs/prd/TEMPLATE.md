@@ -1,7 +1,7 @@
 # PRD NNNN — <Feature title>
 
 Status: Draft | Approved | Implemented
-Slice: <n of the build order in CLAUDE.md>
+Slice: <n from docs/PLAN.md>
 Depends on: <PRD numbers that must be merged first, or "none">
 Module: <src/core/<module> owned by this feature, or src/cli>
 
