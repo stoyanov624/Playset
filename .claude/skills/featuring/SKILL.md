@@ -6,6 +6,7 @@ description: Run the Playset feature pipeline in parallel waves using git worktr
 # /featuring [topic…]
 
 You (the main session) are the **orchestrator**. You never write feature code or tests yourself; agents do. You own the user gates, the shared files, and the merges. Never skip a gate.
+Every commit, PR and merge message follows the `committing` skill (no AI attribution, ever).
 
 ## Vocabulary (process only — not domain terms, never put these in GLOSSARY.md)
 - **Slice** — one entry of the build order in `CLAUDE.md`; one Slice = one PRD = one branch = one PR.
@@ -37,22 +38,22 @@ Record each absolute Worktree path. Every agent prompt starts with: `WORKTREE: <
 - Spawn one `prd-writer` per Slice **in the background, in one message**, each with its Worktree path, PRD number, and agreed plan.
 - Review each PRD yourself (testable ACs, examples, glossary terms only, `Depends on:` filled).
 - **GATE — present all PRDs of the Wave together; the user approves or rejects each individually.** Rejected → revise with prd-writer, or drop from the Wave.
-- Approved → set status `Approved`, commit in its Worktree: `docs(prd): NNNN <title>`.
+- Approved → set status `Approved`, commit in its Worktree (per the `committing` skill): `docs(PRD-NNNN): <plain-words summary>`.
 
 ## 4. Red → Green (parallel per Slice)
 For every approved Slice, as its own background pipeline (Slices don't wait for each other):
 1. Spawn `test-writer` (Worktree path, PRD path, public module path e.g. `src/core/<module>`).
 2. Coverage check yourself: every AC has ≥1 test, tests fail for the right reason, only `test/<module>/` touched. Else send it back.
-   Commit: `test(NNNN): failing tests for <title>`.
+   Commit (per `committing`): `test(PRD-NNNN): <plain-words summary>`.
 3. Spawn `implementer` (Worktree path, PRD, tests, expected API). If it reports a suspected wrong test → bring it to the user; nobody silently edits tests.
 4. Verify in the Worktree: `npm test` and `npm run typecheck` green; `git diff main -- test/` contains only the test-writer commit. Apply shared-file requests. Set PRD status `Implemented`.
-   Commit: `feat(NNNN): <title>`.
-5. `git push -u origin feat/NNNN-slug` and `gh pr create --base main` with the **Feature Report** as the body.
+   Commit (per `committing`): `feat(PRD-NNNN): <plain-words summary>`.
+5. `git push -u origin feat/NNNN-slug` and `gh pr create --base main`; title and body per the `committing` skill (What / How / Result + **Feature Report**).
 
 ## 5. Merge one at a time → user gate
 Repeat until the Wave's PRs are all merged or parked:
 1. **GATE — ask the user to approve merging one PR** (suggest the order: fewest dependents first). Never merge without approval.
-2. On approval: `gh pr merge <n> --squash --delete-branch`; `git switch main && git pull --ff-only`.
+2. On approval: `gh pr merge <n> --squash --delete-branch --subject … --body …` (message per `committing`); `git switch main && git pull --ff-only`.
 3. For every other open branch of the Wave, in its Worktree: `git fetch origin && git rebase origin/main`, then `npm ci` (if lockfile changed), `npm test`, `npm run typecheck`.
    - Clean and green → `git push --force-with-lease`; the PR is ready for its gate.
    - Rebase conflict **or** newly failing tests/typecheck → spawn `conflict-resolver` (see 6).

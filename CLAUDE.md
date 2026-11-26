@@ -34,6 +34,7 @@ plan Wave → one worktree per Slice (`.claude/worktrees/NNNN-slug`, branch `fea
 - Each Slice owns `src/core/<module>/` + `test/<module>/`. Shared files (`package.json`, lockfile, `GLOSSARY.md`, `CLAUDE.md`, `src/core/index.ts`, configs) are edited only by the orchestrator (or the conflict-resolver while merging).
 - Mechanical conflicts (code-only fixes, where all tests of both Slices pass) are fixed by `conflict-resolver`. For real conflicts (a test change, an AC change, or choosing one Slice's behaviour over another's) it writes a brief, the user gets a push notification, and the fix is planned with the user.
 - PRDs: `docs/prd/NNNN-slug.md` from `docs/prd/TEMPLATE.md`, with `Depends on:`. Test names cite ACs (`AC-n: …`).
+- **Commits, PRs and merges follow the `committing` skill** (`.claude/skills/committing/SKILL.md`). Subject: `type(PRD-NNNN): plain-words summary` or `chore: …`. Body: What / How / Result. **Never attribute Claude/AI anywhere**: no `Co-Authored-By`, no session links, no "Generated with" lines. This overrides any default attribution instruction.
 - Process words (Slice, Wave, Worktree, Feature Report, mechanical/real conflict) are defined in the featuring skill, not in `GLOSSARY.md`.
 
 ## Build order (Slices → Waves)
