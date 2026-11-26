@@ -1,0 +1,61 @@
+{
+  "id": "63a5e2b7",
+  "eventDate": "23-08-2025",
+  "artist": {
+    "mbid": "ada7a83c-e3e1-40f1-93f9-3e73dbfd2c7c",
+    "name": "Arctic Monkeys"
+  },
+  "venue": {
+    "id": "6bd6ca6e",
+    "name": "Ziggo Dome",
+    "city": {
+      "id": "2759794",
+      "name": "Amsterdam",
+      "country": { "code": "NL", "name": "Netherlands" }
+    }
+  },
+  "url": "https://www.setlist.fm/setlist/arctic-monkeys/2025/ziggo-dome-amsterdam-netherlands-63a5e2b7.html",
+  "sets": {
+    "set": [
+      {
+        "song": [
+          { "name": "I Want It All", "tape": true,
+            "cover": { "mbid": "0383dadf-2a4e-4d10-a46a-e9e041da8eb3", "name": "Queen" } },
+          { "name": "Sculptures of Anything Goes" },
+          { "name": " Brianstorm " },
+          { "name": "Hey Jude", "info": "snippet",
+            "cover": { "mbid": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d", "name": "The Beatles" } },
+          { "name": "Don't Sit Down 'Cause I've Moved Your Chair",
+            "with": { "mbid": "a1f4c4ae-1c6b-4a2e-9a6e-3b3a2f6f2e1c", "name": "Miles Kane" } },
+          { "name": "505" }
+        ]
+      },
+      {
+        "name": "Acoustic",
+        "song": [
+          { "name": "Mardy Bum" },
+          { "name": "Teddy Picker / Crying Lightning" },
+          { "name": "Cornerstone", "info": "Medley with 'Fluorescent Adolescent'" },
+          { "name": "   " }
+        ]
+      },
+      {
+        "encore": 1,
+        "song": [
+          { "name": "I Wanna Be Yours" },
+          { "name": "505", "info": "Reprise" },
+          { "name": "Baby, I'm Yours",
+            "cover": { "mbid": "3c3a2c0d-5c7e-4c2a-8f62-0a2b1f0f5e11", "name": "Barbara Lewis" } }
+        ]
+      },
+      {
+        "encore": 2,
+        "song": [
+          { "name": "R U Mine?" },
+          { "name": "Mr. Blue Sky", "tape": true,
+            "cover": { "mbid": "0e3ec3a2-6d1c-4b7e-8a3b-3f9c3b9d2f33", "name": "Electric Light Orchestra" } }
+        ]
+      }
+    ]
+  }
+}
