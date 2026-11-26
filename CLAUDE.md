@@ -28,12 +28,15 @@ CLI (`playset`) that turns a setlist.fm Setlist into a Spotify Setlist Playlist.
 - Spotify (Development Mode, 2026): owner needs Premium; max 5 users; search `limit` ≤ 10; create playlist via `POST /v1/me/playlists`; add via `POST /v1/playlists/{id}/items` (≤100 URIs). Old `/tracks` and `/users/{id}/playlists` endpoints are gone. Honour `Retry-After` on 429.
 
 ## Workflow (mandatory)
-Features are built with `/feature` (`.claude/skills/feature/SKILL.md`):
-plan → `prd-writer` → **user approves PRD** → `test-writer` (red, never reads `src/`) → coverage check → `implementer` (green, never edits `test/`) → PR → **user approves merge**.
-- Every feature branches from `main` as `feat/NNNN-slug` and returns via PR only after user approval. Never merge without it.
-- PRDs: `docs/prd/NNNN-slug.md` from `docs/prd/TEMPLATE.md`. Test names cite ACs (`AC-n: …`).
+Features are built with `/featuring` (`.claude/skills/featuring/SKILL.md`), in parallel **Waves** using git worktrees:
+plan Wave → one worktree per Slice (`.claude/worktrees/NNNN-slug`, branch `feat/NNNN-slug`) → `prd-writer`s → **user approves each PRD** → per Slice: `test-writer` (red, never reads `src/`) → coverage check → `implementer` (green, never edits `test/`) → PR with Feature Report → **user approves each merge**, one at a time → the remaining branches are rebased and retested → `conflict-resolver` on a conflict.
+- Never merge without user approval. Never let anyone silently edit tests.
+- Each Slice owns `src/core/<module>/` + `test/<module>/`. Shared files (`package.json`, lockfile, `GLOSSARY.md`, `CLAUDE.md`, `src/core/index.ts`, configs) are edited only by the orchestrator (or the conflict-resolver while merging).
+- Mechanical conflicts (code-only fixes, where all tests of both Slices pass) are fixed by `conflict-resolver`. For real conflicts (a test change, an AC change, or choosing one Slice's behaviour over another's) it writes a brief, the user gets a push notification, and the fix is planned with the user.
+- PRDs: `docs/prd/NNNN-slug.md` from `docs/prd/TEMPLATE.md`, with `Depends on:`. Test names cite ACs (`AC-n: …`).
+- Process words (Slice, Wave, Worktree, Feature Report, mechanical/real conflict) are defined in the featuring skill, not in `GLOSSARY.md`.
 
-## Build order
+## Build order (Slices → Waves)
 1. Parse a setlist.fm URL → setlist id
 2. Setlist → Performances (Tapes, snippets, Covers, Encores, repeats, medleys)
 3. Match one Performance (Cover fallback, studio preference, strict verification)
@@ -41,3 +44,5 @@ plan → `prd-writer` → **user approves PRD** → `test-writer` (red, never re
 5. Spotify PKCE auth + token cache
 6. Create Setlist Playlist (name, description, privacy, duplicate warning)
 7. CLI wiring (preview, prompts, flags, Misses, share link)
+
+Planned Waves: **1** = Slices 1, 2, 3, 5 · **2** = Slices 4, 6 · **3** = Slice 7. Each PRD's `Depends on:` line is what actually decides this.
