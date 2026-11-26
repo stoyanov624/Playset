@@ -2,6 +2,8 @@
 
 Status: Draft | Approved | Implemented
 Slice: <n of the build order in CLAUDE.md>
+Depends on: <PRD numbers that must be merged first, or "none">
+Module: <src/core/<module> owned by this feature, or src/cli>
 
 ## Problem
 
