@@ -19,12 +19,16 @@ Later (not planned in Slices yet): a web or mobile front-end on the same core, w
 | 5 | Spotify login (PKCE) with a cached token | — |
 | 6 | Create the Setlist Playlist (name, description, privacy, duplicate warning) | 2, 3, 5 |
 | 7 | CLI wiring (preview, prompts, flags, Misses, share link) | 1, 2, 3, 4, 5, 6 |
+| 8 | Split medleys into Performances (' / ' and ' + ') | 2, 7 |
+| 9 | Interactive shell: `playset` with no arguments opens its own prompt session | 7, 8 |
 
 ## Waves (derived from the table)
 
 - **Wave 1:** Slices 1, 2, 3, 5
 - **Wave 2:** Slices 4, 6
 - **Wave 3:** Slice 7
+- **Wave 4:** Slice 8
+- **Wave 5:** Slice 9
 
 ## Rules for /featuring
 
