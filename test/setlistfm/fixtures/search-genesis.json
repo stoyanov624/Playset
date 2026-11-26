@@ -1,0 +1,14 @@
+{
+  "type": "artists",
+  "itemsPerPage": 30,
+  "page": 1,
+  "total": 3,
+  "artist": [
+    { "mbid": "8e3fcd7d-bda1-4ca0-b987-b8528d2ee74e", "name": "Genesis", "sortName": "Genesis",
+      "disambiguation": "English rock band", "url": "https://www.setlist.fm/setlists/genesis-5bd6b3b4.html" },
+    { "mbid": "2f4b1c6e-7a8d-4e9f-b0a1-c2d3e4f5a6b7", "name": "Genesis", "sortName": "Genesis",
+      "disambiguation": "US psychedelic rock band", "url": "https://www.setlist.fm/setlists/genesis-3bd6c0a8.html" },
+    { "mbid": "4a5b6c7d-8e9f-4a0b-9c1d-2e3f4a5b6c7d", "name": "Genesis Owusu", "sortName": "Owusu, Genesis",
+      "url": "https://www.setlist.fm/setlists/genesis-owusu-4bd2a3fe.html" }
+  ]
+}
