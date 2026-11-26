@@ -1,6 +1,6 @@
 ---
 name: implementer
-description: Writes production code until the failing tests for a PRD pass (TDD green + refactor). Must not modify tests. Use after test-writer in the /feature pipeline.
+description: Writes production code until the failing tests for a PRD pass (TDD green + refactor). Must not modify tests. Use after test-writer in the /featuring pipeline.
 tools: Read, Glob, Grep, Write, Edit, Bash
 disallowedTools: Agent
 ---

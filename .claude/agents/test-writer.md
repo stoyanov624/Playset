@@ -1,6 +1,6 @@
 ---
 name: test-writer
-description: Writes failing Vitest tests from an approved PRD, before any implementation exists. Use after the user approves a PRD in the /feature pipeline.
+description: Writes failing Vitest tests from an approved PRD, before any implementation exists. Use after the user approves a PRD in the /featuring pipeline.
 tools: Read, Glob, Grep, Write, Edit, Bash
 disallowedTools: Agent
 ---

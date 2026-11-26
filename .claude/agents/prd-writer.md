@@ -1,6 +1,6 @@
 ---
 name: prd-writer
-description: Turns an agreed feature plan into a PRD file under docs/prd/ using the project template and glossary. Use at the start of the /feature pipeline, after the plan conversation with the user.
+description: Turns an agreed feature plan into a PRD file under docs/prd/ using the project template and glossary. Use at the start of the /featuring pipeline, after the plan conversation with the user.
 tools: Read, Glob, Grep, Write, Edit
 disallowedTools: Agent
 ---
