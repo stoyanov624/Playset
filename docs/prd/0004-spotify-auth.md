@@ -1,6 +1,6 @@
 # PRD 0004 — Spotify login (PKCE) with a cached token
 
-Status: Approved
+Status: Implemented
 Slice: 5
 Depends on: none
 Module: src/core/spotify-auth
