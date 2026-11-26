@@ -1,6 +1,6 @@
 # PRD 0006 — Create the Setlist Playlist
 
-Status: Approved
+Status: Implemented
 Slice: 6
 Depends on: 0002, 0003, 0004
 Module: src/core/setlist-playlist
