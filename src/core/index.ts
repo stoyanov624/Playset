@@ -54,3 +54,18 @@ export {
   type FetchLike,
   type SpotifyAuthDeps,
 } from "./spotify-auth/index.js";
+export {
+  DescriptionTooLongError,
+  NothingToAddError,
+  PartlyCreatedPlaylistError,
+  PlaylistRateLimitError,
+  SpotifyPlaylistError,
+  createSetlistPlaylist,
+  findPlaylistsNamed,
+  setlistPlaylistDescription,
+  setlistPlaylistName,
+  type CreateSetlistPlaylistOptions,
+  type CreatedSetlistPlaylist,
+  type ExistingPlaylist,
+  type SpotifyPlaylistOptions,
+} from "./setlist-playlist/index.js";

@@ -17,7 +17,7 @@ Later (not planned in Slices yet): a web or mobile front-end on the same core, w
 | 3 | Find the Match for one Performance (Cover fallback, studio preference, strict verification) | — |
 | 4 | Find the Latest Setlist by Artist name, with disambiguation | 2 |
 | 5 | Spotify login (PKCE) with a cached token | — |
-| 6 | Create the Setlist Playlist (name, description, privacy, duplicate warning) | 3, 5 |
+| 6 | Create the Setlist Playlist (name, description, privacy, duplicate warning) | 2, 3, 5 |
 | 7 | CLI wiring (preview, prompts, flags, Misses, share link) | 1, 2, 3, 4, 5, 6 |
 
 ## Waves (derived from the table)
