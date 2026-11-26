@@ -35,12 +35,17 @@ function performance(
   setLabel: string,
   isTape: boolean,
   originalArtist?: string,
+  medley?: string,
 ): Performance {
-  return originalArtist === undefined
-    ? { position, title, artist: ARTIST, setLabel, isTape }
-    : { position, title, artist: ARTIST, setLabel, isTape, originalArtist };
+  const p: Record<string, unknown> = { position, title, artist: ARTIST, setLabel, isTape };
+  if (originalArtist !== undefined) p.originalArtist = originalArtist;
+  if (medley !== undefined) p.medley = medley;
+  return p as unknown as Performance;
 }
 
+// Fixture A's expected Performances and noted songs follow PRD 0008 "Fixture A revisited":
+// "Teddy Picker / Crying Lightning" is split into two Performances and the info-only medley
+// "Cornerstone" is one Performance; both carry a medley name and are no longer noted.
 const fixtureAPerformances: Performance[] = [
   performance(1, "I Want It All", "main", true, "Queen"),
   performance(2, "Sculptures of Anything Goes", "main", false),
@@ -48,17 +53,18 @@ const fixtureAPerformances: Performance[] = [
   performance(4, "Don't Sit Down 'Cause I've Moved Your Chair", "main", false),
   performance(5, "505", "main", false),
   performance(6, "Mardy Bum", "Acoustic", false),
-  performance(7, "I Wanna Be Yours", "Encore 1", false),
-  performance(8, "505", "Encore 1", false),
-  performance(9, "Baby, I'm Yours", "Encore 1", false, "Barbara Lewis"),
-  performance(10, "R U Mine?", "Encore 2", false),
-  performance(11, "Mr. Blue Sky", "Encore 2", true, "Electric Light Orchestra"),
+  performance(7, "Teddy Picker", "Acoustic", false, undefined, "Teddy Picker / Crying Lightning"),
+  performance(8, "Crying Lightning", "Acoustic", false, undefined, "Teddy Picker / Crying Lightning"),
+  performance(9, "Cornerstone", "Acoustic", false, undefined, "Cornerstone"),
+  performance(10, "I Wanna Be Yours", "Encore 1", false),
+  performance(11, "505", "Encore 1", false),
+  performance(12, "Baby, I'm Yours", "Encore 1", false, "Barbara Lewis"),
+  performance(13, "R U Mine?", "Encore 2", false),
+  performance(14, "Mr. Blue Sky", "Encore 2", true, "Electric Light Orchestra"),
 ];
 
 const fixtureANoted: NotedSong[] = [
   { rawName: "Hey Jude", reason: "snippet", setLabel: "main", afterPosition: 3 },
-  { rawName: "Teddy Picker / Crying Lightning", reason: "medley", setLabel: "Acoustic", afterPosition: 6 },
-  { rawName: "Cornerstone", reason: "medley", setLabel: "Acoustic", afterPosition: 6 },
 ];
 
 function titles(result: PerformancesResult): string[] {
@@ -70,7 +76,7 @@ describe("toPerformances — Fixture A (full Show)", () => {
     const result = toPerformances(loadSetlist("fixture-a-full-show.json"));
 
     expect(titles(result)).toEqual(fixtureAPerformances.map((p) => p.title));
-    expect(result.performances.map((p) => p.position)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(result.performances.map((p) => p.position)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
   });
 
   it("AC-1: produces exactly the expected Performances for Fixture A", () => {
@@ -84,7 +90,7 @@ describe("toPerformances — Fixture A (full Show)", () => {
 
     expect(result.performances.map((p) => p.setLabel)).toEqual([
       "main", "main", "main", "main", "main",
-      "Acoustic",
+      "Acoustic", "Acoustic", "Acoustic", "Acoustic",
       "Encore 1", "Encore 1", "Encore 1",
       "Encore 2", "Encore 2",
     ]);
@@ -97,7 +103,7 @@ describe("toPerformances — Fixture A (full Show)", () => {
     expect(repeats).toHaveLength(2);
     expect(repeats.map((p) => [p.position, p.setLabel])).toEqual([
       [5, "main"],
-      [8, "Encore 1"],
+      [11, "Encore 1"],
     ]);
   });
 
@@ -112,6 +118,9 @@ describe("toPerformances — Fixture A (full Show)", () => {
       ["Don't Sit Down 'Cause I've Moved Your Chair", false],
       ["505", false],
       ["Mardy Bum", false],
+      ["Teddy Picker", false],
+      ["Crying Lightning", false],
+      ["Cornerstone", false],
       ["I Wanna Be Yours", false],
       ["505", false],
       ["Baby, I'm Yours", false],
@@ -132,9 +141,9 @@ describe("toPerformances — Fixture A (full Show)", () => {
     for (const p of result.performances) expect(p.artist).toBe(ARTIST);
     const byPosition = new Map(result.performances.map((p) => [p.position, p]));
     expect(byPosition.get(1)?.originalArtist).toBe("Queen");
-    expect(byPosition.get(9)?.originalArtist).toBe("Barbara Lewis");
-    expect(byPosition.get(11)?.originalArtist).toBe("Electric Light Orchestra");
-    for (const position of [2, 3, 4, 5, 6, 7, 8, 10]) {
+    expect(byPosition.get(12)?.originalArtist).toBe("Barbara Lewis");
+    expect(byPosition.get(14)?.originalArtist).toBe("Electric Light Orchestra");
+    for (const position of [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13]) {
       expect(byPosition.get(position)?.originalArtist).toBeUndefined();
     }
   });
@@ -153,9 +162,9 @@ describe("toPerformances — Fixture A (full Show)", () => {
     const result = toPerformances(loadSetlist("fixture-a-full-show.json"));
 
     expect(result.performances[2]?.title).toBe("Brianstorm");
-    expect(result.performances.map((p) => [p.position, p.title]).slice(5, 7)).toEqual([
-      [6, "Mardy Bum"],
-      [7, "I Wanna Be Yours"],
+    expect(result.performances.map((p) => [p.position, p.title]).slice(8, 10)).toEqual([
+      [9, "Cornerstone"],
+      [10, "I Wanna Be Yours"],
     ]);
     expect(result.noted.map((n) => n.rawName)).not.toContain("   ");
     expect(result.noted.some((n) => n.rawName.trim() === "")).toBe(false);
@@ -173,15 +182,8 @@ describe("toPerformances — Fixture A (full Show)", () => {
     });
   });
 
-  it("AC-10: a ' / ' name or 'medley' info is noted once as a medley with its full raw name, not split", () => {
-    const result = toPerformances(loadSetlist("fixture-a-full-show.json"));
-
-    for (const t of ["Teddy Picker", "Crying Lightning", "Teddy Picker / Crying Lightning", "Cornerstone"]) {
-      expect(titles(result)).not.toContain(t);
-    }
-    const medleys = result.noted.filter((n) => n.reason === "medley");
-    expect(medleys.map((n) => n.rawName)).toEqual(["Teddy Picker / Crying Lightning", "Cornerstone"]);
-  });
+  // PRD 0002 AC-10 (medleys are noted, not split) is superseded in full by PRD 0008
+  // AC-1, AC-2, AC-3, AC-6 and AC-7; see test/performances/medley-split.test.ts.
 
   it("AC-11: noted songs record raw name, reason, Set label and the position they were played after, in played order", () => {
     const result = toPerformances(loadSetlist("fixture-a-full-show.json"));
@@ -262,31 +264,21 @@ describe("toPerformances — Fixture C (snippet wording and teases)", () => {
   });
 });
 
+// Fixture D's expected result follows PRD 0008 "Fixture D revisited". PRD 0002 AC-10 is
+// superseded (see medley-split.test.ts) and AC-11 is amended: "snippet" is the only reason.
 describe("toPerformances — Fixture D (medleys and snippet precedence)", () => {
-  it("AC-10: 'medley' info in any letter case marks a medley; a tape with ' / ' is still a medley", () => {
-    const result = toPerformances(loadSetlist("fixture-d-medleys.json"));
-
-    expect(result.performances).toEqual([performance(1, "Even Flow", "main", false)]);
-    expect(result.noted.filter((n) => n.reason === "medley").map((n) => n.rawName)).toEqual([
-      "Rockin' in the Free World",
-      "Intro / Release",
-    ]);
-  });
-
-  it("AC-11: a song that is both a snippet and a medley is noted once as 'snippet'; tapes are noted too", () => {
+  it("AC-11: a snippet with a ' / ' name is noted once, as 'snippet', with its raw name; medleys are not noted", () => {
     const result = toPerformances(loadSetlist("fixture-d-medleys.json"));
 
     expect(result.noted).toEqual([
-      { rawName: "Rockin' in the Free World", reason: "medley", setLabel: "main", afterPosition: 1 },
-      { rawName: "Kashmir / Whole Lotta Love", reason: "snippet", setLabel: "main", afterPosition: 1 },
-      { rawName: "Intro / Release", reason: "medley", setLabel: "main", afterPosition: 1 },
+      { rawName: "Kashmir / Whole Lotta Love", reason: "snippet", setLabel: "main", afterPosition: 2 },
     ]);
   });
 
-  it("AC-5: a noted tape is not a Tape Performance, so the Tape list is empty", () => {
+  it("AC-5: a split Tape medley gives Tape parts, so the Tape list holds each part's title", () => {
     const result = toPerformances(loadSetlist("fixture-d-medleys.json"));
 
-    expect(listTapes(result.performances)).toEqual([]);
+    expect(listTapes(result.performances)).toEqual(["Intro", "Release"]);
   });
 });
 

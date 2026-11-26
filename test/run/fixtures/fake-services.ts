@@ -67,6 +67,10 @@ export const fixtureR: Record<string, MatchSpec> = {
     "Arctic Monkeys",
     "Whatever People Say I Am, That's What I'm Not",
   ),
+  // PRD 0008 P2 — Fixture R extended with the parts of Fixture A's medleys
+  "Teddy Picker": match("0BxE4FqsDD1Ot4YuBXwAPp", "Teddy Picker", "Arctic Monkeys", "Favourite Worst Nightmare"),
+  "Crying Lightning": match("4nDOavRzjNNwUcCkhnLkBX", "Crying Lightning", "Arctic Monkeys", "Humbug"),
+  Cornerstone: match("5bdQGzFFHSKZtIkwfP8BaN", "Cornerstone", "Arctic Monkeys", "Humbug"),
   "I Wanna Be Yours": match("5FVd6KXrgO9B3JPmC8OPst", "I Wanna Be Yours", "Arctic Monkeys", "AM"),
   "Baby, I'm Yours": "miss",
   "R U Mine?": match("2Hp4ZMWJ4D3ACvhzF6S0fM", "R U Mine?", "Arctic Monkeys", "AM"),
@@ -79,13 +83,52 @@ export const fixtureR: Record<string, MatchSpec> = {
   "Déjà Vu": match("6sVQNUvcVFTXvlk3ec0ngd", "Déjà Vu (feat. Jay-Z)", ["Beyoncé", "JAY-Z"], "B'Day Deluxe Edition"),
 };
 
+/** PRD 0008 P1 — Spotify search outcomes for Fixture M (Pearl Jam medleys), by Performance title. */
+export const fixtureMOutcomes: Record<string, MatchSpec> = {
+  "Interstellar Overdrive": match("1o4Bkk7FAfpVCGzk6V6Pqd", "Interstellar Overdrive", "Pink Floyd", "The Piper at the Gates of Dawn"),
+  Release: match("4xGvbS8NnKtwKw5CXGkmA9", "Release", "Pearl Jam", "Ten"),
+  Daughter: match("6rSFzV1CKBFnZ1EaPvcGSh", "Daughter", "Pearl Jam", "Vs."),
+  "W.M.A.": match("0nO8qkPBSuhoN9IzxXK3Gq", "W.M.A.", "Pearl Jam", "Vs."),
+  "Even Flow": match("2pN3kBT1hYiA4bBydDMYv4", "Even Flow", "Pearl Jam", "Ten"),
+  Alive: match("3VbM2t6DQHmPWdbTvKrNKz", "Alive", "Pearl Jam", "Ten"),
+  Black: match("5Xak5fmy089t0FYmh3VJiY", "Black", "Pearl Jam", "Ten"),
+  Jeremy: match("2ChmZaZVGhCSzzCV8Q1g8X", "Jeremy", "Pearl Jam", "Ten"),
+  "Love/Hate": "miss",
+  "Baba O'Riley": match("3qiyyUfYe7CRYLucrPmulD", "Baba O'Riley", "The Who", "Who's Next"),
+  "Won't Get Fooled Again": match("2c8Rv4kUW6SLZqVHG4Kc4d", "Won't Get Fooled Again", "The Who", "Who's Next"),
+  Porch: match("1mT0w6Zm9qJ0xBJiu2rWbV", "Porch", "Pearl Jam", "Ten"),
+  "Yellow Ledbetter": match(
+    "3Tz9GjB1xNnRdC3jGcvTBn",
+    "Yellow Ledbetter",
+    "Pearl Jam",
+    "rearviewmirror (Greatest Hits 1991-2003)",
+  ),
+};
+
+/** The 13 Match URIs of P1 (kept #1–#8, #10–#14), in played order. */
+export const P1_URIS = [
+  "spotify:track:1o4Bkk7FAfpVCGzk6V6Pqd",
+  "spotify:track:4xGvbS8NnKtwKw5CXGkmA9",
+  "spotify:track:6rSFzV1CKBFnZ1EaPvcGSh",
+  "spotify:track:0nO8qkPBSuhoN9IzxXK3Gq",
+  "spotify:track:2pN3kBT1hYiA4bBydDMYv4",
+  "spotify:track:3VbM2t6DQHmPWdbTvKrNKz",
+  "spotify:track:5Xak5fmy089t0FYmh3VJiY",
+  "spotify:track:2ChmZaZVGhCSzzCV8Q1g8X",
+  "spotify:track:3qiyyUfYe7CRYLucrPmulD",
+  "spotify:track:2c8Rv4kUW6SLZqVHG4Kc4d",
+  "spotify:track:5Xak5fmy089t0FYmh3VJiY",
+  "spotify:track:1mT0w6Zm9qJ0xBJiu2rWbV",
+  "spotify:track:3Tz9GjB1xNnRdC3jGcvTBn",
+];
+
 /** E13 — "Baby, I'm Yours" matched through Barbara Lewis instead of a Miss. */
 export const fixtureRWithoutMisses: Record<string, MatchSpec> = {
   ...fixtureR,
   "Baby, I'm Yours": match("3Ck5mGvUo8rQ8dYQcL9w1R", "Baby, I'm Yours", "Barbara Lewis", "Baby, I'm Yours"),
 };
 
-/** The 9 Match URIs of T1, in played order. */
+/** The 12 Match URIs of T1 (PRD 0008 P2), in played order. */
 export const T1_URIS = [
   "spotify:track:1d6ZfnbHbkHb1Gcz6Dcfbl",
   "spotify:track:4LRPiXqCikLlN15c3yImP7",
@@ -93,6 +136,9 @@ export const T1_URIS = [
   "spotify:track:6Lq8ZB8b9zJ3oDTTpSPRfV",
   "spotify:track:2x8evxqUlF0eRabbW2JBJd",
   "spotify:track:0kqA4Fm1Jj6GdW4Ws9bNXa",
+  "spotify:track:0BxE4FqsDD1Ot4YuBXwAPp",
+  "spotify:track:4nDOavRzjNNwUcCkhnLkBX",
+  "spotify:track:5bdQGzFFHSKZtIkwfP8BaN",
   "spotify:track:5FVd6KXrgO9B3JPmC8OPst",
   "spotify:track:2x8evxqUlF0eRabbW2JBJd",
   "spotify:track:2Hp4ZMWJ4D3ACvhzF6S0fM",
