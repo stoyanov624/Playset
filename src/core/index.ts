@@ -19,3 +19,14 @@ export {
   type SetlistFmSong,
   type Show,
 } from "./performances/index.js";
+export {
+  createSpotifyTrackSearch,
+  matchPerformance,
+  type Match,
+  type MatchablePerformance,
+  type MatchOutcome,
+  type Miss,
+  type SpotifyTrack,
+  type SpotifyTrackSearchOptions,
+  type TrackSearch,
+} from "./matching/index.js";
