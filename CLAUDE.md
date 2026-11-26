@@ -17,7 +17,7 @@ CLI (`playset`) that turns a setlist.fm Setlist into a Spotify Setlist Playlist.
 ## Product rules (agreed)
 - Input: setlist.fm URL (id = trailing hex before `.html`) or Artist name → Latest Setlist (skip empty placeholders). Ambiguous Artist name → ask user to pick.
 - Every Performance in played order, Encores included; a song played twice appears twice.
-- Tapes: list by name, ask per Tape; `--tapes` / `--no-tapes` skip prompting. Snippets/teasers excluded. Guest ("with") ignored. Medleys split best-effort.
+- Tapes: list by name, ask per Tape; `--tapes` / `--no-tapes` skip prompting. Guest ("with") ignored. Snippets/teasers (info contains "snippet" or starts with "tease"; "with X tease" is a full song) and medleys (name has " / " or info says medley) are noted, never become Performances and are not added to the playlist; medleys are not split.
 - Match: strict normalised artist + title; prefer studio, live only as fallback. Cover → Artist's version first, then Original Artist. Otherwise Miss; list Misses at end.
 - Preview Performance → Match before creating; confirm (skip with `--yes`). Warn if a playlist with the same name exists.
 - New playlist per run, named `Artist – YYYY-MM-DD – City`, private by default (`--public` flag), description includes the setlist.fm URL (attribution required). Always print the share link.

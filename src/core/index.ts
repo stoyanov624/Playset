@@ -7,3 +7,15 @@ export {
   readSetlistId,
   type SetlistLinkErrorReason,
 } from "./setlist-link/index.js";
+export {
+  listTapes,
+  toPerformances,
+  type NotedReason,
+  type NotedSong,
+  type Performance,
+  type PerformancesResult,
+  type SetlistFmSet,
+  type SetlistFmSetlist,
+  type SetlistFmSong,
+  type Show,
+} from "./performances/index.js";

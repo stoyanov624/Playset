@@ -1,6 +1,6 @@
 # PRD 0002 — Turn a Setlist into Performances
 
-Status: Approved
+Status: Implemented
 Slice: 2
 Depends on: none
 Module: src/core/performances
