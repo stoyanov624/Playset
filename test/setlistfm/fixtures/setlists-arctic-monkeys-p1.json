@@ -1,0 +1,35 @@
+{
+  "type": "setlists",
+  "itemsPerPage": 20,
+  "page": 1,
+  "total": 1047,
+  "setlist": [
+    {
+      "id": "1bd2f5a8",
+      "eventDate": "14-03-2027",
+      "artist": { "mbid": "ada7a83c-e3e1-40f1-93f9-3e73dbfd2c7c", "name": "Arctic Monkeys" },
+      "venue": { "id": "4bd6e3a2", "name": "Mercedes-Benz Arena",
+        "city": { "id": "2950159", "name": "Berlin", "country": { "code": "DE", "name": "Germany" } } },
+      "url": "https://www.setlist.fm/setlist/arctic-monkeys/2027/mercedes-benz-arena-berlin-germany-1bd2f5a8.html",
+      "sets": { "set": [] }
+    },
+    {
+      "id": "3bd2e1c4",
+      "eventDate": "30-08-2025",
+      "artist": { "mbid": "ada7a83c-e3e1-40f1-93f9-3e73dbfd2c7c", "name": "Arctic Monkeys" },
+      "venue": { "id": "2bd6c8b6", "name": "Main Stage",
+        "city": { "id": "2643743", "name": "London", "country": { "code": "GB", "name": "United Kingdom" } } },
+      "url": "https://www.setlist.fm/setlist/arctic-monkeys/2025/main-stage-london-england-3bd2e1c4.html",
+      "sets": { "set": [ { "song": [ { "name": "Hey Jude", "info": "snippet" } ] } ] }
+    },
+    {
+      "id": "63a5e2b7",
+      "eventDate": "23-08-2025",
+      "artist": { "mbid": "ada7a83c-e3e1-40f1-93f9-3e73dbfd2c7c", "name": "Arctic Monkeys" },
+      "venue": { "id": "6bd6ca6e", "name": "Ziggo Dome",
+        "city": { "id": "2759794", "name": "Amsterdam", "country": { "code": "NL", "name": "Netherlands" } } },
+      "url": "https://www.setlist.fm/setlist/arctic-monkeys/2025/ziggo-dome-amsterdam-netherlands-63a5e2b7.html",
+      "sets": { "set": [ { "song": [ { "name": "Sculptures of Anything Goes" }, { "name": "Brianstorm" } ] } ] }
+    }
+  ]
+}

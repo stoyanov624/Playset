@@ -1,0 +1,22 @@
+{
+  "type": "artists",
+  "itemsPerPage": 30,
+  "page": 1,
+  "total": 14,
+  "artist": [
+    { "mbid": "5dcdb5eb-cb72-4e6e-9e63-b7bace604965", "name": "Bon Jovi", "sortName": "Bon Jovi", "disambiguation": "", "url": "https://www.setlist.fm/setlists/bon-jovi-1bd6bd58.html" },
+    { "mbid": "c3aeb863-7b26-4388-94e8-5a240f2be21b", "name": "Bon Iver", "sortName": "Bon Iver", "url": "https://www.setlist.fm/setlists/bon-iver-6bd6ca8a.html" },
+    { "mbid": "0d4f6b3a-1c2e-4b5d-8e7f-9a0b1c2d3e01", "name": "Bon Entendeur", "sortName": "Bon Entendeur", "disambiguation": "French electronic collective", "url": "https://www.setlist.fm/setlists/bon-entendeur-1bd0a1a1.html" },
+    { "mbid": "0d4f6b3a-1c2e-4b5d-8e7f-9a0b1c2d3e02", "name": "Bon Scott", "sortName": "Scott, Bon", "url": "https://www.setlist.fm/setlists/bon-scott-1bd0a1a2.html" },
+    { "mbid": "0d4f6b3a-1c2e-4b5d-8e7f-9a0b1c2d3e03", "name": "Bonobo", "sortName": "Bonobo", "disambiguation": "UK electronic musician Simon Green", "url": "https://www.setlist.fm/setlists/bonobo-1bd0a1a3.html" },
+    { "mbid": "0d4f6b3a-1c2e-4b5d-8e7f-9a0b1c2d3e04", "name": "Bonnie Raitt", "sortName": "Raitt, Bonnie", "url": "https://www.setlist.fm/setlists/bonnie-raitt-1bd0a1a4.html" },
+    { "mbid": "0d4f6b3a-1c2e-4b5d-8e7f-9a0b1c2d3e05", "name": "Bon Voyage", "sortName": "Bon Voyage", "url": "https://www.setlist.fm/setlists/bon-voyage-1bd0a1a5.html" },
+    { "mbid": "0d4f6b3a-1c2e-4b5d-8e7f-9a0b1c2d3e06", "name": "Bonnie Tyler", "sortName": "Tyler, Bonnie", "url": "https://www.setlist.fm/setlists/bonnie-tyler-1bd0a1a6.html" },
+    { "mbid": "0d4f6b3a-1c2e-4b5d-8e7f-9a0b1c2d3e07", "name": "Bon Homme", "sortName": "Bon Homme", "url": "https://www.setlist.fm/setlists/bon-homme-1bd0a1a7.html" },
+    { "mbid": "0d4f6b3a-1c2e-4b5d-8e7f-9a0b1c2d3e08", "name": "Bon Garçon", "sortName": "Bon Garçon", "disambiguation": "Belgian band", "url": "https://www.setlist.fm/setlists/bon-garcon-1bd0a1a8.html" },
+    { "mbid": "0d4f6b3a-1c2e-4b5d-8e7f-9a0b1c2d3e09", "name": "Bonfire", "sortName": "Bonfire", "url": "https://www.setlist.fm/setlists/bonfire-1bd0a1a9.html" },
+    { "mbid": "0d4f6b3a-1c2e-4b5d-8e7f-9a0b1c2d3e10", "name": "Bon Hiver", "sortName": "Bon Hiver", "url": "https://www.setlist.fm/setlists/bon-hiver-1bd0a1b0.html" },
+    { "mbid": "0d4f6b3a-1c2e-4b5d-8e7f-9a0b1c2d3e11", "name": "Bonny Light Horseman", "sortName": "Bonny Light Horseman", "url": "https://www.setlist.fm/setlists/bonny-light-horseman-1bd0a1b1.html" },
+    { "mbid": "0d4f6b3a-1c2e-4b5d-8e7f-9a0b1c2d3e12", "name": "Bonaparte", "sortName": "Bonaparte", "url": "https://www.setlist.fm/setlists/bonaparte-1bd0a1b2.html" }
+  ]
+}

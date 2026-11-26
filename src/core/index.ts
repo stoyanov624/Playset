@@ -69,3 +69,19 @@ export {
   type ExistingPlaylist,
   type SpotifyPlaylistOptions,
 } from "./setlist-playlist/index.js";
+export {
+  ArtistChoiceCancelledError,
+  ArtistNotFoundError,
+  MissingSetlistFmApiKeyError,
+  NoSetlistError,
+  SetlistFmRateLimitError,
+  SetlistFmRequestError,
+  SetlistNotFoundError,
+  artistNamesMatch,
+  createSetlistFmClient,
+  resolveSetlistFmApiKey,
+  type ArtistCandidate,
+  type ArtistChooser,
+  type SetlistFmClient,
+  type SetlistFmClientDeps,
+} from "./setlistfm/index.js";

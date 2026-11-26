@@ -1,0 +1,14 @@
+{
+  "type": "artists",
+  "itemsPerPage": 30,
+  "page": 1,
+  "total": 3,
+  "artist": [
+    { "mbid": "ada7a83c-e3e1-40f1-93f9-3e73dbfd2c7c", "name": "Arctic Monkeys", "sortName": "Arctic Monkeys",
+      "disambiguation": "", "url": "https://www.setlist.fm/setlists/arctic-monkeys-63d6a6b7.html" },
+    { "mbid": "5b0c1a4e-2f0e-4f1a-9a77-1d2b3c4d5e6f", "name": "Arctic Monkeys Tribute", "sortName": "Arctic Monkeys Tribute",
+      "url": "https://www.setlist.fm/setlists/arctic-monkeys-tribute-2bd6b4a2.html" },
+    { "mbid": "7c1e2d3f-4a5b-4c6d-8e9f-0a1b2c3d4e5f", "name": "The Arctic Monkeys Experience", "sortName": "Arctic Monkeys Experience, The",
+      "url": "https://www.setlist.fm/setlists/the-arctic-monkeys-experience-1bd6b4a6.html" }
+  ]
+}
