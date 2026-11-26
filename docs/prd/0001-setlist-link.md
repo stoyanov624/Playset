@@ -1,6 +1,6 @@
 # PRD 0001 — Read the setlist id from a setlist.fm link
 
-Status: Approved
+Status: Implemented
 Slice: 1
 Depends on: none
 Module: src/core/setlist-link
