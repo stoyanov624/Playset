@@ -1,8 +1,8 @@
 // Normalising names and titles so that a search result can be strictly verified
-// against a Performance (PRD 0003, AC-3, AC-4, AC-8).
+// against a Performance (PRD 0003 AC-3, AC-4, AC-8; PRD 0010 AC-7).
 
 /**
- * Case-folds, removes accents and diacritics, turns `&` into `and`, deletes apostrophes,
+ * Case-folds, removes accents and diacritics, turns every `&` and `+` into ` and `, deletes apostrophes,
  * replaces every other punctuation character with a space, collapses whitespace and trims.
  */
 export function normaliseName(name: string): string {
@@ -10,7 +10,7 @@ export function normaliseName(name: string): string {
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
     .toLowerCase()
-    .replace(/&/g, " and ")
+    .replace(/[&+]/g, " and ")
     .replace(/['’]/g, "")
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")

@@ -1,6 +1,6 @@
 # PRD 0010 — "+" is part of a title, not a medley separator; match "+" like "&"
 
-Status: Approved
+Status: Implemented
 Slice: 10
 Depends on: 0003, 0008
 Module: src/core/performances (medley splitting) and src/core/matching (normalisation and searches)
