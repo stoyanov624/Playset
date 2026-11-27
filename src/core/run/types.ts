@@ -47,8 +47,14 @@ export interface RunServices {
   createSetlistPlaylist(
     show: Show,
     matches: Match[],
-    options: { accessToken: string; public: boolean },
+    options: CreateSetlistPlaylistOptions,
   ): Promise<CreatedPlaylist>;
+}
+
+/** How the Setlist Playlist is created: in the logged-in account, private unless `public`. */
+export interface CreateSetlistPlaylistOptions {
+  accessToken: string;
+  public: boolean;
 }
 
 /**

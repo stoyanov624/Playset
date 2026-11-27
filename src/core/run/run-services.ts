@@ -1,5 +1,6 @@
-// The real RunServices (plus the Artist search and Setlist pages for picking a Show): the setlist.fm client, the Spotify login, the Match search, the duplicate check and
-// the creation, wired from injected fetch / sleep / clock / settings / callback receiver for any front-end.
+// The real RunServices (plus the Artist search and Setlist pages for picking a Show): the setlist.fm
+// client, the Spotify login, the Match search, the duplicate check and the creation, wired from injected
+// fetch / sleep / clock / settings / callback receiver for any front-end.
 import { defaultSleep, type FetchLike, type Sleep } from "../http/index.js";
 import { createSpotifyTrackSearch, matchPerformance } from "../matching/index.js";
 import type { Env, SettingsStore } from "../settings/index.js";
@@ -91,6 +92,7 @@ export function createRunServices(deps: RunServicesDeps): RunServices & SetlistB
     findMatch: (performance, accessToken) =>
       matchPerformance(performance, createSpotifyTrackSearch({ accessToken, fetch, sleep })),
     findPlaylistsNamed: (name, accessToken) => findPlaylistsNamed(name, { accessToken, fetch, sleep }),
-    createSetlistPlaylist: (show, matches, options) => createSetlistPlaylist(show, matches, { ...options, fetch, sleep }),
+    createSetlistPlaylist: (show, matches, options) =>
+      createSetlistPlaylist(show, matches, { ...options, fetch, sleep }),
   };
 }

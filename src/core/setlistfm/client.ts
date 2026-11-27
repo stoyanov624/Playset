@@ -142,9 +142,9 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
 
   async function get<T>(path: string, params: Record<string, string> = {}): Promise<GetResult<T>> {
     const key = await apiKey();
-    // Percent-encoding throughout (a space is %20, not "+"), as setlist.fm's own documentation writes queries.
+    // A space in an Artist name is sent as %20, the way setlist.fm's own documentation writes queries.
     const query = Object.entries(params)
-      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .map(([name, value]) => `${encodeURIComponent(name)}=${encodeURIComponent(value)}`)
       .join("&");
     const url = `${API_BASE}${path}${query ? `?${query}` : ""}`;
 

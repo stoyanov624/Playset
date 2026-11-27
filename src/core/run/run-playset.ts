@@ -9,6 +9,7 @@ import { guardRun } from "./cancellation.js";
 import { RunCancelledError, RunInputError } from "./errors.js";
 import { createSetlistPlaylist, findLatestSetlist, getSetlist, prepareSetlist, previewMatches } from "./steps.js";
 import type {
+  PreparedSetlist,
   Preview,
   RunFrontEnd,
   RunOptions,
@@ -29,11 +30,7 @@ export async function runPlayset({ input, options, frontEnd, services, signal }:
   if (signal === undefined) return run(input.trim(), options, frontEnd, services, undefined);
 
   const guard = guardRun(signal, frontEnd, services);
-  try {
-    return await run(input.trim(), options, guard.frontEnd, guard.services, signal);
-  } finally {
-    guard.release();
-  }
+  return run(input.trim(), options, guard.frontEnd, guard.services, signal);
 }
 
 /** A blank input, or a setlist.fm link together with other words, cannot be used. */
@@ -58,8 +55,8 @@ async function run(
   frontEnd.showShow(showSummaryOf(latest));
 
   const inUse = await setlistInUse(setlist, latest, completeAlternative, frontEnd);
-  const prepared = await prepareSetlist(inUse.setlist, { keepTape: (tape) => keepTape(tape, options, frontEnd) });
-  if (inUse.performances.length === 0) return { kind: "no-performances" };
+  const prepared = await prepareSetlist(inUse, { keepTape: (tape) => keepTape(tape, options, frontEnd) });
+  if (!hasPerformances(prepared)) return { kind: "no-performances" };
   const { show, keptPerformances, notAdded, incompleteStatus } = prepared;
   if (keptPerformances.length === 0) return { kind: "nothing-to-add" };
 
@@ -68,6 +65,7 @@ async function run(
     signal,
   });
 
+  // No signal here: the guarded services already end the run on an abort.
   const { rows, matches, misses, playlistName } = await previewMatches(services, prepared, accessToken, {
     onProgress: (progress) => frontEnd.showProgress(progress),
   });
@@ -113,13 +111,17 @@ async function setlistInUse(
   latest: PerformancesResult,
   completeAlternative: SetlistFmSetlist | null,
   frontEnd: RunFrontEnd,
-): Promise<{ setlist: SetlistFmSetlist; performances: readonly Performance[] }> {
-  const fetched = { setlist, performances: latest.performances };
-  if (completeAlternative === null || !latest.incompleteStatus.isIncomplete) return fetched;
+): Promise<SetlistFmSetlist> {
+  if (completeAlternative === null || !latest.incompleteStatus.isIncomplete) return setlist;
   const complete = toPerformances(completeAlternative);
-  if (!(await frontEnd.askUseCompleteSetlist({ latest: latest.show, complete: complete.show }))) return fetched;
+  if (!(await frontEnd.askUseCompleteSetlist({ latest: latest.show, complete: complete.show }))) return setlist;
   frontEnd.showShow(showSummaryOf(complete));
-  return { setlist: completeAlternative, performances: complete.performances };
+  return completeAlternative;
+}
+
+/** Every Performance is either kept or a left-out Tape; with neither, the Setlist had none. */
+function hasPerformances({ keptPerformances, notAdded }: PreparedSetlist): boolean {
+  return keptPerformances.length > 0 || notAdded.some((item) => item.reason === "tape");
 }
 
 /**

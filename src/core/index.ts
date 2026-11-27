@@ -16,6 +16,7 @@ export {
   previewMatches,
   runPlayset,
   type CompleteSetlistOffer,
+  type CreateSetlistPlaylistOptions,
   type CreatedPlaylist,
   type MatchPreview,
   type MatchProgress,

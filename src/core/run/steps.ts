@@ -15,8 +15,10 @@ import type {
   LatestSetlistLookup,
   LatestSetlistOptions,
 } from "../setlistfm/index.js";
-import { InvalidSetlistPageError, RunCancelledError } from "./errors.js";
+import { throwIfCancelled, unlessCancelled } from "./cancellation.js";
+import { InvalidSetlistPageError } from "./errors.js";
 import type {
+  CreateSetlistPlaylistOptions,
   CreatedPlaylist,
   MatchPreview,
   NotAdded,
@@ -137,28 +139,9 @@ export function createSetlistPlaylist(
   services: Pick<RunServices, "createSetlistPlaylist">,
   show: Show,
   matches: Match[],
-  options: { accessToken: string; public: boolean },
+  options: CreateSetlistPlaylistOptions,
 ): Promise<CreatedPlaylist> {
-  return services.createSetlistPlaylist(show, matches, { accessToken: options.accessToken, public: options.public });
-}
-
-function throwIfCancelled(signal: AbortSignal | undefined): void {
-  if (signal?.aborted) throw new RunCancelledError();
-}
-
-/** The call's answer, unless the signal aborts first: then the step ends at once and the answer is ignored. */
-async function unlessCancelled<T>(signal: AbortSignal | undefined, call: () => Promise<T>): Promise<T> {
-  if (signal === undefined) return call();
-  let onAbort: () => void = () => {};
-  const aborted = new Promise<never>((_, reject) => {
-    onAbort = () => reject(new RunCancelledError());
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
-  try {
-    return await Promise.race([call(), aborted]);
-  } finally {
-    signal.removeEventListener("abort", onAbort);
-  }
+  return services.createSetlistPlaylist(show, matches, options);
 }
 
 /**

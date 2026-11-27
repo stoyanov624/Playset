@@ -14,6 +14,7 @@ export { InvalidSetlistPageError, RunCancelledError, RunInputError } from "./err
 export { createRunServices, type RunServicesDeps } from "./run-services.js";
 export type {
   CompleteSetlistOffer,
+  CreateSetlistPlaylistOptions,
   CreatedPlaylist,
   MatchPreview,
   MatchProgress,
