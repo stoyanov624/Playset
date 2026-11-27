@@ -1,6 +1,7 @@
-// PRD 0012 — the prepare step (AC-11 to AC-14): a Setlist and a keep-Tape decision in; the Show,
-// the kept Performances, the not-added list and the incomplete status out. No services, no request.
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+// The prepare step (AC-11 to AC-14): a Setlist and a keep-Tape decision in; the Show, the kept
+// Performances, the not-added list and the incomplete status out. It takes no services, so it can
+// make no request.
+import { describe, expect, it, vi } from "vitest";
 import { toPerformances, type Performance, type SetlistFmSetlist } from "../../src/core/performances";
 import { DescriptionTooLongError } from "../../src/core/setlist-playlist";
 import { prepareSetlist, runPlayset } from "../../src/core/run/index.js";
@@ -10,8 +11,10 @@ import {
   NIRVANA_KEPT_TITLES,
   nirvanaShow,
   nirvanaTacoma,
+  pearlJamPortland,
   portlandOnlyUnknownSongs,
   portlandShow,
+  withSongs,
 } from "./fixtures/incomplete-setlists";
 import {
   FIXTURE_A_URL,
@@ -67,7 +70,7 @@ function madridSetlist(): SetlistFmSetlist {
         { encore: 1, song: [{ name: "505", info: "with Miles Kane" }, { name: "Kashmir", info: "Tease" }] },
       ],
     },
-  } as unknown as SetlistFmSetlist;
+  } as SetlistFmSetlist;
 }
 
 // ---------------------------------------------------------------- AC-11, AC-12, AC-13: R1 on Fixture A
@@ -101,7 +104,7 @@ describe("prepareSetlist — Fixture A (R1)", () => {
     expect(prepared.incompleteStatus).toEqual(INCOMPLETE_1);
   });
 
-  it("AC-12, AC-13: keep \"I Want It All\", leave out \"Mr. Blue Sky\" → all but Mr. Blue Sky; not added as in PRD 0011 T2", async () => {
+  it("AC-12, AC-13: keep \"I Want It All\", leave out \"Mr. Blue Sky\" → all but Mr. Blue Sky; the Unknown Song stays after #9, Mr. Blue Sky is listed last", async () => {
     const d = decision([true, false]);
     const prepared = await prepareSetlist(fixtureA(), { keepTape: d.keepTape });
     expect(prepared.keptPerformances).toEqual(allPerformances(fixtureA()).filter((p) => p.title !== "Mr. Blue Sky"));
@@ -160,27 +163,52 @@ describe("prepareSetlist — Fixture A (R1)", () => {
     expect(prepared.notAdded[0]).toEqual({ name: "Astronomy Domine", reason: "tape" });
   });
 
-  it("AC-13: the not-added list is the one runPlayset puts in its preview for the same Setlist and Tape answers", async () => {
-    for (const answers of [
-      [true, false],
-      [false, false],
-      [true, true],
-    ]) {
-      const events: string[] = [];
-      const fake = makeFakeServices({ setlist: fixtureA(), duplicates: [] }, events);
-      const ui = makeFakeFrontEnd({ tapeAnswers: answers, confirm: true }, events);
-      await runPlayset({
-        input: FIXTURE_A_URL,
-        options: { tapes: "ask", confirm: "ask", public: false, dryRun: true },
-        frontEnd: ui.frontEnd,
-        services: fake.services,
-      });
-      const prepared = await prepareSetlist(fixtureA(), { keepTape: decision(answers).keepTape });
-      expect(prepared.notAdded).toEqual(ui.record.previews[0].notAdded);
-      expect(prepared.keptPerformances.map((p: Performance) => p.title)).toEqual(
-        ui.record.previews[0].rows.map((r: { performance: Performance }) => r.performance.title),
-      );
-    }
+  it.each([
+    { label: "keep the first Tape, leave out the second", answers: [true, false] },
+    { label: "leave out every Tape", answers: [false, false] },
+    { label: "keep every Tape", answers: [true, true] },
+  ])("AC-13: $label → the not-added list and kept Performances are the ones runPlayset puts in its preview", async ({ answers }) => {
+    const events: string[] = [];
+    const fake = makeFakeServices({ setlist: fixtureA(), duplicates: [] }, events);
+    const ui = makeFakeFrontEnd({ tapeAnswers: answers, confirm: true }, events);
+    await runPlayset({
+      input: FIXTURE_A_URL,
+      options: { tapes: "ask", confirm: "ask", public: false, dryRun: true },
+      frontEnd: ui.frontEnd,
+      services: fake.services,
+    });
+    const prepared = await prepareSetlist(fixtureA(), { keepTape: decision(answers).keepTape });
+    expect(prepared.notAdded).toEqual(ui.record.previews[0].notAdded);
+    expect(prepared.keptPerformances).toEqual(
+      ui.record.previews[0].rows.map((r: { performance: Performance }) => r.performance),
+    );
+  });
+
+  it("AC-12: a decision failing on the second Tape passes on its error unchanged; the first Tape was asked, nothing more", async () => {
+    const cancelled = new ExitPromptError();
+    const d = decision([true, { throws: cancelled }]);
+    const err = await prepareSetlist(fixtureA(), { keepTape: d.keepTape }).then(
+      () => "resolved",
+      (e: unknown) => e,
+    );
+    expect(err).toBe(cancelled);
+    expect(d.asked.map((p) => p.title)).toEqual(["I Want It All", "Mr. Blue Sky"]);
+    expect(d.keepTape).toHaveBeenCalledTimes(2);
+  });
+
+  it("AC-12: a decision that throws at once (not a rejected promise) is passed on as the step's rejection, unchanged", async () => {
+    const cancelled = new ExitPromptError();
+    let asked = 0;
+    const keepTape = (_tape: Performance): Promise<boolean> => {
+      asked++;
+      throw cancelled;
+    };
+    let preparing: Promise<unknown> | undefined;
+    expect(() => {
+      preparing = prepareSetlist(fixtureA(), { keepTape });
+    }).not.toThrow();
+    await expect(preparing).rejects.toBe(cancelled);
+    expect(asked).toBe(1);
   });
 });
 
@@ -264,25 +292,111 @@ describe("prepareSetlist — other Setlists (R1)", () => {
   });
 });
 
-// ---------------------------------------------------------------- AC-11: no request
+// ---------------------------------------------------------------- AC-13: several not-added songs at one place
 
-describe("prepareSetlist — no request", () => {
-  const original = globalThis.fetch;
-  let fetches = 0;
-  beforeEach(() => {
-    fetches = 0;
-    globalThis.fetch = (async () => {
-      fetches++;
-      throw new Error("no network in tests");
-    }) as typeof fetch;
-  });
-  afterEach(() => {
-    globalThis.fetch = original;
+describe("prepareSetlist — snippets, left-out Tapes and Unknown Songs at the same place (played order)", () => {
+  it("AC-13: a left-out Tape, then a snippet, then an Unknown Song right after it → Tape, snippet, Unknown Song after #1", async () => {
+    const setlist = withSongs(pearlJamPortland(), [
+      { name: "Release" },
+      { name: "Master/Slave", tape: true },
+      { name: "Hey Jude", info: "snippet" },
+      { name: "" },
+      { name: "Alive" },
+    ]);
+    const prepared = await prepareSetlist(setlist, { keepTape: decision([false]).keepTape });
+    expect(prepared.keptPerformances.map((p: Performance) => p.title)).toEqual(["Release", "Alive"]);
+    expect(prepared.notAdded).toEqual([
+      { name: "Master/Slave", reason: "tape" },
+      { name: "Hey Jude", reason: "snippet" },
+      { reason: "unknown", after: 1 },
+    ]);
   });
 
-  it("AC-11: preparing a Setlist makes no request and takes no services", async () => {
-    const prepared = await prepareSetlist(fixtureA(), { keepTape: async () => true });
-    expect(prepared.keptPerformances).toHaveLength(14);
-    expect(fetches).toBe(0);
+  it("AC-13: a snippet and an Unknown Song before a left-out Tape at the start → snippet, Unknown Song at the start, then the Tape", async () => {
+    const setlist = withSongs(pearlJamPortland(), [
+      { name: "Hey Jude", info: "snippet" },
+      { name: "", info: "Opener" },
+      { name: "Master/Slave", tape: true },
+      { name: "Release" },
+    ]);
+    const prepared = await prepareSetlist(setlist, { keepTape: decision([false]).keepTape });
+    expect(prepared.keptPerformances.map((p: Performance) => p.title)).toEqual(["Release"]);
+    expect(prepared.notAdded).toEqual([
+      { name: "Hey Jude", reason: "snippet" },
+      { reason: "unknown", after: 0, info: "Opener" },
+      { name: "Master/Slave", reason: "tape" },
+    ]);
+  });
+
+  it("AC-13: an Unknown Song played before a snippet at the same place keeps its played order", async () => {
+    const setlist = withSongs(pearlJamPortland(), [
+      { name: "Release" },
+      { name: "" },
+      { name: "Hey Jude", info: "snippet" },
+      { name: "Master/Slave", tape: true },
+    ]);
+    const prepared = await prepareSetlist(setlist, { keepTape: decision([false]).keepTape });
+    expect(prepared.notAdded).toEqual([
+      { reason: "unknown", after: 1 },
+      { name: "Hey Jude", reason: "snippet" },
+      { name: "Master/Slave", reason: "tape" },
+    ]);
+  });
+
+  it("AC-13: both parts of a left-out Tape medley, then a snippet played after it → both parts, then the snippet", async () => {
+    const setlist = withSongs(pearlJamPortland(), [
+      { name: "Release" },
+      { name: "Interstellar Overdrive / Astronomy Domine", tape: true },
+      { name: "Kashmir", info: "Tease" },
+      { name: "Alive" },
+    ]);
+    const d = decision([false, false]);
+    const prepared = await prepareSetlist(setlist, { keepTape: d.keepTape });
+    expect(d.asked.map((p) => p.title)).toEqual(["Interstellar Overdrive", "Astronomy Domine"]);
+    expect(prepared.keptPerformances.map((p: Performance) => p.title)).toEqual(["Release", "Alive"]);
+    expect(prepared.notAdded).toEqual([
+      { name: "Interstellar Overdrive", reason: "tape" },
+      { name: "Astronomy Domine", reason: "tape" },
+      { name: "Kashmir", reason: "snippet" },
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------- AC-14: placeholder Setlists that have songs
+
+describe("prepareSetlist — placeholder Setlists whose songs are only snippets or Unknown Songs", () => {
+  it("AC-14: only snippets → no kept Performances, the snippets in the not-added list, complete; never asks", async () => {
+    const setlist = withSongs(pearlJamPortland(), [
+      { name: "Hey Jude", info: "snippet" },
+      { name: "Kashmir", info: "Tease" },
+    ]);
+    const d = decision([]);
+    const prepared = await prepareSetlist(setlist, { keepTape: d.keepTape });
+    expect(d.keepTape).not.toHaveBeenCalled();
+    expect(prepared.show).toEqual(portlandShow);
+    expect(prepared.keptPerformances).toEqual([]);
+    expect(prepared.notAdded).toEqual([
+      { name: "Hey Jude", reason: "snippet" },
+      { name: "Kashmir", reason: "snippet" },
+    ]);
+    expect(prepared.incompleteStatus).toEqual({ isIncomplete: false, unknownSongCount: 0 });
+  });
+
+  it("AC-14: snippets and an Unknown Song only → no kept Performances, all three not added in played order, incomplete with 1", async () => {
+    const setlist = withSongs(pearlJamPortland(), [
+      { name: "Hey Jude", info: "snippet" },
+      { name: "" },
+      { name: "Kashmir", info: "Tease" },
+    ]);
+    const d = decision([]);
+    const prepared = await prepareSetlist(setlist, { keepTape: d.keepTape });
+    expect(d.keepTape).not.toHaveBeenCalled();
+    expect(prepared.keptPerformances).toEqual([]);
+    expect(prepared.notAdded).toEqual([
+      { name: "Hey Jude", reason: "snippet" },
+      { reason: "unknown", after: 0 },
+      { name: "Kashmir", reason: "snippet" },
+    ]);
+    expect(prepared.incompleteStatus).toEqual({ isIncomplete: true, unknownSongCount: 1 });
   });
 });

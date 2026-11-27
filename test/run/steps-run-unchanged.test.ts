@@ -1,17 +1,33 @@
-// PRD 0012 — the steps with the run's services: the real services the core builds also search
-// Artists without a chooser and fetch one Setlist page (AC-1, AC-4); getSetlist and
-// findLatestSetlist need only their own service (AC-9, AC-10); and runPlayset still works with
-// services that have only today's services (AC-19 to AC-21). The rest of AC-19 to AC-21 is covered
-// by the existing run, CLI and shell suites, which must stay green and unchanged.
+// The steps with the run's services, and the run rebuilt on the steps:
+// - the real services the core builds also search Artists without a chooser and fetch one Setlist
+//   page (AC-1, AC-3, AC-4, AC-6);
+// - getSetlist and findLatestSetlist need only their own service and pass their inputs on exactly
+//   (AC-9, AC-10);
+// - runPlayset works with only today's services, keeps its cancellation and its errors (AC-19);
+// - the `playset` command prints, asks and exits exactly as before (AC-20). The transcripts below
+//   were captured from the code on main and are byte-for-byte what the command printed there.
+// The rest of AC-19 to AC-21 is the existing run, CLI and shell suites, unchanged and green.
 import { describe, expect, it } from "vitest";
+import { main } from "../../src/cli/main.js";
 import {
   createMemorySettingsStore,
   createRunServices,
   type ArtistCandidate,
+  type ArtistChooser,
+  type SetlistFmSetlist,
 } from "../../src/core/index.js";
-import { findArtists, findLatestSetlist, getSetlist, listSetlists, runPlayset } from "../../src/core/run/index.js";
-import { captureError } from "./fixtures/call-recorder";
-import { makeFakeFrontEnd, makeFakeServices } from "./fixtures/fake-services";
+import {
+  RunCancelledError,
+  findArtists,
+  findLatestSetlist,
+  getSetlist,
+  listSetlists,
+  runPlayset,
+  type RunServices,
+} from "../../src/core/run/index.js";
+import { makeFakeIo } from "../cli/fixtures/fake-io";
+import { captureError, deferred, flush, makeAbort, makeCallRecorder, within } from "./fixtures/call-recorder";
+import { CREATED_SHARE_URL, ExitPromptError, TOKEN, makeFakeFrontEnd, makeFakeServices } from "./fixtures/fake-services";
 import {
   PORTLAND_URIS,
   pearlJamOutcomes,
@@ -19,7 +35,8 @@ import {
   pearlJamVancouver,
   portlandShow,
 } from "./fixtures/incomplete-setlists";
-import { artistNotFoundError, missingSetlistFmApiKeyError } from "./fixtures/typed-errors";
+import { FIXTURE_A_URL } from "./fixtures/setlists";
+import { missingSetlistFmApiKeyError } from "./fixtures/typed-errors";
 import { NOW, SETLISTFM_API_KEY, json, makeFakeClock, makeRoutedFetch, type Route } from "./fixtures/real-service-fakes";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -42,7 +59,7 @@ function realServices(route: Route, apiKey: string | null = SETLISTFM_API_KEY) {
     startCallbackReceiver: async () => {
       throw new Error("no login expected");
     },
-  } as never);
+  });
   return { services, http };
 }
 
@@ -65,8 +82,13 @@ describe("the real services the core builds — the new setlist.fm services", ()
       { name: "Pearl Jam Tribute", mbid: "6c3b9f2e-1a4d-4e8b-9f0a-2b3c4d5e6f70" },
     ]);
     expect(result.autoPick).toStrictEqual({ name: "Pearl Jam", mbid: PEARL_JAM_MBID });
-    expect(http.requests.map((r) => r.url.pathname)).toEqual(["/rest/1.0/search/artists"]);
-    expect(http.requests[0]!.headers.get("x-api-key")).toBe(SETLISTFM_API_KEY);
+    expect(http.requests).toHaveLength(1);
+    const [search] = http.requests;
+    expect(search!.method).toBe("GET");
+    expect(`${search!.url.origin}${search!.url.pathname}`).toBe("https://api.setlist.fm/rest/1.0/search/artists");
+    expect(search!.url.search).toBe("?artistName=Pearl%20Jam&sort=relevance&p=1");
+    expect(search!.headers.get("x-api-key")).toBe(SETLISTFM_API_KEY);
+    expect(search!.headers.get("Accept")).toBe("application/json");
   });
 
   it("AC-4: listSetlists works on createRunServices: one page request, setlist.fm's rules (key header, 500 ms apart)", async () => {
@@ -79,7 +101,10 @@ describe("the real services the core builds — the new setlist.fm services", ()
       expect.stringMatching(/^\/rest\/1\.0\/search\/artists\?/),
       `/rest/1.0/artist/${PEARL_JAM_MBID}/setlists?p=1`,
     ]);
+    expect(http.requests[1]!.method).toBe("GET");
+    expect(http.requests[1]!.url.origin).toBe("https://api.setlist.fm");
     expect(http.requests[1]!.headers.get("x-api-key")).toBe(SETLISTFM_API_KEY);
+    expect(http.requests[1]!.headers.get("Accept")).toBe("application/json");
     expect(http.requests[0]!.at).toBe(NOW);
     expect(http.requests[1]!.at - http.requests[0]!.at).toBeGreaterThanOrEqual(500);
   });
@@ -89,67 +114,81 @@ describe("the real services the core builds — the new setlist.fm services", ()
     const { services, http } = realServices(pearlJamRoute, null);
     const findErr = await captureError(findArtists(services, "Pearl Jam"));
     expect((findErr as Error).constructor).toBe(expected.constructor);
+    expect((findErr as Error).message).toBe(expected.message);
     const listErr = await captureError(listSetlists(services, PEARL_JAM_MBID, 1));
     expect((listErr as Error).constructor).toBe(expected.constructor);
+    expect((listErr as Error).message).toBe(expected.message);
     expect(http.requests).toEqual([]);
   });
 });
 
 // ---------------------------------------------------------------- AC-9, AC-10 with only their own service
 
-describe("getSetlist and findLatestSetlist with fake services", () => {
-  it("AC-9: a services object with only getSetlist is enough; the Setlist comes back unchanged", async () => {
-    const fake = makeFakeServices({ setlist: pearlJamPortland() });
-    const services = { getSetlist: (fake.services as unknown as Record<string, unknown>).getSetlist };
-    const setlist = await getSetlist(services as never, "2bf1c8e4");
-    expect(setlist).toEqual(pearlJamPortland());
-    expect(fake.calls.getSetlist).toEqual(["2bf1c8e4"]);
-  });
-
-  it("AC-10: passes the name, the chooser and the complete-alternative option to the lookup and returns its result", async () => {
-    const fake = makeFakeServices({ setlist: pearlJamPortland(), completeAlternative: pearlJamVancouver() });
-    const services = {
-      findLatestSetlistByArtistName: (fake.services as unknown as Record<string, unknown>).findLatestSetlistByArtistName,
+describe("getSetlist and findLatestSetlist pass their inputs on to their one service", () => {
+  it("AC-9: a services object with only getSetlist is enough; it gets exactly the setlist id, once, and its Setlist comes back unchanged", async () => {
+    const asked: string[] = [];
+    const answer = pearlJamPortland();
+    const onlyGetSetlist: Pick<RunServices, "getSetlist"> = {
+      async getSetlist(setlistId) {
+        asked.push(setlistId);
+        return answer;
+      },
     };
-    const chooser = async (c: ArtistCandidate[]) => c[0] ?? null;
-    const result = await findLatestSetlist(services as never, "Pearl Jam", chooser, { wantCompleteAlternative: true });
-    expect(fake.calls.findLatest).toEqual(["Pearl Jam"]);
-    expect(fake.calls.findLatestOptions[0]?.wantCompleteAlternative).toBe(true);
-    expect(result.artist).toEqual({ name: "Pearl Jam", mbid: PEARL_JAM_MBID });
-    expect(result.setlist).toEqual(pearlJamPortland());
-    expect(result.completeAlternative).toEqual(pearlJamVancouver());
-
-    const without = await findLatestSetlist(services as never, "Pearl Jam", chooser, { wantCompleteAlternative: false });
-    expect(without.completeAlternative ?? null).toBeNull();
+    const setlist = await getSetlist(onlyGetSetlist, "2bf1c8e4");
+    expect(asked).toEqual(["2bf1c8e4"]);
+    expect(setlist).toBe(answer);
+    expect(setlist).toEqual(pearlJamPortland());
   });
 
-  it("AC-10: an error from the lookup is passed on unchanged", async () => {
-    const notFound = await artistNotFoundError();
-    const fake = makeFakeServices({ fail: { findLatestSetlistByArtistName: notFound } });
-    const err = await captureError(findLatestSetlist(fake.services, "Xyzzq Nonexistent", async () => null, {}));
-    expect(err).toBe(notFound);
+  it("AC-10: the lookup gets the typed name, the very chooser given and the complete-alternative option, and its result comes back", async () => {
+    const asked: Array<{ name: string; chooser: ArtistChooser; options: unknown }> = [];
+    const onlyLookup: Pick<RunServices, "findLatestSetlistByArtistName"> = {
+      async findLatestSetlistByArtistName(name, chooser, options) {
+        asked.push({ name, chooser, options });
+        const completeAlternative: SetlistFmSetlist | null =
+          options?.wantCompleteAlternative === true ? pearlJamVancouver() : null;
+        return { artist: { name: "Pearl Jam", mbid: PEARL_JAM_MBID }, setlist: pearlJamPortland(), completeAlternative };
+      },
+    };
+    const chooser: ArtistChooser = async (c: ArtistCandidate[]) => c[0] ?? null;
+
+    const result = await findLatestSetlist(onlyLookup, "  Pearl Jam ", chooser, { wantCompleteAlternative: true });
+    expect(asked).toHaveLength(1);
+    expect(asked[0]!.name).toBe("  Pearl Jam ");
+    expect(asked[0]!.chooser).toBe(chooser);
+    expect(asked[0]!.options).toEqual({ wantCompleteAlternative: true });
+    expect(result).toEqual({
+      artist: { name: "Pearl Jam", mbid: PEARL_JAM_MBID },
+      setlist: pearlJamPortland(),
+      completeAlternative: pearlJamVancouver(),
+    });
+
+    const without = await findLatestSetlist(onlyLookup, "Pearl Jam", chooser, { wantCompleteAlternative: false });
+    expect(asked[1]!.options).toEqual({ wantCompleteAlternative: false });
+    expect(without.completeAlternative).toBeNull();
   });
 });
 
-// ---------------------------------------------------------------- AC-19 to AC-21
+// ---------------------------------------------------------------- AC-19: runPlayset on the steps
 
-describe("runPlayset on the steps (Z1)", () => {
-  it("AC-19, AC-20, AC-21: a whole core run with only today's services completes with C1's records and touches no other service", async () => {
+const TODAYS_SERVICES = [
+  "getSetlist",
+  "findLatestSetlistByArtistName",
+  "getAccessToken",
+  "findMatch",
+  "findPlaylistsNamed",
+  "createSetlistPlaylist",
+];
+
+describe("runPlayset on the steps", () => {
+  it("AC-19: with only today's services the whole run completes with C1's records, in today's order, touching no other service", async () => {
     const events: string[] = [];
     const fake = makeFakeServices(
       { setlist: pearlJamPortland(), completeAlternative: pearlJamVancouver(), outcomes: pearlJamOutcomes, duplicates: [] },
       events,
     );
-    const todays = new Set([
-      "getSetlist",
-      "findLatestSetlistByArtistName",
-      "getAccessToken",
-      "findMatch",
-      "findPlaylistsNamed",
-      "createSetlistPlaylist",
-    ]);
     const touched = new Set<string>();
-    const services = new Proxy(fake.services as unknown as Record<string, unknown>, {
+    const services = new Proxy(fake.services, {
       get(target, prop, receiver) {
         if (typeof prop === "string") touched.add(prop);
         return Reflect.get(target, prop, receiver);
@@ -161,15 +200,19 @@ describe("runPlayset on the steps (Z1)", () => {
       input: "Pearl Jam",
       options: { tapes: "ask", confirm: "ask", public: false, dryRun: false },
       frontEnd: ui.frontEnd,
-      services: services as never,
+      services,
     });
 
-    expect(outcome.kind).toBe("created");
-    const created = outcome as unknown as { playlist: { trackCount: number }; misses: unknown[]; incompleteStatus: unknown };
-    expect(created.playlist.trackCount).toBe(3);
-    expect(created.misses).toEqual([]);
-    expect(created.incompleteStatus).toEqual({ isIncomplete: true, unknownSongCount: 1 });
-    expect([...touched].filter((name) => !todays.has(name) && name !== "then")).toEqual([]);
+    if (outcome.kind !== "created") throw new Error(`expected a created Setlist Playlist, got "${outcome.kind}"`);
+    expect(outcome.playlist).toEqual({
+      id: "7GhIjKlMnOpQrStUvWxYzA",
+      shareUrl: CREATED_SHARE_URL,
+      name: "Pearl Jam – 2026-11-22 – Portland",
+      trackCount: 3,
+    });
+    expect(outcome.misses).toEqual([]);
+    expect(outcome.incompleteStatus).toEqual({ isIncomplete: true, unknownSongCount: 1 });
+    expect([...touched].filter((name) => !TODAYS_SERVICES.includes(name) && name !== "then")).toEqual([]);
     expect(events).toEqual([
       "setlistfm:findLatest:Pearl Jam",
       "show:show",
@@ -187,7 +230,214 @@ describe("runPlayset on the steps (Z1)", () => {
       "ask:confirm",
       "spotify:createSetlistPlaylist",
     ]);
+    expect(fake.calls.findLatestOptions).toEqual([{ wantCompleteAlternative: true }]);
+    expect(fake.calls.findMatch.map((c) => c.accessToken)).toEqual([TOKEN, TOKEN, TOKEN]);
+    expect(fake.calls.findPlaylistsNamed).toEqual([{ name: "Pearl Jam – 2026-11-22 – Portland", accessToken: TOKEN }]);
+    expect(fake.calls.create).toHaveLength(1);
     expect(fake.calls.create[0]!.show).toEqual(portlandShow);
     expect(fake.calls.create[0]!.matches.map((m) => m.uri)).toEqual(PORTLAND_URIS);
+    expect(fake.calls.create[0]!.options).toEqual({ accessToken: TOKEN, public: false });
+  });
+
+  /** Fixture A by link through the call recorder, with a signal. */
+  function recordedRun(
+    overrides: { tapeAnswers?: boolean[]; askTape?: () => Promise<boolean>; createSetlistPlaylist?: RunServices["createSetlistPlaylist"]; onProgress?: (n: number) => void } = {},
+  ) {
+    const recorder = makeCallRecorder();
+    const abort = makeAbort(recorder);
+    const fake = makeFakeServices({ duplicates: [] });
+    const ui = makeFakeFrontEnd({ tapeAnswers: overrides.tapeAnswers ?? [true, false], confirm: true });
+    const services: RunServices = {
+      ...fake.services,
+      ...(overrides.createSetlistPlaylist ? { createSetlistPlaylist: overrides.createSetlistPlaylist } : {}),
+    };
+    const frontEnd = {
+      ...ui.frontEnd,
+      ...(overrides.askTape ? { askTape: overrides.askTape } : {}),
+      ...(overrides.onProgress
+        ? {
+            showProgress: (p: Parameters<typeof ui.frontEnd.showProgress>[0]) => {
+              ui.frontEnd.showProgress(p);
+              overrides.onProgress!(p.n);
+            },
+          }
+        : {}),
+    };
+    const running = runPlayset({
+      input: FIXTURE_A_URL,
+      options: { tapes: "ask", confirm: "ask", public: false, dryRun: false },
+      frontEnd: recorder.wrapFrontEnd(frontEnd),
+      services: recorder.wrapServices(services),
+      signal: abort.signal,
+    });
+    return { running, abort, recorder, calls: fake.calls };
+  }
+
+  it("AC-19: an abort while a Tape question is open ends the run promptly; no further question and no service call", async () => {
+    const answer = deferred<boolean>();
+    const t = recordedRun({ askTape: () => answer.promise });
+    await flush();
+    expect(t.recorder.calls).toEqual(["service:getSetlist", "frontEnd:showShow", "frontEnd:askTape"]);
+
+    t.abort.abort();
+    expect(await captureError(within(t.running))).toBeInstanceOf(RunCancelledError);
+    answer.resolve(true);
+    await flush();
+    expect(t.recorder.callsAfterAbort()).toEqual([]);
+  });
+
+  it("AC-19: an abort from the progress report of the second Match search → that search is never made; nothing after it", async () => {
+    let abort = () => {};
+    const t = recordedRun({ onProgress: (n) => n === 2 && abort() });
+    abort = t.abort.abort;
+    expect(await captureError(within(t.running))).toBeInstanceOf(RunCancelledError);
+    await flush();
+    expect(t.calls.findMatch.map((c) => c.performance.title)).toEqual(["I Want It All"]);
+    expect(t.recorder.callsAfterAbort()).toEqual([]);
+    expect(t.calls.findPlaylistsNamed).toEqual([]);
+    expect(t.calls.create).toEqual([]);
+  });
+
+  it("AC-19: an abort once the create request is sent is ignored: the run waits for it and resolves created", async () => {
+    const createAnswer = deferred<Awaited<ReturnType<RunServices["createSetlistPlaylist"]>>>();
+    const t = recordedRun({ createSetlistPlaylist: () => createAnswer.promise });
+    await flush(50);
+    expect(t.recorder.calls.at(-1)).toBe("service:createSetlistPlaylist");
+
+    t.abort.abort();
+    await flush();
+    createAnswer.resolve({ id: "7GhIjKlMnOpQrStUvWxYzA", shareUrl: CREATED_SHARE_URL, name: "Arctic Monkeys – 2025-08-23 – Amsterdam", trackCount: 12 });
+    const outcome = await within(t.running);
+    expect(outcome.kind).toBe("created");
+    expect(t.recorder.callsAfterAbort()).toEqual([]);
+  });
+
+  it("AC-19: a Match search that fails passes its error on unchanged; no further search, no duplicate check, no creation", async () => {
+    const searchFailed = new Error("Spotify search failed with HTTP 503");
+    const events: string[] = [];
+    const fake = makeFakeServices({ duplicates: [], failMatchOn: { Brianstorm: searchFailed } }, events);
+    const ui = makeFakeFrontEnd({ tapeAnswers: [true, false], confirm: true }, events);
+    const err = await captureError(
+      runPlayset({
+        input: FIXTURE_A_URL,
+        options: { tapes: "ask", confirm: "ask", public: false, dryRun: false },
+        frontEnd: ui.frontEnd,
+        services: fake.services,
+      }),
+    );
+    expect(err).toBe(searchFailed);
+    expect(fake.calls.findMatch.map((c) => c.performance.title)).toEqual([
+      "I Want It All",
+      "Sculptures of Anything Goes",
+      "Brianstorm",
+    ]);
+    expect(events.at(-1)).toBe("spotify:findMatch:Brianstorm");
+    expect(fake.calls.findPlaylistsNamed).toEqual([]);
+    expect(fake.calls.create).toEqual([]);
+    expect(ui.record.previews).toEqual([]);
+  });
+
+  it("AC-19: a Ctrl-C at the first Tape question passes the prompt's error on unchanged; no Spotify call", async () => {
+    const ctrlC = new ExitPromptError();
+    const events: string[] = [];
+    const fake = makeFakeServices({ duplicates: [] }, events);
+    const ui = makeFakeFrontEnd({ tapeAnswers: [{ throws: ctrlC }] }, events);
+    const err = await captureError(
+      runPlayset({
+        input: FIXTURE_A_URL,
+        options: { tapes: "ask", confirm: "ask", public: false, dryRun: false },
+        frontEnd: ui.frontEnd,
+        services: fake.services,
+      }),
+    );
+    expect(err).toBe(ctrlC);
+    expect(events).toEqual(["setlistfm:getSetlist:63a5e2b7", "show:show", "ask:tape:I Want It All"]);
+  });
+});
+
+// ---------------------------------------------------------------- AC-20: the command is unchanged
+
+describe("the playset command on the rebuilt run", () => {
+  const transcriptOf = (fake: ReturnType<typeof makeFakeIo>) => fake.transcript.map((e) => [e.stream, e.text]);
+
+  it("AC-20: `playset Pearl Jam`, n to the offer, Yes to create → the same output, prompts, request order and exit code 0 as before", async () => {
+    const fake = makeFakeIo({
+      confirmAnswers: [false, true],
+      services: { setlist: pearlJamPortland(), completeAlternative: pearlJamVancouver(), outcomes: pearlJamOutcomes },
+    });
+    const code = await main(["Pearl", "Jam"], fake.io);
+    expect(code).toBe(0);
+    expect(transcriptOf(fake)).toEqual([
+      ["stdout", "\n"],
+      ["stdout", "Pearl Jam – 2026-11-22 – Moda Center, Portland\n"],
+      ["stdout", "https://www.setlist.fm/setlist/pearl-jam/2026/moda-center-portland-or-2bf1c8e4.html\n"],
+      ["stdout", "3 Performances, 0 Tapes\n"],
+      ["stdout", "Warning: this Setlist looks incomplete: 1 Unknown Song.\n"],
+      ["stdout", "The Setlist Playlist may not be the full Show.\n"],
+      ["stdout", "\n"],
+      ["prompt", "The latest Setlist (2026-11-22, Portland) looks incomplete. Use the newest complete one (2026-11-18, Vancouver) instead?"],
+      ["stdout", "\n"],
+      ["stdout", "Finding Matches 1/3: Release\n"],
+      ["stdout", "Finding Matches 2/3: Even Flow\n"],
+      ["stdout", "Finding Matches 3/3: Alive\n"],
+      ["stdout", "\n"],
+      ["stdout", "main\n"],
+      ["stdout", "   1. Release\n"],
+      ["stdout", "      → Release — Pearl Jam · Ten\n"],
+      ["stdout", "   2. Even Flow\n"],
+      ["stdout", "      → Even Flow — Pearl Jam · Ten\n"],
+      ["stdout", "   3. Alive\n"],
+      ["stdout", "      → Alive — Pearl Jam · Ten\n"],
+      ["stdout", "\n"],
+      ["stdout", "Not added:\n"],
+      ["stdout", "  (Unknown song) after #1 — New song, title not yet known\n"],
+      ["stdout", "\n"],
+      ["stdout", "Warning: this Setlist looks incomplete: 1 Unknown Song.\n"],
+      ["stdout", "Playlist: Pearl Jam – 2026-11-22 – Portland (private)\n"],
+      ["stdout", "3 tracks, 0 Misses\n"],
+      ["stdout", "\n"],
+      ["prompt", "Create this playlist?"],
+      ["stdout", "\n"],
+      ["stdout", 'Created "Pearl Jam – 2026-11-22 – Portland" with 3 tracks.\n'],
+      ["stdout", "\n"],
+      ["stdout", "Every Performance has a Match.\n"],
+      ["stdout", "\n"],
+      ["stdout", "Note: this Setlist is incomplete — the playlist may not be the full Show.\n"],
+      ["stdout", "\n"],
+      ["stdout", `${CREATED_SHARE_URL}\n`],
+    ]);
+    expect(fake.events).toEqual([
+      "setlistfm:findLatest:Pearl Jam",
+      "prompt:confirm:The latest Setlist (2026-11-22, Portland) looks incomplete. Use the newest complete one (2026-11-18, Vancouver) instead?",
+      "spotify:getAccessToken",
+      "spotify:token",
+      "spotify:findMatch:Release",
+      "spotify:findMatch:Even Flow",
+      "spotify:findMatch:Alive",
+      "spotify:findPlaylistsNamed",
+      "prompt:confirm:Create this playlist?",
+      "spotify:createSetlistPlaylist",
+    ]);
+  });
+
+  it("AC-20: a Ctrl-C at the Tape question for \"I Want It All\" prints Cancelled., makes no Spotify request and exits 130, as before", async () => {
+    const fake = makeFakeIo({ confirmAnswers: ["cancel"] });
+    const code = await main([FIXTURE_A_URL], fake.io);
+    expect(code).toBe(130);
+    expect(transcriptOf(fake)).toEqual([
+      ["stdout", "\n"],
+      ["stdout", "Arctic Monkeys – 2025-08-23 – Ziggo Dome, Amsterdam\n"],
+      ["stdout", "https://www.setlist.fm/setlist/arctic-monkeys/2025/ziggo-dome-amsterdam-netherlands-63a5e2b7.html\n"],
+      ["stdout", "14 Performances, 2 Tapes\n"],
+      ["stdout", "Warning: this Setlist looks incomplete: 1 Unknown Song.\n"],
+      ["stdout", "The Setlist Playlist may not be the full Show.\n"],
+      ["stdout", "\n"],
+      ["prompt", 'Add the Tape "I Want It All" (Queen) to the playlist?'],
+      ["stderr", "Cancelled.\n"],
+    ]);
+    expect(fake.events).toEqual([
+      "setlistfm:getSetlist:63a5e2b7",
+      'prompt:confirm:Add the Tape "I Want It All" (Queen) to the playlist?',
+    ]);
   });
 });

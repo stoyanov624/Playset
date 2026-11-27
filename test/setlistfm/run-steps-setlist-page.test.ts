@@ -1,10 +1,10 @@
-// PRD 0012 — the list-Setlists step (AC-4 to AC-8): one page of an Artist's Setlists, summarised,
-// driven through the real setlist.fm client with a scripted fake fetch (no network).
+// The list-Setlists step (AC-4 to AC-8): one page of an Artist's Setlists, summarised, driven
+// through the real setlist.fm client with a scripted fake fetch (no network).
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PlaysetError } from "../../src/core/index.js";
 import { toPerformances, type SetlistFmSetlist } from "../../src/core/performances";
-import { listSetlists } from "../../src/core/run/index.js";
+import { InvalidSetlistPageError, listSetlists } from "../../src/core/run/index.js";
 import { MissingSetlistFmApiKeyError, SetlistFmRateLimitError, SetlistFmRequestError } from "../../src/core/setlistfm";
 import {
   captureError,
@@ -29,7 +29,7 @@ import {
 const PEARL_JAM_MBID = "83b9cbe7-9857-49e2-ab8e-b57b01038103";
 const SETLISTS_PATH = `/rest/1.0/artist/${PEARL_JAM_MBID}/setlists`;
 
-const servicesFrom = (fakes: Fakes, opts: Parameters<typeof makeClient>[1] = {}) => makeClient(fakes, opts) as never;
+const servicesFrom = (fakes: Fakes, opts: Parameters<typeof makeClient>[1] = {}) => makeClient(fakes, opts);
 
 /** A Setlist with one named song (so it has a Performance), Pearl Jam's mbid. */
 function playedSetlist(id: string): SetlistFmSetlist {
@@ -72,7 +72,7 @@ function madridSetlist(): SetlistFmSetlist {
         { encore: 1, song: [{ name: "505", info: "with Miles Kane" }, { name: "Kashmir", info: "Tease" }] },
       ],
     },
-  } as unknown as SetlistFmSetlist;
+  } as SetlistFmSetlist;
 }
 
 // ---------------------------------------------------------------- AC-4, AC-5, AC-8: P1
@@ -176,7 +176,9 @@ describe("listSetlists — paging edge cases (P3)", () => {
     expect(result).toEqual({ setlists: [], hasMore: false });
   });
 
-  it("AC-5: without itemsPerPage or total, hasMore is whether the page had at least one Setlist", async () => {
+  // Agreed with the user: when setlist.fm leaves out itemsPerPage or total, only an empty page is known
+  // to be the last one, so a page that had at least one setlist (placeholders included) has more.
+  it("AC-5: without itemsPerPage or total, hasMore is whether the page had at least one setlist, placeholders included", async () => {
     const withSetlists = { type: "setlists", page: 3, setlist: [emptySetlist("aa00bb11"), playedSetlist("aa00bb12")] };
     const a = makeFakes([ok(withSetlists)]);
     const ra = await listSetlists(servicesFrom(a), PEARL_JAM_MBID, 3);
@@ -190,6 +192,28 @@ describe("listSetlists — paging edge cases (P3)", () => {
     const empty = { type: "setlists", page: 3, setlist: [] };
     const c = makeFakes([ok(empty)]);
     expect(await listSetlists(servicesFrom(c), PEARL_JAM_MBID, 3)).toEqual({ setlists: [], hasMore: false });
+  });
+
+  it("AC-4: Setlists whose songs are only snippets, or snippets and Unknown Songs, are placeholders and left out", async () => {
+    const onlySnippets = makeSetlist(
+      "aa00cc01",
+      { set: [{ song: [{ name: "Hey Jude", info: "snippet" }, { name: "Kashmir", info: "Tease" }] }] },
+      "Pearl Jam",
+      PEARL_JAM_MBID,
+    );
+    const snippetsAndUnknownSongs = makeSetlist(
+      "aa00cc02",
+      { set: [{ song: [{ name: "" }, { name: "Hey Jude", info: "snippet" }, { name: "", info: "Opener" }] }] },
+      "Pearl Jam",
+      PEARL_JAM_MBID,
+    );
+    const onlyUnknownSongs = makeSetlist("aa00cc03", { set: [{ song: [{ name: "" }] }] }, "Pearl Jam", PEARL_JAM_MBID);
+    const fakes = makeFakes([
+      ok(setlistsPage(1, 1310, [onlySnippets, playedSetlist("aa00cc04"), snippetsAndUnknownSongs, onlyUnknownSongs])),
+    ]);
+    const result = await listSetlists(servicesFrom(fakes), PEARL_JAM_MBID, 1);
+    expect(result.setlists.map((s: { id: string }) => s.id)).toEqual(["aa00cc04"]);
+    expect(result.hasMore).toBe(true);
   });
 
   it("AC-4: pages past 3 are allowed (page 4 → 20 summaries, one request for p=4)", async () => {
@@ -264,16 +288,18 @@ describe("listSetlists — paging edge cases (P3)", () => {
     });
   });
 
-  for (const page of [0, -1, 1.5]) {
-    it(`AC-7: page ${page} raises a Playset error saying the page is not valid, with no request`, async () => {
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "AC-7: page %s raises the page-not-valid Playset error, with no request",
+    async (page) => {
       const fakes = makeFakes([ok(loadFixture("setlists-pearl-jam-p1.json"))]);
       const err = await captureError(listSetlists(servicesFrom(fakes), PEARL_JAM_MBID, page));
+      expect(err).toBeInstanceOf(InvalidSetlistPageError);
       expect(err).toBeInstanceOf(PlaysetError);
-      expect(errorText(err)).toMatch(/page/i);
-      expect(errorText(err)).toMatch(/not valid|invalid/i);
+      expect((err as InvalidSetlistPageError).page).toBe(page);
+      expect((err as Error).message).toBe(`Setlist page ${page} is not valid: give a whole number of 1 or more.`);
       expect(fakes.fetch).not.toHaveBeenCalled();
-    });
-  }
+    },
+  );
 });
 
 // ---------------------------------------------------------------- AC-8: P2

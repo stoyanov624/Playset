@@ -1,6 +1,6 @@
-// PRD 0012 — the setlist.fm steps of the run, driven through the real setlist.fm client with a
-// scripted fake fetch (no network): find Artists (AC-1 to AC-3), get a Setlist (AC-9) and find the
-// Latest Setlist (AC-10). The client the core builds is passed as the steps' services.
+// The setlist.fm steps of the run, driven through the real setlist.fm client with a scripted fake
+// fetch (no network): find Artists (AC-1 to AC-3), get a Setlist (AC-9) and find the Latest Setlist
+// (AC-10). The client the core builds is passed as the steps' services.
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,6 +30,7 @@ import {
   ok,
   paths,
   removeTempRoot,
+  serviceUnavailable,
   tooManyRequests,
   type Fakes,
 } from "./helpers";
@@ -38,7 +39,7 @@ const PEARL_JAM_MBID = "83b9cbe7-9857-49e2-ab8e-b57b01038103";
 const SEARCH_PATH = "/rest/1.0/search/artists";
 
 /** The real setlist.fm client, used as the services of a step (it supplies the setlist.fm services). */
-const servicesFrom = (fakes: Fakes, opts: Parameters<typeof makeClient>[1] = {}) => makeClient(fakes, opts) as never;
+const servicesFrom = (fakes: Fakes, opts: Parameters<typeof makeClient>[1] = {}) => makeClient(fakes, opts);
 
 const sharedFixtures = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "performances");
 const nirvanaJson = () => JSON.parse(readFileSync(join(sharedFixtures, "nirvana-53d60349-unknown-song.json"), "utf8"));
@@ -54,6 +55,26 @@ const GENESIS_CANDIDATES = [
   { name: "Genesis", mbid: GENESIS_US_MBID, disambiguation: "US psychedelic rock band" },
   { name: "Genesis Owusu", mbid: GENESIS_OWUSU_MBID },
 ];
+
+const SIMON_MBID = "5d02f264-e225-41ff-83f7-d9b1f0b1874a";
+const FLORENCE_MBID = "5fee3020-513b-48c2-b1f7-4681b01db0c6";
+
+/** A one-page Artist search response with the given Artists, shaped like setlist.fm's. */
+function searchResponse(artists: Array<{ name: string; mbid: string; disambiguation?: string }>) {
+  return {
+    type: "artists",
+    itemsPerPage: 30,
+    page: 1,
+    total: artists.length,
+    artist: artists.map((a, i) => ({
+      mbid: a.mbid,
+      name: a.name,
+      sortName: a.name,
+      disambiguation: a.disambiguation ?? "",
+      url: `https://www.setlist.fm/setlists/artist-${i}.html`,
+    })),
+  };
+}
 
 /** The 14 "Bon" search results, as candidates (an empty disambiguation is absent). */
 function bonCandidates() {
@@ -113,13 +134,16 @@ describe("findArtists — the Artist search (F1)", () => {
     expect(fakes.requests).toHaveLength(1);
   });
 
-  it("AC-1: no chooser is involved — the step takes only the services and the name and asks nothing", async () => {
-    const fakes = makeFakes([ok(loadFixture("search-genesis.json"))]);
-    // Genesis has two exact matches: the old lookup would ask the chooser here.
-    const result = await findArtists(servicesFrom(fakes), "Genesis");
-    expect(result.candidates).toHaveLength(3);
-    expect(fakes.requests).toHaveLength(1);
-    expect(paths(fakes.requests)).toEqual([SEARCH_PATH]);
+  it("AC-1: \"&\" and \"+\" in the typed name are sent percent-encoded, so setlist.fm gets the whole name as one parameter", async () => {
+    const simon = makeFakes([ok(searchResponse([{ name: "Simon & Garfunkel", mbid: SIMON_MBID }]))]);
+    await findArtists(servicesFrom(simon), "Simon & Garfunkel");
+    expect(simon.requests[0]!.parsed.search).toBe("?artistName=Simon%20%26%20Garfunkel&sort=relevance&p=1");
+    expect(simon.requests[0]!.parsed.searchParams.get("artistName")).toBe("Simon & Garfunkel");
+
+    const florence = makeFakes([ok(searchResponse([{ name: "Florence + the Machine", mbid: FLORENCE_MBID }]))]);
+    await findArtists(servicesFrom(florence), "Florence + the Machine");
+    expect(florence.requests[0]!.parsed.search).toBe("?artistName=Florence%20%2B%20the%20Machine&sort=relevance&p=1");
+    expect(florence.requests[0]!.parsed.searchParams.get("artistName")).toBe("Florence + the Machine");
   });
 
   it("AC-1: an Artist name with a lone surrogate is still searched, with the character replaced (U+FFFD), not a crash", async () => {
@@ -149,6 +173,22 @@ describe("findArtists — autoPick (F1)", () => {
     expect(result.candidates).toStrictEqual(ARCTIC_MONKEYS_CANDIDATES);
   });
 
+  it.each([
+    { typed: "Simon and Garfunkel", found: "Simon & Garfunkel", mbid: SIMON_MBID },
+    { typed: "Florence and the Machine", found: "Florence + the Machine", mbid: FLORENCE_MBID },
+    { typed: "Florence & the Machine", found: "Florence + the Machine", mbid: FLORENCE_MBID },
+  ])("AC-2: \"$typed\" is an exact match for \"$found\" (\"&\", \"+\" and \"and\" are the same word) → autoPick", async ({ typed, found, mbid }) => {
+    const fakes = makeFakes([
+      ok(searchResponse([
+        { name: found, mbid },
+        { name: `${found} Tribute`, mbid: "6c3b9f2e-1a4d-4e8b-9f0a-2b3c4d5e6f70" },
+      ])),
+    ]);
+    const result = await findArtists(servicesFrom(fakes), typed);
+    expect(result.autoPick).toStrictEqual({ name: found, mbid });
+    expect(result.candidates).toHaveLength(2);
+  });
+
   it("AC-2: two exact matches (Genesis) → no autoPick, same candidate list", async () => {
     const fakes = makeFakes([ok(loadFixture("search-genesis.json"))]);
     const result = await findArtists(servicesFrom(fakes), "Genesis");
@@ -176,16 +216,6 @@ describe("findArtists — autoPick (F1)", () => {
 // ---------------------------------------------------------------- AC-3
 
 describe("findArtists — no results and errors (F1)", () => {
-  let configDir: string;
-  let root: string;
-  beforeEach(async () => {
-    root = await makeTempRoot();
-    configDir = join(root, "playset");
-  });
-  afterEach(async () => {
-    await removeTempRoot(root);
-  });
-
   it("AC-3: HTTP 404 raises the Artist-not-found error naming the typed name", async () => {
     const fakes = makeFakes([notFound]);
     const err = await captureError(findArtists(servicesFrom(fakes), "Xyzzq Nonexistent"));
@@ -230,11 +260,29 @@ describe("findArtists — no results and errors (F1)", () => {
     expect(err).toBeInstanceOf(SetlistFmRequestError);
   });
 
-  it("AC-3: no API key anywhere passes on the missing-API-key error, with no request", async () => {
-    const fakes = makeFakes([ok(loadFixture("search-genesis.json"))]);
-    const err = await captureError(findArtists(servicesFrom(fakes, { env: {}, configDir }), "Genesis"));
-    expect(err).toBeInstanceOf(MissingSetlistFmApiKeyError);
-    expect(fakes.fetch).not.toHaveBeenCalled();
+  it("AC-3: HTTP 503 passes on the setlist.fm request error naming 503, after 1 request", async () => {
+    const fakes = makeFakes([serviceUnavailable]);
+    const err = await captureError(findArtists(servicesFrom(fakes), "Genesis"));
+    expect(err).toBeInstanceOf(SetlistFmRequestError);
+    expect((err as SetlistFmRequestError).status).toBe(503);
+    expect(fakes.requests).toHaveLength(1);
+  });
+
+  describe("without an API key", () => {
+    let root: string;
+    beforeEach(async () => {
+      root = await makeTempRoot();
+    });
+    afterEach(async () => {
+      await removeTempRoot(root);
+    });
+
+    it("AC-3: no API key anywhere passes on the missing-API-key error, with no request", async () => {
+      const fakes = makeFakes([ok(loadFixture("search-genesis.json"))]);
+      const err = await captureError(findArtists(servicesFrom(fakes, { env: {}, configDir: join(root, "playset") }), "Genesis"));
+      expect(err).toBeInstanceOf(MissingSetlistFmApiKeyError);
+      expect(fakes.fetch).not.toHaveBeenCalled();
+    });
   });
 });
 
@@ -272,9 +320,12 @@ describe("findLatestSetlist (G1)", () => {
     const result = await findLatestSetlist(servicesFrom(fakes), "Pearl Jam", chooser, { wantCompleteAlternative: true });
     expect(paths(fakes.requests)).toEqual([SEARCH_PATH, `/rest/1.0/artist/${PEARL_JAM_MBID}/setlists`]);
     expect(fakes.requests[1]!.parsed.searchParams.get("p")).toBe("1");
-    expect(result.artist).toMatchObject({ name: "Pearl Jam", mbid: PEARL_JAM_MBID });
-    expect((result.setlist as unknown as { id: string }).id).toBe("2bf1c8e4");
-    expect((result.completeAlternative as unknown as { id: string }).id).toBe("3bf1a7c2");
+    const page = loadFixture<{ setlist: Array<{ id: string }> }>("setlists-pearl-jam-p1.json").setlist;
+    expect(result).toEqual({
+      artist: { name: "Pearl Jam", mbid: PEARL_JAM_MBID },
+      setlist: page.find((s) => s.id === "2bf1c8e4"),
+      completeAlternative: page.find((s) => s.id === "3bf1a7c2"),
+    });
     expect(chooser).not.toHaveBeenCalled();
   });
 
@@ -282,8 +333,10 @@ describe("findLatestSetlist (G1)", () => {
     const fakes = pearlJamFakes();
     const { chooser } = makeChooser(0);
     const result = await findLatestSetlist(servicesFrom(fakes), "Pearl Jam", chooser, { wantCompleteAlternative: false });
-    expect((result.setlist as unknown as { id: string }).id).toBe("2bf1c8e4");
-    expect(result.completeAlternative ?? null).toBeNull();
+    const page = loadFixture<{ setlist: Array<{ id: string }> }>("setlists-pearl-jam-p1.json").setlist;
+    expect(result.setlist).toEqual(page.find((s) => s.id === "2bf1c8e4"));
+    expect(result.completeAlternative).toBeNull();
+    expect(fakes.requests).toHaveLength(2);
   });
 
   it("AC-10: gives the same requests and result as the existing lookup, also when the chooser is asked (Genesis)", async () => {
@@ -317,7 +370,7 @@ describe("findLatestSetlist (G1)", () => {
     const lookupChooser = makeChooser(1);
     const lookupResult = await makeClient(viaLookup).findLatestSetlistByArtistName("Genesis", lookupChooser.chooser, {
       wantCompleteAlternative: true,
-    } as never);
+    });
 
     expect(stepChooser.calls).toEqual(lookupChooser.calls);
     expect(stepChooser.calls).toHaveLength(1);
