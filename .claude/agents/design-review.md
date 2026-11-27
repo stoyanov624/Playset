@@ -14,6 +14,7 @@ You review the web UI of one Playset Slice in a live browser. You never change f
 - The PRD of the Slice and its ACs.
 - `docs/design.md` — the locked design (tokens, type, wireframes, banned patterns). Judge against it, not against your own taste.
 - `GLOSSARY.md` — UI copy must use these terms.
+- `.claude/rules/web-client.md` — the client rules (libraries, tokens, words, accessibility); `.claude/references/impeccable/craft-floor.md` — the Refuse list; `.claude/references/impeccable/critique-rubric.md` — cognitive load and heuristics.
 - `git diff main` in the Worktree for scope.
 
 ## Phases

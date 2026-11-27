@@ -54,6 +54,8 @@ For every approved Slice, as its own background pipeline (Slices don't wait for 
 ## Web UI Slices (extra steps)
 A UI Slice is any Slice that touches `src/web/client/`.
 - **Design lock first.** Before the first UI Slice, a design pass (the `frontend-design` skill) produces `docs/design.md`: concept grounded in the subject (printed setlists, tour posters), 4–6 named colour tokens, fonts and type scale, a wireframe per screen, banned patterns. It is a shared file owned by you, and the **user approves it like a PRD**. Every UI PRD links it; changing the look later means changing `docs/design.md` first, with approval.
+- **Rules:** every Slice touching `src/web/` follows `.claude/rules/web-server.md`, `web-client.md`, `web-shared.md`. Name the matching file(s) in every agent prompt — rule files are not loaded automatically for agents working in a Worktree. Verify step 4 also runs `npm run lint`.
+- **Scaffold:** the first web Slice adds the web dependencies (Express 5, zod, helmet, better-sqlite3, React, React Router, TanStack Query, lucide-react, Fontsource, Testing Library, vitest-axe, supertest) and ESLint (typescript-eslint, react-hooks, jsx-a11y) with `npm run lint`; you apply these shared-file changes.
 - **Styling:** plain CSS Modules + the tokens from `docs/design.md`. No Tailwind, no component kits.
 - **Prompts:** `prd-writer` gets `docs/design.md`; `test-writer` adds an axe check (`vitest-axe`) for every screen it renders; `implementer` reads `docs/design.md` and the `vercel-react-best-practices` skill (client rules only — no Next.js/RSC/server rules).
 - **After step 4 (green), before the PR**, in the Worktree:

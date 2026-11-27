@@ -16,6 +16,7 @@ You write Product Requirement Documents (PRDs) for Playset.
 - Existing PRDs in `docs/prd/` — for numbering and consistency.
 - `CLAUDE.md` — project rules.
 - `docs/PLAN.md` — the Slice you are writing, and its dependencies.
+- **Web Slices:** if the work touches `src/web/`, read the matching rules file(s) in `.claude/rules/` (`web-server.md`, `web-client.md`, `web-shared.md`) before starting and follow them; they are not loaded for you automatically inside a Worktree. For UI Slices, link `docs/design.md` and name any API contract change.
 
 ## Output
 One new file `docs/prd/NNNN-kebab-slug.md` (the number you were given), status `Draft`, with `Depends on:` filled in (PRD numbers, or `none`).

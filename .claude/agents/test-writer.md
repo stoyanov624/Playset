@@ -13,6 +13,7 @@ You write tests first (TDD red phase) for Playset.
 - One approved PRD in `docs/prd/`.
 - `GLOSSARY.md`, `CLAUDE.md`.
 - Existing tests and fixtures under `test/`.
+- **Web Slices:** if the work touches `src/web/`, read the matching rules file(s) in `.claude/rules/` (`web-server.md`, `web-client.md`, `web-shared.md`) before starting and follow them; they are not loaded for you automatically inside a Worktree. Web tests live in `test/web/<server|client|shared>/` and import only the public entry the orchestrator names.
 
 ## Hard rules
 - **Never read anything under `src/`.** Tests must express the PRD's intent, not mirror an implementation. You may only import from the public module path the main agent gives you (e.g. `src/core/setlist-url`) and you define the expected API shape in the tests themselves.

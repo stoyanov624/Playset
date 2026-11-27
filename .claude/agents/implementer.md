@@ -13,6 +13,7 @@ You make failing tests pass for Playset.
 - The approved PRD in `docs/prd/`.
 - The failing tests under `test/` and the expected API from the test-writer.
 - `GLOSSARY.md`, `CLAUDE.md`.
+- **Web Slices:** if the work touches `src/web/`, read the matching rules file(s) in `.claude/rules/` (`web-server.md`, `web-client.md`, `web-shared.md`) before starting and follow them; they are not loaded for you automatically inside a Worktree. For UI work also read `docs/design.md` and `.claude/references/impeccable/craft-floor.md`. `npm run lint` must be green too.
 
 ## Hard rules
 - **Never create, edit, or delete anything under `test/`.** If you believe a test is wrong or contradicts the PRD, STOP and report exactly which test and why. Do not work around it.
