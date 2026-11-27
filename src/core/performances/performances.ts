@@ -8,8 +8,11 @@ import type {
   Show,
 } from "./types.js";
 
-/** Joins the songs of a medley in a song's name: " / " or " + ", one space on each side. */
-const MEDLEY_SEPARATOR = / \/ | \+ /;
+/**
+ * Joins the songs of a medley in a song's name: " / ", one space on each side. A "+" in any form
+ * is part of a title, never a separator (PRD 0010).
+ */
+const MEDLEY_SEPARATOR = " / ";
 
 /**
  * Turns a setlist.fm Setlist into Performances in played order, plus the noted songs
@@ -58,7 +61,7 @@ export function toPerformances(setlist: SetlistFmSetlist): PerformancesResult {
  * into its trimmed, non-empty parts; a name marked "medley" only in its info stays whole.
  */
 function partsOf(song: SetlistFmSong, name: string): { titles: string[]; medley?: string } {
-  if (MEDLEY_SEPARATOR.test(name)) {
+  if (name.includes(MEDLEY_SEPARATOR)) {
     const titles = name
       .split(MEDLEY_SEPARATOR)
       .map((part) => part.trim())

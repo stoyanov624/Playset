@@ -83,43 +83,36 @@ export const fixtureR: Record<string, MatchSpec> = {
   "Déjà Vu": match("6sVQNUvcVFTXvlk3ec0ngd", "Déjà Vu (feat. Jay-Z)", ["Beyoncé", "JAY-Z"], "B'Day Deluxe Edition"),
 };
 
-/** PRD 0008 P1 — Spotify search outcomes for Fixture M (Pearl Jam medleys), by Performance title. */
+/**
+ * PRD 0010 "P1 revisited" — Spotify search outcomes for Fixture M (Pearl Jam medleys), by
+ * Performance title. Only " / " splits, so "Even Flow + Alive" and "Porch + Yellow Ledbetter"
+ * are single Performances, and both are Misses; every other title has PRD 0008 P1's Match.
+ */
 export const fixtureMOutcomes: Record<string, MatchSpec> = {
   "Interstellar Overdrive": match("1o4Bkk7FAfpVCGzk6V6Pqd", "Interstellar Overdrive", "Pink Floyd", "The Piper at the Gates of Dawn"),
   Release: match("4xGvbS8NnKtwKw5CXGkmA9", "Release", "Pearl Jam", "Ten"),
   Daughter: match("6rSFzV1CKBFnZ1EaPvcGSh", "Daughter", "Pearl Jam", "Vs."),
   "W.M.A.": match("0nO8qkPBSuhoN9IzxXK3Gq", "W.M.A.", "Pearl Jam", "Vs."),
-  "Even Flow": match("2pN3kBT1hYiA4bBydDMYv4", "Even Flow", "Pearl Jam", "Ten"),
-  Alive: match("3VbM2t6DQHmPWdbTvKrNKz", "Alive", "Pearl Jam", "Ten"),
+  "Even Flow + Alive": "miss",
   Black: match("5Xak5fmy089t0FYmh3VJiY", "Black", "Pearl Jam", "Ten"),
   Jeremy: match("2ChmZaZVGhCSzzCV8Q1g8X", "Jeremy", "Pearl Jam", "Ten"),
   "Love/Hate": "miss",
   "Baba O'Riley": match("3qiyyUfYe7CRYLucrPmulD", "Baba O'Riley", "The Who", "Who's Next"),
   "Won't Get Fooled Again": match("2c8Rv4kUW6SLZqVHG4Kc4d", "Won't Get Fooled Again", "The Who", "Who's Next"),
-  Porch: match("1mT0w6Zm9qJ0xBJiu2rWbV", "Porch", "Pearl Jam", "Ten"),
-  "Yellow Ledbetter": match(
-    "3Tz9GjB1xNnRdC3jGcvTBn",
-    "Yellow Ledbetter",
-    "Pearl Jam",
-    "rearviewmirror (Greatest Hits 1991-2003)",
-  ),
+  "Porch + Yellow Ledbetter": "miss",
 };
 
-/** The 13 Match URIs of P1 (kept #1–#8, #10–#14), in played order. */
+/** The 9 Match URIs of P1 revisited (kept #1–#4, #6, #7, #9, #10, #11), in played order. */
 export const P1_URIS = [
   "spotify:track:1o4Bkk7FAfpVCGzk6V6Pqd",
   "spotify:track:4xGvbS8NnKtwKw5CXGkmA9",
   "spotify:track:6rSFzV1CKBFnZ1EaPvcGSh",
   "spotify:track:0nO8qkPBSuhoN9IzxXK3Gq",
-  "spotify:track:2pN3kBT1hYiA4bBydDMYv4",
-  "spotify:track:3VbM2t6DQHmPWdbTvKrNKz",
   "spotify:track:5Xak5fmy089t0FYmh3VJiY",
   "spotify:track:2ChmZaZVGhCSzzCV8Q1g8X",
   "spotify:track:3qiyyUfYe7CRYLucrPmulD",
   "spotify:track:2c8Rv4kUW6SLZqVHG4Kc4d",
   "spotify:track:5Xak5fmy089t0FYmh3VJiY",
-  "spotify:track:1mT0w6Zm9qJ0xBJiu2rWbV",
-  "spotify:track:3Tz9GjB1xNnRdC3jGcvTBn",
 ];
 
 /** E13 — "Baby, I'm Yours" matched through Barbara Lewis instead of a Miss. */

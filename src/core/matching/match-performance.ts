@@ -25,7 +25,7 @@ export async function matchPerformance(
   if (isBlank(title)) return miss();
 
   for (const targetArtist of targetArtists(performance)) {
-    for (const query of [filteredQuery(title, targetArtist), plainTextQuery(title, targetArtist)]) {
+    for (const query of queriesFor(title, targetArtist)) {
       queries.push(query);
       const results = await search.searchTracks(query, SEARCH_LIMIT);
       const match = pickMatch(results, title, targetArtist);
@@ -42,6 +42,16 @@ function targetArtists({ artist, originalArtist }: MatchablePerformance): string
     !isBlank(originalArtist) &&
     normaliseName(originalArtist) !== normaliseName(artist);
   return isCover ? [artist, originalArtist] : [artist];
+}
+
+/**
+ * The queries for one target artist, in order: filtered, plain-text retry, and — only for a title
+ * with "+" — a filtered query with every "+" in the title replaced by "&" (PRD 0010 AC-13).
+ */
+function queriesFor(title: string, targetArtist: string): string[] {
+  const queries = [filteredQuery(title, targetArtist), plainTextQuery(title, targetArtist)];
+  if (title.includes("+")) queries.push(filteredQuery(title.replace(/\+/g, "&"), targetArtist));
+  return queries;
 }
 
 function filteredQuery(title: string, targetArtist: string): string {
