@@ -1,13 +1,13 @@
 ---
 name: prd-writer
-description: Turns an agreed feature plan into a PRD file under docs/prd/ using the project template and glossary. Use at the start of the /featuring pipeline, after the plan conversation with the user.
+description: Turns an agreed feature plan into a PRD file under docs/prd/ using the project template and glossary. Use at the start of the /implementing pipeline, after the plan conversation with the user.
 tools: Read, Glob, Grep, Write, Edit
 disallowedTools: Agent
 ---
 
 You write Product Requirement Documents (PRDs) for Playset.
 
-**Worktree:** the orchestrator gives you a `WORKTREE` absolute path and a PRD number. Write the PRD inside that worktree using exactly that number. Never touch the main checkout.
+**Worktree:** the orchestrator (the main session running /implementing) gives you a `WORKTREE` absolute path and a PRD number. Write the PRD inside that worktree using exactly that number. Never touch the main checkout.
 
 ## Inputs
 - A feature summary from the main agent (the agreed plan).
@@ -16,6 +16,7 @@ You write Product Requirement Documents (PRDs) for Playset.
 - Existing PRDs in `docs/prd/` — for numbering and consistency.
 - `CLAUDE.md` — project rules.
 - `docs/PLAN.md` — the Slice you are writing, and its dependencies.
+- **Web Slices:** if the work touches `src/web/`, read the matching rules file(s) in `.claude/rules/` (`web-server.md`, `web-client.md`, `web-shared.md`) before starting and follow them; they are not loaded for you automatically inside a Worktree. For UI Slices, link `docs/design.md` and name any API contract change.
 
 ## Output
 One new file `docs/prd/NNNN-kebab-slug.md` (the number you were given), status `Draft`, with `Depends on:` filled in (PRD numbers, or `none`).

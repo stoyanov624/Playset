@@ -52,8 +52,12 @@ _Avoid_: Partial setlist, broken setlist
 ### Playlist side (Spotify)
 
 **Setlist Playlist**:
-A newly created Spotify playlist that mirrors one **Setlist** in played order. Each run makes a new one.
+A Spotify playlist that mirrors one **Setlist** in played order. The CLI makes a new one on every run; the web app keeps one per **Setlist** in the **Host Account** and updates it when the **Setlist** changes.
 _Avoid_: Mix, concert playlist
+
+**Host Account**:
+The single Spotify account in which the web app creates every **Setlist Playlist**, publicly. Visitors never log in to Spotify; whoever logs in as the Host Account is the web app's admin.
+_Avoid_: Owner account, admin account, my account
 
 **Match**:
 The Spotify track chosen to represent a **Performance**. The studio version is preferred, the **Artist**'s own recording is tried first, and for a **Cover** the **Original Artist**'s recording is tried next.
