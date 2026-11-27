@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { Env, Settings, SettingsStore, SpotifyTokens } from "./types.js";
+import type { Env, Settings, SettingsStore } from "./types.js";
 
 const CONFIG_FILE_NAME = "config.json";
 const TOKEN_CACHE_FILE_NAME = "spotify-token.json";
