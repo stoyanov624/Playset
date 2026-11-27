@@ -1,5 +1,5 @@
-// Fixtures and fakes for the Host steps (PRD 0014): Fixture H (Pearl Jam, Portland, two versions),
-// the 230-Performance Setlist of H4, a fake Spotify behind the core's own service wiring
+// Fixtures and fakes for the Host steps: Fixture H (Pearl Jam, Portland, two versions),
+// the 230-Performance Setlist of example H4, a fake Spotify behind the core's own service wiring
 // (createRunServices over a routed fake fetch and a fake sleep), a clock for `createdAt`, a
 // records spy and a helper that stores a cached preview. Shapes follow setlist.fm REST 1.0 and the
 // Spotify Web API (create playlist, replace / add items, change details, search). No network.
@@ -8,6 +8,7 @@ import {
   createRunServices,
   type Match,
   type MatchOutcome,
+  type Miss,
   type Performance,
   type SetlistFmSetlist,
 } from "../../../src/core/index.js";
@@ -174,7 +175,10 @@ export const bigUris = (count = 230): string[] =>
 
 // ---------------------------------------------------------------- a hand-made Match search
 
-/** A Match search answering from `outcomes` by title (a Miss for any other title); it records every search. */
+/**
+ * A Match search answering from `outcomes` by title (a Miss for any other title); it records every search.
+ * A Miss carries the two queries the real Match search tries for an Artist: the filtered one, then plain text.
+ */
 export function fakeMatchSearch(outcomes: Record<string, Match | "miss">) {
   const searched: Array<{ title: string; accessToken: string }> = [];
   const services: Pick<RunServices, "findMatch"> = {
@@ -182,7 +186,16 @@ export function fakeMatchSearch(outcomes: Record<string, Match | "miss">) {
       searched.push({ title: performance.title, accessToken });
       const outcome = outcomes[performance.title];
       if (outcome === undefined || outcome === "miss") {
-        return { kind: "miss", title: performance.title, artist: performance.artist, queries: [] } as unknown as MatchOutcome;
+        const miss: Miss = {
+          kind: "miss",
+          title: performance.title,
+          artist: performance.artist,
+          queries: [
+            `track:"${performance.title}" artist:"${performance.artist}"`,
+            `${performance.title} ${performance.artist}`,
+          ],
+        };
+        return miss;
       }
       return outcome;
     },

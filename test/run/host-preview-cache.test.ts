@@ -1,4 +1,4 @@
-// The preview step with the cache in the injected records (PRD 0014 AC-8 to AC-10, example P1).
+// The preview step with the cache in the injected records (AC-8 to AC-10, example P1).
 // The Match search is a hand-made fake (or the run's fake services); no network.
 import { describe, expect, it } from "vitest";
 import { RunCancelledError, type Match, type MatchOutcome, type Performance } from "../../src/core/index.js";
@@ -7,6 +7,7 @@ import {
   prepareSetlist,
   previewMatches,
   type RunServices,
+  type SetlistPlaylistRecords,
 } from "../../src/core/run/index.js";
 import { captureError, deferred, flush, within, type Deferred } from "./fixtures/call-recorder";
 import { fixtureR, makeFakeServices } from "./fixtures/fake-services";
@@ -164,6 +165,64 @@ describe("previewMatches with records — a cached preview (P1)", () => {
     expect(log.reports).toEqual([]);
     expect(await records.findPreview(H_SETLIST_ID, H_V1)).toEqual(cached);
   });
+
+  it("AC-8: a cache hit where the signal aborts while the cached preview is being looked up → the run-cancelled error, not the preview", async () => {
+    const store = createMemorySetlistPlaylistRecords();
+    const cached = await cachePreview(store, fixtureHv1(), hostOutcomes);
+    const controller = new AbortController();
+    const lookups: string[] = [];
+    // The Visitor cancels while the store is still answering.
+    const records: SetlistPlaylistRecords = {
+      findRecord: (setlistId) => store.findRecord(setlistId),
+      saveRecord: (record) => store.saveRecord(record),
+      findPreview: async (setlistId, versionId) => {
+        lookups.push(`${setlistId}:${versionId}`);
+        const preview = await store.findPreview(setlistId, versionId);
+        controller.abort();
+        return preview;
+      },
+      savePreview: (setlistId, versionId, preview) => store.savePreview(setlistId, versionId, preview),
+    };
+    const search = fakeMatchSearch(hostOutcomes);
+    const log = progressLog();
+    const err = await captureError(
+      previewMatches(search.services, await prepareSetlist(fixtureHv1(), leaveOutTapes), HOST_TOKEN, {
+        onProgress: log.onProgress,
+        signal: controller.signal,
+        records,
+      }),
+    );
+    expect(err).toBeInstanceOf(RunCancelledError);
+    expect(lookups).toEqual([`${H_SETLIST_ID}:${H_V1}`]);
+    expect(search.searched).toEqual([]);
+    expect(log.reports).toEqual([]);
+    expect(await store.findPreview(H_SETLIST_ID, H_V1)).toEqual(cached);
+  });
+
+  it("AC-10: a cache miss where the signal aborts while the store is being looked up → the run-cancelled error; no search, nothing saved", async () => {
+    const store = createMemorySetlistPlaylistRecords();
+    const spy = spyRecords(store);
+    const controller = new AbortController();
+    const records: SetlistPlaylistRecords = {
+      ...spy.records,
+      findPreview: async (setlistId, versionId) => {
+        const preview = await spy.records.findPreview(setlistId, versionId);
+        controller.abort();
+        return preview;
+      },
+    };
+    const search = fakeMatchSearch(hostOutcomes);
+    const err = await captureError(
+      previewMatches(search.services, await prepareSetlist(fixtureHv1(), leaveOutTapes), HOST_TOKEN, {
+        signal: controller.signal,
+        records,
+      }),
+    );
+    expect(err).toBeInstanceOf(RunCancelledError);
+    expect(search.searched).toEqual([]);
+    expect(spy.calls).toEqual([`findPreview:${H_SETLIST_ID}:${H_V1}`]);
+    expect(await store.findPreview(H_SETLIST_ID, H_V1)).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------- AC-10
@@ -283,7 +342,7 @@ describe("previewMatches with records — nothing cached (P1)", () => {
     expect(await store.findPreview(H_SETLIST_ID, H_V2)).toEqual(cachedV2);
   });
 
-  it("AC-10: no records at all → as PRD 0012: one search per kept Performance, progress, nothing else", async () => {
+  it("AC-10: no records at all → as before: one search per kept Performance, progress, nothing else", async () => {
     const search = fakeMatchSearch(hostOutcomes);
     const log = progressLog();
     const preview = await previewMatches(search.services, await prepareSetlist(fixtureHv1(), leaveOutTapes), HOST_TOKEN, {

@@ -1,4 +1,4 @@
-// The in-memory records store and the find step (PRD 0014 AC-4 to AC-7). The find step never asks
+// The in-memory records store and the find step (AC-4 to AC-7). The find step never asks
 // Spotify or setlist.fm: it is given only the records, so the routed fake fetch below must stay empty.
 import { describe, expect, it } from "vitest";
 import {
@@ -57,11 +57,44 @@ describe("in-memory records — records (R1)", () => {
     expect(await records.findRecord("2bf1c8e4")).toEqual({ ...r1Record, versionId: null });
   });
 
-  it("AC-4: every method answers with a Promise", () => {
+  it("AC-4, AC-5: every method answers with a Promise, and each Promise settles with the stored value", async () => {
     const records = createMemorySetlistPlaylistRecords();
-    expect(records.findRecord("2bf1c8e4")).toBeInstanceOf(Promise);
-    expect(records.saveRecord(r1Record)).toBeInstanceOf(Promise);
-    expect(records.findPreview("2bf1c8e4", "g4bd1a2f6")).toBeInstanceOf(Promise);
+    const preview = await cachePreview(createMemorySetlistPlaylistRecords(), fixtureHv1(), hostOutcomes);
+
+    const firstLookup = records.findRecord("2bf1c8e4");
+    expect(firstLookup).toBeInstanceOf(Promise);
+    expect(await firstLookup).toBeUndefined();
+
+    const save = records.saveRecord(r1Record);
+    expect(save).toBeInstanceOf(Promise);
+    expect(await save).toBeUndefined();
+
+    const previewSave = records.savePreview("2bf1c8e4", "g4bd1a2f6", preview);
+    expect(previewSave).toBeInstanceOf(Promise);
+    expect(await previewSave).toBeUndefined();
+
+    const previewLookup = records.findPreview("2bf1c8e4", "g4bd1a2f6");
+    expect(previewLookup).toBeInstanceOf(Promise);
+    expect(await previewLookup).toEqual(preview);
+
+    expect(await records.findRecord("2bf1c8e4")).toEqual(r1Record);
+  });
+
+  it("AC-4: changing a record after saving it, or one returned by the store, leaves the stored record unchanged", async () => {
+    const records = createMemorySetlistPlaylistRecords();
+    const saved: SetlistPlaylistRecord = { ...r1Record };
+    await records.saveRecord(saved);
+
+    // The caller keeps changing the record it saved.
+    saved.playlistId = "6QrStUvWxYzAbCdEfGhIjK";
+    saved.versionId = null;
+    expect(await records.findRecord("2bf1c8e4")).toEqual(r1Record);
+
+    // The caller changes the record the store handed back.
+    const lookedUp = (await records.findRecord("2bf1c8e4"))!;
+    lookedUp.shareUrl = "https://open.spotify.com/playlist/6QrStUvWxYzAbCdEfGhIjK";
+    lookedUp.versionId = "g2b5e7c19";
+    expect(await records.findRecord("2bf1c8e4")).toEqual(r1Record);
   });
 });
 
@@ -92,6 +125,19 @@ describe("in-memory records — cached previews (R1)", () => {
     const allMisses = await cachePreview(records, fixtureHv1(), {});
     expect(allMisses.matches).toEqual([]);
     expect(await records.findPreview("2bf1c8e4", "g4bd1a2f6")).toEqual(allMisses);
+  });
+
+  it("AC-5: a setlist id and a version are kept apart whatever characters they hold (\"a:b\"+\"c\" is not \"a\"+\"b:c\")", async () => {
+    const records = createMemorySetlistPlaylistRecords();
+    const previewV1 = await cachePreview(createMemorySetlistPlaylistRecords(), fixtureHv1(), hostOutcomes);
+    const previewV2 = await cachePreview(createMemorySetlistPlaylistRecords(), fixtureHv2(), hostOutcomes);
+    await records.savePreview("2bf1c8e4:g4", "bd1a2f6", previewV1);
+    await records.savePreview("2bf1c8e4", "g4:bd1a2f6", previewV2);
+    expect(await records.findPreview("2bf1c8e4:g4", "bd1a2f6")).toEqual(previewV1);
+    expect(await records.findPreview("2bf1c8e4", "g4:bd1a2f6")).toEqual(previewV2);
+    expect(await records.findPreview("2bf1c8e4", "g4bd1a2f6")).toBeUndefined();
+    expect(await records.findPreview("2bf1c8e4:g4:bd1a2f6", "")).toBeUndefined();
+    expect(await records.findPreview("", "2bf1c8e4:g4:bd1a2f6")).toBeUndefined();
   });
 
   it("AC-5: a record and a cached preview under the same setlist id don't touch each other", async () => {

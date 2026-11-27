@@ -1,8 +1,13 @@
-// The CLI's run is unchanged by the Host steps (PRD 0014 AC-22, example Z1): runPlayset over the
+// The CLI's run is unchanged by the Host steps (AC-22, example Z1): runPlayset over the
 // real services the core builds (routed fake fetch, fake sleep, a cached Spotify token) sends the
 // same requests in the same order whether or not the Setlist has a versionId, makes a new private
 // Setlist Playlist after the duplicate-name check, and asks no Tape question. The rest of AC-22 is
 // every existing run, CLI and shell test, unchanged and green.
+//
+// What these tests can NOT show: that the CLI "reads and writes no records and uses no cached
+// preview". runPlayset takes no records at all, so there is no store here that it could touch; that
+// part of AC-22 holds by construction (the type), not by anything asserted below. What is asserted is
+// its visible consequence: every run sends its own Match searches, duplicate check and create.
 import { describe, expect, it } from "vitest";
 import { createMemorySettingsStore, createRunServices, type SetlistFmSetlist } from "../../src/core/index.js";
 import { runPlayset } from "../../src/core/run/index.js";
@@ -113,13 +118,16 @@ describe("the CLI run is unchanged (Z1)", () => {
     expect(withoutVersion.events).toEqual(withVersion.events);
   });
 
-  it("AC-22: two runs make two new Setlist Playlists: each run sends its own duplicate check and create", async () => {
+  it("AC-22: two runs of the same Setlist make two new Setlist Playlists: each run searches again and sends its own duplicate check and create", async () => {
     const t = cliRun(fixtureHv1());
     await t.run();
     await t.run();
     const creates = t.http.requests.filter((r) => r.method === "POST" && r.url.pathname === "/v1/me/playlists");
     const checks = t.http.requests.filter((r) => r.method === "GET" && r.url.pathname === "/v1/me/playlists");
+    const searches = t.http.requests.filter((r) => r.url.pathname === "/v1/search");
     expect(creates).toHaveLength(2);
     expect(checks).toHaveLength(2);
+    // Nothing of the first run's preview is reused by the second.
+    expect(searches).toHaveLength(6);
   });
 });

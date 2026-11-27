@@ -1,5 +1,5 @@
 // The setlist.fm version (`versionId`) on the Setlist, its summary and the prepared Setlist
-// (PRD 0014 AC-1 to AC-3). setlist.fm is a scripted fake fetch behind the real client. No network.
+// (AC-1 to AC-3). setlist.fm is a scripted fake fetch behind the real client. No network.
 import { describe, expect, it } from "vitest";
 import { findLatestSetlist, getSetlist, listSetlists, prepareSetlist } from "../../src/core/run/index.js";
 import type { SetlistFmSetlist } from "../../src/core/performances";
@@ -10,7 +10,7 @@ import { H_SETLIST_ID, H_V1, H_V2, fixtureHv1, fixtureHv2, variant } from "./fix
 const PEARL_JAM_MBID = "83b9cbe7-9857-49e2-ab8e-b57b01038103";
 const leaveOutTapes = { keepTape: async () => false };
 
-/** Pearl Jam page 1 (PRD 0012 P1) with versions added to Portland and Vancouver. */
+/** Pearl Jam page 1 (the run steps' example P1) with versions added to Portland and Vancouver. */
 function versionedPage(portland: unknown = H_V1, vancouver: unknown = "g7ac2e1d9") {
   const page = loadFixture<{ setlist: Array<Record<string, unknown>> }>("setlists-pearl-jam-p1.json");
   for (const s of page.setlist) {
@@ -46,12 +46,27 @@ describe("the version on a fetched Setlist (V1)", () => {
     expect(result.setlist.versionId).toBe(H_V1);
     expect(result.completeAlternative?.versionId).toBe("g7ac2e1d9");
   });
+
+  it("AC-1: a Setlist page read straight from the client keeps each Setlist's versionId, and one without stays without", async () => {
+    const page = versionedPage();
+    const fakes = makeFakes([ok(page)]);
+    const result = await makeClient(fakes).getSetlistPage(PEARL_JAM_MBID, 1);
+    // The raw page also holds an announced future Show (4bf1d2a6) with no version; the client keeps it as it is.
+    expect(result.setlists.map((s) => [s.id, s.versionId])).toEqual([
+      ["4bf1d2a6", undefined],
+      ["2bf1c8e4", H_V1],
+      ["6bf1b3d0", undefined],
+      ["3bf1a7c2", "g7ac2e1d9"],
+    ]);
+    expect(result.setlists.map((s) => "versionId" in s)).toEqual([false, true, false, true]);
+    expect(result.setlists).toEqual(page.setlist);
+  });
 });
 
 // ---------------------------------------------------------------- AC-2
 
 describe("the version on a Setlist summary (V1)", () => {
-  it("AC-2: Portland's summary holds versionId g4bd1a2f6 and Vancouver's g7ac2e1d9; every other field as PRD 0012", async () => {
+  it("AC-2: Portland's summary holds versionId g4bd1a2f6 and Vancouver's g7ac2e1d9; every other field as before", async () => {
     const fakes = makeFakes([ok(versionedPage())]);
     const result = await listSetlists(makeClient(fakes), PEARL_JAM_MBID, 1);
     expect(result.setlists).toStrictEqual([
@@ -90,7 +105,7 @@ describe("the version on a Setlist summary (V1)", () => {
     expect(result.hasMore).toBe(true);
   });
 
-  it("AC-2: PRD 0012 P1's page (no versionId anywhere) gives summaries with no versionId key", async () => {
+  it("AC-2: the P1 page (no versionId anywhere) gives summaries with no versionId key", async () => {
     const fakes = makeFakes([ok(loadFixture("setlists-pearl-jam-p1.json"))]);
     const result = await listSetlists(makeClient(fakes), PEARL_JAM_MBID, 1);
     expect(result.setlists.map((s) => "versionId" in s)).toEqual([false, false, false]);

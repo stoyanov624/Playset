@@ -1,4 +1,4 @@
-// The create-or-update Host step (PRD 0014 AC-11 to AC-21, examples H1 to H7). Spotify is a fake
+// The create-or-update Host step (AC-11 to AC-21, examples H1 to H7). Spotify is a fake
 // behind the core's own service wiring (createRunServices over a routed fake fetch and a fake sleep),
 // so the request sequence below is the one the real code sends. Records are a fresh in-memory store.
 import { describe, expect, it } from "vitest";
@@ -18,8 +18,9 @@ import {
   PartlyCreatedPlaylistError,
   PlaylistRateLimitError,
   SpotifyPlaylistError,
-} from "../../src/core/setlist-playlist";
+} from "../../src/core/setlist-playlist/index.js";
 import { captureError } from "./fixtures/call-recorder";
+import { spotifyTrack } from "./fixtures/real-service-fakes";
 import { fixtureA, setlistUrlOfLength } from "./fixtures/setlists";
 import {
   BIG_NAME,
@@ -95,6 +96,11 @@ async function setup(opts: Setup = {}) {
 }
 
 const saves = (calls: string[]) => calls.filter((c) => c.startsWith("save"));
+
+const BIG_SHARE_URL = `https://open.spotify.com/playlist/${BIG_RECORDED_ID}`;
+/** A record of the big Setlist's playlist, made for an older version. */
+const bigRecord = (changes: Partial<SetlistPlaylistRecord> = {}): SetlistPlaylistRecord =>
+  h1Record({ setlistId: BIG_SETLIST_ID, playlistId: BIG_RECORDED_ID, shareUrl: BIG_SHARE_URL, versionId: "g0f0f0f0f", ...changes });
 
 /** Every request the Host steps sent stays within the allowed Spotify API (AC-21). */
 function expectAllowedRequests(requests: Array<{ url: URL; method: string }>) {
@@ -188,10 +194,13 @@ describe("createOrUpdateSetlistPlaylist — create, no record (H1)", () => {
     const requests = t.spotify.http.requests;
     const firstPlaylist = requests.findIndex((r) => r.url.pathname !== "/v1/search");
     const searches = requests.slice(0, firstPlaylist);
-    expect(searches.length).toBeGreaterThanOrEqual(3);
+    // Every title is found by its first (filtered) query, and none holds "+", so one search each.
+    expect(searches.map((s) => s.url.searchParams.get("q"))).toEqual([
+      'track:"Release" artist:"Pearl Jam"',
+      'track:"Even Flow" artist:"Pearl Jam"',
+      'track:"Alive" artist:"Pearl Jam"',
+    ]);
     for (const s of searches) expect(s.headers.get("Authorization")).toBe(`Bearer ${HOST_TOKEN}`);
-    const searchedTitles = searches.map((s) => /track:"([^"]*)"/.exec(s.url.searchParams.get("q") ?? "")?.[1]);
-    expect(searchedTitles.filter((title, i) => title !== searchedTitles[i - 1])).toEqual(["Release", "Even Flow", "Alive"]);
     expect(requests.slice(firstPlaylist).every((r) => r.url.pathname !== "/v1/search")).toBe(true);
 
     expect(t.spotify.playlistCalls()).toEqual([`POST ${CREATE}`, `POST ${items(PLAYLIST_ID)}`]);
@@ -348,7 +357,13 @@ describe("createOrUpdateSetlistPlaylist — nothing to add (H7)", () => {
     const err = await captureError(t.run(h7([{ name: "Release" }, { name: "Even Flow" }]), "g5c3d2e1f"));
     expect(err).toBeInstanceOf(NothingToAddError);
     expect(t.spotify.playlistRequests()).toEqual([]);
-    expect(t.spotify.searchRequests().length).toBeGreaterThanOrEqual(2);
+    // A Miss tries the filtered query, then plain text; neither title holds "+", so no "&" search.
+    expect(t.spotify.searchRequests().map((s) => s.url.searchParams.get("q"))).toEqual([
+      'track:"Release" artist:"Pearl Jam"',
+      "Release Pearl Jam",
+      'track:"Even Flow" artist:"Pearl Jam"',
+      "Even Flow Pearl Jam",
+    ]);
     expect(await t.store.findRecord("4cf2a8b1")).toBeUndefined();
     const cached = await t.store.findPreview("4cf2a8b1", "g5c3d2e1f");
     expect(cached?.matches).toEqual([]);
@@ -766,8 +781,10 @@ describe("createOrUpdateSetlistPlaylist — a create fails (H5)", () => {
   });
 });
 
-describe("createOrUpdateSetlistPlaylist — saving the record fails after a partly created playlist (H5)", () => {
-  it("AC-20: when saving the record fails after a partly created playlist, the partly-created error still reaches the caller", async () => {
+describe("createOrUpdateSetlistPlaylist — saving the no-version record fails after a partly created playlist (H5)", () => {
+  // AC-20 saves a record for a partly created playlist; the agreed decision is that the partly-created error
+  // (its share link and how far it got) is what the caller hears, even when that save fails.
+  it("AC-20 (decision: the partly-created error wins): saving the no-version record fails → the partly-created error still reaches the caller", async () => {
     const store = createMemorySetlistPlaylistRecords();
     await cachePreview(store, bigSetlist(), bigOutcomes());
     const diskFull = new Error("disk full");
@@ -822,7 +839,7 @@ describe("createOrUpdateSetlistPlaylist — request rules (H5)", () => {
     expect(t.spotify.clock.sleeps.filter((ms) => ms >= 1000)).toEqual([]);
   });
 
-  type Scenario = [string, Setup, (s: SetlistFmSetlist) => SetlistFmSetlist, string];
+  type Scenario = [string, Setup, () => SetlistFmSetlist, string];
   const failing: Scenario[] = [
     ["replace 401", { record: h1Record(), cached: [fixtureHv2()], spotify: { answers: { 0: answer(401, { error: { status: 401, message: "The access token expired" } }) } } }, () => fixtureHv2(), H_V2],
     ["replace 429 ×4", { record: h1Record(), cached: [fixtureHv2()], spotify: { answers: { 0: rateLimited, 1: rateLimited, 2: rateLimited, 3: rateLimited } } }, () => fixtureHv2(), H_V2],
@@ -834,7 +851,7 @@ describe("createOrUpdateSetlistPlaylist — request rules (H5)", () => {
 
   it.each(failing)("AC-21: %s → no error text, hint or cause holds the access token; every request goes to the allowed Spotify API", async (_label, opts, setlist, version) => {
     const t = await setup(opts);
-    const err = await captureError(t.run(setlist(fixtureHv1()), version));
+    const err = await captureError(t.run(setlist(), version));
     expect(errorText(err)).not.toContain(HOST_TOKEN);
     expect(JSON.stringify(err, Object.getOwnPropertyNames(err))).not.toContain(HOST_TOKEN);
     expectAllowedRequests(t.spotify.http.requests);
@@ -845,15 +862,331 @@ describe("createOrUpdateSetlistPlaylist — request rules (H5)", () => {
     const created = await setup();
     await created.run(fixtureHv1(), H_V1);
     runs.push(created);
-    const updated = await setup({ record: h1Record(), cached: [bigSetlist()] });
-    await updated.run(bigSetlist(), BIG_VERSION);
+    expect(created.spotify.playlistCalls()).toEqual([`POST ${CREATE}`, `POST ${items(PLAYLIST_ID)}`]);
+    const updated = await setup({ record: bigRecord(), cached: [bigSetlist()] });
+    expect((await updated.run(bigSetlist(), BIG_VERSION)).status).toBe("updated");
+    expect(updated.spotify.playlistCalls()).toEqual([
+      `PUT ${items(BIG_RECORDED_ID)}`,
+      `POST ${items(BIG_RECORDED_ID)}`,
+      `POST ${items(BIG_RECORDED_ID)}`,
+      `PUT ${details(BIG_RECORDED_ID)}`,
+    ]);
     runs.push(updated);
     const recreated = await setup({ record: h1Record(), cached: [fixtureHv2()], spotify: { deleted: [PLAYLIST_ID], createdIds: [NEW_PLAYLIST_ID] } });
-    await recreated.run(fixtureHv2(), H_V2);
+    expect((await recreated.run(fixtureHv2(), H_V2)).status).toBe("created");
+    expect(recreated.spotify.playlistCalls()).toEqual([`PUT ${items(PLAYLIST_ID)}`, `POST ${CREATE}`, `POST ${items(NEW_PLAYLIST_ID)}`]);
     runs.push(recreated);
     for (const run of runs) {
       expectAllowedRequests(run.spotify.http.requests);
       for (const r of run.spotify.http.requests) expect(r.headers.get("Authorization")).toBe(`Bearer ${HOST_TOKEN}`);
     }
+  });
+});
+
+// ---------------------------------------------------------------- the access token echoed back (AC-21)
+
+/** Every own property of an error and of each error in its cause chain, as text. */
+function chainOwnText(err: unknown): string {
+  const parts: string[] = [];
+  let current: unknown = err;
+  for (let depth = 0; current instanceof Error && depth < 10; depth++) {
+    parts.push(JSON.stringify(current, Object.getOwnPropertyNames(current)), String(current.stack ?? ""));
+    current = (current as { cause?: unknown }).cause;
+  }
+  return parts.join("\n");
+}
+
+/** Spotify (or a proxy) repeating the access token in its error answer. */
+const echoing = (status: number, headers: Record<string, string> = {}) =>
+  answer(status, { error: { status, message: `Invalid access token: Bearer ${HOST_TOKEN}` } }, headers);
+/** A network failure whose message holds the Authorization header. */
+const echoingNetworkFailure = () =>
+  Promise.reject(
+    Object.assign(new TypeError("fetch failed"), {
+      cause: new Error(`socket hang up while sending Authorization: Bearer ${HOST_TOKEN}`),
+    }),
+  );
+
+describe("createOrUpdateSetlistPlaylist — the access token echoed back (H5)", () => {
+  type EchoScenario = [string, Setup, () => SetlistFmSetlist, string, abstract new (...args: never[]) => Error];
+  const echoed: EchoScenario[] = [
+    ["replace answered 401 with the token", { record: h1Record(), cached: [fixtureHv2()], spotify: { answers: { 0: echoing(401) } } }, fixtureHv2, H_V2, SpotifyPlaylistError],
+    ["replace answered 429 ×4 with the token", { record: h1Record(), cached: [fixtureHv2()], spotify: { answers: { 0: echoing(429, { "Retry-After": "2" }), 1: echoing(429, { "Retry-After": "2" }), 2: echoing(429, { "Retry-After": "2" }), 3: echoing(429, { "Retry-After": "2" }) } } }, fixtureHv2, H_V2, PlaylistRateLimitError],
+    ["replace network failure naming the token", { record: h1Record(), cached: [fixtureHv2()], spotify: { answers: { 0: echoingNetworkFailure } } }, fixtureHv2, H_V2, SpotifyPlaylistError],
+    ["rename answered 404 with the token", { record: h1Record(), cached: [fixtureHv2()], spotify: { answers: { 1: echoing(404) } } }, fixtureHv2, H_V2, PartlyUpdatedPlaylistError],
+    ["rename network failure naming the token", { record: h1Record(), cached: [fixtureHv2()], spotify: { answers: { 1: echoingNetworkFailure } } }, fixtureHv2, H_V2, PartlyUpdatedPlaylistError],
+    ["create answered 403 with the token", { cached: [fixtureHv1()], spotify: { answers: { 0: echoing(403) } } }, fixtureHv1, H_V1, SpotifyPlaylistError],
+    ["add batch 2 answered 400 with the token", { cached: [bigSetlist()], spotify: { answers: { 2: echoing(400) } } }, () => bigSetlist(), BIG_VERSION, PartlyCreatedPlaylistError],
+  ];
+
+  it.each(echoed)("AC-21: %s → the error reaches the caller, but no message, hint or cause holds the access token", async (_label, opts, setlist, version, type) => {
+    const t = await setup(opts);
+    const err = await captureError(t.run(setlist(), version));
+    expect(findInChain(err, type)).toBeInstanceOf(type);
+    // Nothing of the token is left anywhere a user or a log could see.
+    expect(errorText(err)).not.toContain(HOST_TOKEN);
+    expect(chainOwnText(err)).not.toContain(HOST_TOKEN);
+    expectAllowedRequests(t.spotify.http.requests);
+  });
+
+  it("AC-21: a 401 whose message echoes the token keeps Spotify's words with the token taken out", async () => {
+    const t = await setup({ record: h1Record(), cached: [fixtureHv2()], spotify: { answers: { 0: echoing(401) } } });
+    const err = await captureError(t.run(fixtureHv2(), H_V2));
+    expect(findInChain(err, SpotifyPlaylistError)?.status).toBe(401);
+    expect(errorText(err)).toContain("Invalid access token");
+    expect(errorText(err)).not.toContain(HOST_TOKEN);
+  });
+});
+
+// ---------------------------------------------------------------- update with no cached preview (AC-13, AC-16)
+
+describe("createOrUpdateSetlistPlaylist — update with no cached preview", () => {
+  it("AC-13, AC-16: record v1, H v2, nothing cached → 5 searches with the token in played order, then PUT items and the rename; the preview is cached", async () => {
+    const t = await setup({ record: h1Record() });
+    const result = await t.run(fixtureHv2(), H_V2, LATER_ISO);
+    const requests = t.spotify.http.requests;
+    expect(requests.map((r) => (r.url.pathname === "/v1/search" ? r.url.searchParams.get("q") : `${r.method} ${r.url.origin}${r.url.pathname}`))).toEqual([
+      'track:"Release" artist:"Pearl Jam"',
+      'track:"Even Flow" artist:"Pearl Jam"',
+      'track:"Corduroy" artist:"Pearl Jam"',
+      'track:"Alive" artist:"Pearl Jam"',
+      'track:"Yellow Ledbetter" artist:"Pearl Jam"',
+      `PUT ${items(PLAYLIST_ID)}`,
+      `PUT ${details(PLAYLIST_ID)}`,
+    ]);
+    for (const r of requests) expect(r.headers.get("Authorization")).toBe(`Bearer ${HOST_TOKEN}`);
+    expect(bodyOf(requests[5])).toEqual({ uris: H_V2_URIS });
+    expect(bodyOf(requests[6])).toEqual({ name: H_V2_NAME, description: H_DESCRIPTION });
+    expect(result).toEqual({ status: "updated", playlist: { id: PLAYLIST_ID, shareUrl: SHARE_URL, name: H_V2_NAME, trackCount: 5 } });
+    expect(await t.store.findRecord(H_SETLIST_ID)).toEqual(h1Record({ versionId: H_V2 }));
+    const cached = await t.store.findPreview(H_SETLIST_ID, H_V2);
+    expect(cached?.matches.map((m) => m.uri)).toEqual(H_V2_URIS);
+    expect(cached?.playlistName).toBe(H_V2_NAME);
+    expect(saves(t.spy.calls)).toEqual([`savePreview:${H_SETLIST_ID}:${H_V2}`, `saveRecord:${H_SETLIST_ID}`]);
+  });
+
+  it("AC-13, AC-16: the big Setlist (230) with a record and nothing cached → 230 searches, then PUT 1–100, POST 101–200, POST 201–230, the rename", async () => {
+    const bigTracks = Object.fromEntries(
+      Array.from({ length: 230 }, (_, i) => {
+        const id = `T${String(i + 1).padStart(3, "0")}`;
+        return [`Song ${i + 1}`, spotifyTrack(id, `Song ${i + 1}`, "Pearl Jam", "Some Album")];
+      }),
+    );
+    const t = await setup({ record: bigRecord(), spotify: { tracks: bigTracks } });
+    const result = await t.run(bigSetlist(), BIG_VERSION);
+    const requests = t.spotify.http.requests;
+    const searches = requests.slice(0, 230);
+    expect(searches.every((r) => r.url.pathname === "/v1/search")).toBe(true);
+    expect(searches.map((r) => /track:"([^"]*)"/.exec(r.url.searchParams.get("q") ?? "")?.[1])).toEqual(
+      Array.from({ length: 230 }, (_, i) => `Song ${i + 1 === 150 ? 7 : i + 1}`),
+    );
+    expect(t.spotify.playlistCalls()).toEqual([
+      `PUT ${items(BIG_RECORDED_ID)}`,
+      `POST ${items(BIG_RECORDED_ID)}`,
+      `POST ${items(BIG_RECORDED_ID)}`,
+      `PUT ${details(BIG_RECORDED_ID)}`,
+    ]);
+    expect(requests).toHaveLength(234);
+    const uris = bigUris();
+    expect(t.spotify.playlistRequests().slice(0, 3).map((r) => bodyOf(r))).toEqual([
+      { uris: uris.slice(0, 100) },
+      { uris: uris.slice(100, 200) },
+      { uris: uris.slice(200, 230) },
+    ]);
+    expect(result).toEqual({ status: "updated", playlist: { id: BIG_RECORDED_ID, shareUrl: BIG_SHARE_URL, name: BIG_NAME, trackCount: 230 } });
+    expect((await t.store.findPreview(BIG_SETLIST_ID, BIG_VERSION))?.matches.map((m) => m.uri)).toEqual(uris);
+  });
+});
+
+// ---------------------------------------------------------------- create at the batch edges (AC-15)
+
+describe("createOrUpdateSetlistPlaylist — create at exactly 100 and 101 Matches (H4)", () => {
+  it("AC-15: no record, exactly 100 Matches → create, then one POST with 100 URIs; 100 tracks", async () => {
+    const t = await setup({ cached: [bigSetlist(100)], spotify: { createdIds: [BIG_RECORDED_ID] } });
+    const result = await t.run(bigSetlist(100), BIG_VERSION);
+    expect(t.spotify.playlistCalls()).toEqual([`POST ${CREATE}`, `POST ${items(BIG_RECORDED_ID)}`]);
+    expect(bodyOf(t.spotify.playlistRequests()[1])).toEqual({ uris: bigUris(100) });
+    expect(result).toEqual({ status: "created", playlist: { id: BIG_RECORDED_ID, shareUrl: BIG_SHARE_URL, name: BIG_NAME, trackCount: 100 } });
+    expect(await t.store.findRecord(BIG_SETLIST_ID)).toEqual(bigRecord({ versionId: BIG_VERSION }));
+  });
+
+  it("AC-15: no record, 101 Matches → create, POST 1–100, POST 101; 101 tracks", async () => {
+    const t = await setup({ cached: [bigSetlist(101)], spotify: { createdIds: [BIG_RECORDED_ID] } });
+    const result = await t.run(bigSetlist(101), BIG_VERSION);
+    expect(t.spotify.playlistCalls()).toEqual([`POST ${CREATE}`, `POST ${items(BIG_RECORDED_ID)}`, `POST ${items(BIG_RECORDED_ID)}`]);
+    const [, first, second] = t.spotify.playlistRequests();
+    expect(bodyOf(first)).toEqual({ uris: bigUris(101).slice(0, 100) });
+    expect(bodyOf(second)).toEqual({ uris: ["spotify:track:T101"] });
+    expect(result.playlist.trackCount).toBe(101);
+  });
+});
+
+// ---------------------------------------------------------------- an add batch fails during an update (AC-17, AC-19)
+
+describe("createOrUpdateSetlistPlaylist — an add batch fails during an update (H5)", () => {
+  it("AC-17, AC-19: PUT items 200, then the first add batch 404 → partly updated (100 of 230), not 'no longer held': no new playlist", async () => {
+    const record = bigRecord();
+    const t = await setup({
+      record,
+      cached: [bigSetlist()],
+      spotify: { answers: { 1: answer(404, { error: { status: 404, message: "Resource not found" } }) } },
+    });
+    const err = await captureError(t.run(bigSetlist(), BIG_VERSION));
+    expect(err).toBeInstanceOf(PartlyUpdatedPlaylistError);
+    const partly = err as PartlyUpdatedPlaylistError;
+    expect([partly.playlistId, partly.shareUrl, partly.tracksWritten, partly.totalMatches]).toEqual([BIG_RECORDED_ID, BIG_SHARE_URL, 100, 230]);
+    expect(findInChain(partly.cause, SpotifyPlaylistError)?.status).toBe(404);
+    expect(t.spotify.playlistCalls()).toEqual([`PUT ${items(BIG_RECORDED_ID)}`, `POST ${items(BIG_RECORDED_ID)}`]);
+    expect(await t.store.findRecord(BIG_SETLIST_ID)).toEqual(record);
+  });
+
+  it("AC-17, AC-19: the recorded playlist deleted after the replace (add 502, as Spotify answers a deleted playlist) → partly updated, no new playlist", async () => {
+    const record = bigRecord();
+    // The replace succeeds (answer 0), then the playlist is gone: the fake answers adds with 502.
+    const t = await setup({ record, cached: [bigSetlist()], spotify: { deleted: [BIG_RECORDED_ID], answers: { 0: answer(200, { snapshot_id: "AAAAAwAAAAA" }) } } });
+    const err = await captureError(t.run(bigSetlist(), BIG_VERSION));
+    expect(err).toBeInstanceOf(PartlyUpdatedPlaylistError);
+    expect((err as PartlyUpdatedPlaylistError).tracksWritten).toBe(100);
+    expect(findInChain((err as Error).cause, SpotifyPlaylistError)?.status).toBe(502);
+    expect(t.spotify.playlistCalls()).toEqual([`PUT ${items(BIG_RECORDED_ID)}`, `POST ${items(BIG_RECORDED_ID)}`]);
+    expect(await t.store.findRecord(BIG_SETLIST_ID)).toEqual(record);
+  });
+});
+
+// ---------------------------------------------------------------- the recreate after a 404 fails (AC-17, AC-20)
+
+describe("createOrUpdateSetlistPlaylist — the recreate after a 404 fails (H3, H5)", () => {
+  it("AC-17, AC-20: 404 on the replace, then the new playlist is only partly filled → partly created; the record now names the NEW playlist with no version", async () => {
+    const t = await setup({
+      record: bigRecord(),
+      cached: [bigSetlist()],
+      spotify: {
+        deleted: [BIG_RECORDED_ID],
+        createdIds: [PARTLY_ID],
+        answers: { 3: answer(400, { error: { status: 400, message: "Invalid base62 id" } }) },
+      },
+    });
+    const err = await captureError(t.run(bigSetlist(), BIG_VERSION, LATER_ISO));
+    expect(err).toBeInstanceOf(PartlyCreatedPlaylistError);
+    const partly = err as PartlyCreatedPlaylistError;
+    expect([partly.playlistId, partly.shareUrl, partly.tracksAdded, partly.totalMatches]).toEqual([PARTLY_ID, PARTLY_SHARE_URL, 100, 230]);
+    expect(t.spotify.playlistCalls()).toEqual([
+      `PUT ${items(BIG_RECORDED_ID)}`,
+      `POST ${CREATE}`,
+      `POST ${items(PARTLY_ID)}`,
+      `POST ${items(PARTLY_ID)}`,
+    ]);
+    expect(await t.store.findRecord(BIG_SETLIST_ID)).toEqual({
+      setlistId: BIG_SETLIST_ID,
+      playlistId: PARTLY_ID,
+      shareUrl: PARTLY_SHARE_URL,
+      versionId: null,
+      createdAt: LATER_ISO,
+    });
+  });
+
+  it("AC-17, AC-20: the recorded playlist deleted and the recreate's create request cannot reach Spotify → no playlist was created; the old record unchanged", async () => {
+    const t = await setup({
+      record: h1Record(),
+      cached: [fixtureHv2()],
+      spotify: { deleted: [PLAYLIST_ID], answers: { 1: networkFailure } },
+    });
+    const err = await captureError(t.run(fixtureHv2(), H_V2, LATER_ISO));
+    expect(err).not.toBeInstanceOf(PartlyCreatedPlaylistError);
+    expect(findInChain(err, SpotifyPlaylistError)).toBeInstanceOf(SpotifyPlaylistError);
+    expect(errorText(err)).toMatch(/no playlist was created/i);
+    expect(t.spotify.playlistCalls()).toEqual([`PUT ${items(PLAYLIST_ID)}`, `POST ${CREATE}`]);
+    expect(await t.store.findRecord(H_SETLIST_ID)).toEqual(h1Record());
+  });
+});
+
+// ---------------------------------------------------------------- the records store fails (current behaviour)
+
+type RecordsMethod = keyof SetlistPlaylistRecords;
+
+/** The in-memory store, with one method rejecting with `failure`. */
+function storeFailingOn(store: SetlistPlaylistRecords, method: RecordsMethod, failure: Error): SetlistPlaylistRecords {
+  const fails = (name: RecordsMethod) => name === method;
+  return {
+    findRecord: (setlistId) => (fails("findRecord") ? Promise.reject(failure) : store.findRecord(setlistId)),
+    saveRecord: (record) => (fails("saveRecord") ? Promise.reject(failure) : store.saveRecord(record)),
+    findPreview: (setlistId, versionId) =>
+      fails("findPreview") ? Promise.reject(failure) : store.findPreview(setlistId, versionId),
+    savePreview: (setlistId, versionId, preview) =>
+      fails("savePreview") ? Promise.reject(failure) : store.savePreview(setlistId, versionId, preview),
+  };
+}
+
+describe("createOrUpdateSetlistPlaylist — the records store fails", () => {
+  const storeDown = () => new Error("records store unavailable: SQLITE_BUSY");
+
+  it("AC-16: looking up the record fails → that store error reaches the caller; no playlist request is sent", async () => {
+    const store = createMemorySetlistPlaylistRecords();
+    await store.saveRecord(h1Record());
+    await cachePreview(store, fixtureHv2(), hostOutcomes);
+    const failure = storeDown();
+    const spotify = makeHostSpotify();
+    const err = await captureError(
+      createOrUpdateSetlistPlaylist(spotify.services, fixtureHv2(), H_V2, {
+        accessToken: HOST_TOKEN,
+        records: storeFailingOn(store, "findRecord", failure),
+        now: clockAt(NOW_ISO),
+      }),
+    );
+    expect(err).toBe(failure);
+    expect(spotify.http.requests).toEqual([]);
+    expect(await store.findRecord(H_SETLIST_ID)).toEqual(h1Record());
+  });
+
+  it("AC-13: saving the new cached preview fails → that store error reaches the caller after the searches; no playlist request, no record", async () => {
+    const store = createMemorySetlistPlaylistRecords();
+    const failure = storeDown();
+    const spotify = makeHostSpotify();
+    const err = await captureError(
+      createOrUpdateSetlistPlaylist(spotify.services, fixtureHv1(), H_V1, {
+        accessToken: HOST_TOKEN,
+        records: storeFailingOn(store, "savePreview", failure),
+        now: clockAt(NOW_ISO),
+      }),
+    );
+    expect(err).toBe(failure);
+    expect(spotify.searchRequests()).toHaveLength(3);
+    expect(spotify.playlistRequests()).toEqual([]);
+    expect(await store.findRecord(H_SETLIST_ID)).toBeUndefined();
+  });
+
+  it("AC-15: saving the record fails after a successful create → that store error reaches the caller; the playlist was created and filled", async () => {
+    const store = createMemorySetlistPlaylistRecords();
+    await cachePreview(store, fixtureHv1(), hostOutcomes);
+    const failure = storeDown();
+    const spotify = makeHostSpotify();
+    const err = await captureError(
+      createOrUpdateSetlistPlaylist(spotify.services, fixtureHv1(), H_V1, {
+        accessToken: HOST_TOKEN,
+        records: storeFailingOn(store, "saveRecord", failure),
+        now: clockAt(NOW_ISO),
+      }),
+    );
+    expect(err).toBe(failure);
+    expect(spotify.playlistCalls()).toEqual([`POST ${CREATE}`, `POST ${items(PLAYLIST_ID)}`]);
+    expect(await store.findRecord(H_SETLIST_ID)).toBeUndefined();
+  });
+
+  it("AC-16: saving the record fails after a successful update → that store error reaches the caller; the record keeps its old version", async () => {
+    const store = createMemorySetlistPlaylistRecords();
+    await store.saveRecord(h1Record());
+    await cachePreview(store, fixtureHv2(), hostOutcomes);
+    const failure = storeDown();
+    const spotify = makeHostSpotify();
+    const err = await captureError(
+      createOrUpdateSetlistPlaylist(spotify.services, fixtureHv2(), H_V2, {
+        accessToken: HOST_TOKEN,
+        records: storeFailingOn(store, "saveRecord", failure),
+        now: clockAt(LATER_ISO),
+      }),
+    );
+    expect(err).toBe(failure);
+    expect(spotify.playlistCalls()).toEqual([`PUT ${items(PLAYLIST_ID)}`, `PUT ${details(PLAYLIST_ID)}`]);
+    expect(await store.findRecord(H_SETLIST_ID)).toEqual(h1Record());
   });
 });
