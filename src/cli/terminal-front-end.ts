@@ -1,5 +1,6 @@
 import type { ArtistCandidate, MatchOutcome, Miss, Performance } from "../core/index.js";
-import type { Preview, RunFrontEnd } from "../core/run/index.js";
+import type { IncompleteStatus } from "../core/performances/index.js";
+import type { NotAdded, Preview, RunFrontEnd } from "../core/run/index.js";
 import type { CliIo } from "./main.js";
 
 /** Writes one line (or a blank line) to standard output. */
@@ -26,6 +27,15 @@ export function createTerminalFrontEnd(io: CliIo, out: WriteLine): RunFrontEnd {
       return io.prompts.confirm({ message: `Add the Tape "${tape.title}"${by} to the playlist?`, default: false });
     },
 
+    askUseCompleteSetlist({ latest, complete }) {
+      return io.prompts.confirm({
+        message:
+          `The latest Setlist (${latest.date}, ${latest.city}) looks incomplete. ` +
+          `Use the newest complete one (${complete.date}, ${complete.city}) instead?`,
+        default: false,
+      });
+    },
+
     async confirmCreate() {
       out();
       return io.prompts.confirm({ message: "Create this playlist?", default: false });
@@ -44,11 +54,15 @@ export function createTerminalFrontEnd(io: CliIo, out: WriteLine): RunFrontEnd {
       out("Waiting for the Spotify login (Ctrl-C to cancel)...");
     },
 
-    showShow({ show, performanceCount, tapeCount }) {
+    showShow({ show, performanceCount, tapeCount, incompleteStatus }) {
       out();
       out(`${show.artist} – ${show.date} – ${show.venue}, ${show.city}`);
       out(show.url);
       out(`${plural(performanceCount, "Performance")}, ${plural(tapeCount, "Tape")}`);
+      if (incompleteStatus.isIncomplete) {
+        out(incompleteWarning(incompleteStatus));
+        out("The Setlist Playlist may not be the full Show.");
+      }
       out();
     },
 
@@ -85,12 +99,11 @@ function printPreview(preview: Preview, out: WriteLine): void {
   if (preview.notAdded.length > 0) {
     out();
     out("Not added:");
-    for (const { name, reason } of preview.notAdded) {
-      out(`  ${name} (${reason === "tape" ? "Tape, left out" : "snippet"})`);
-    }
+    for (const entry of preview.notAdded) out(`  ${notAddedLine(entry)}`);
   }
 
   out();
+  if (preview.incompleteStatus.isIncomplete) out(incompleteWarning(preview.incompleteStatus));
   out(`Playlist: ${preview.playlistName} (${preview.public ? "public" : "private"})`);
   out(`${plural(preview.trackCount, "track")}, ${plural(preview.missCount, "Miss", "Misses")}`);
 
@@ -101,6 +114,24 @@ function printPreview(preview: Preview, out: WriteLine): void {
     out("A new playlist will be created anyway.");
   }
 }
+
+function notAddedLine(entry: NotAdded): string {
+  if (entry.reason !== "unknown") return `${entry.name} (${entry.reason === "tape" ? "Tape, left out" : "snippet"})`;
+  const where = entry.after === 0 ? "at the start" : `after #${entry.after}`;
+  return `(Unknown song) ${where}${entry.info === undefined ? "" : ` — ${entry.info}`}`;
+}
+
+/** `Warning: this Setlist looks incomplete: <n Unknown Songs>; note: "<Setlist note>".` */
+export function incompleteWarning(status: IncompleteStatus): string {
+  const reasons = [
+    ...(status.unknownSongCount > 0 ? [plural(status.unknownSongCount, "Unknown Song")] : []),
+    ...(status.setlistNote !== undefined ? [`note: "${status.setlistNote}"`] : []),
+  ];
+  return `Warning: this Setlist looks incomplete: ${reasons.join("; ")}.`;
+}
+
+/** The summary's Note line for an Incomplete Setlist (PRD 0011 AC-16). */
+export const INCOMPLETE_NOTE = "Note: this Setlist is incomplete — the playlist may not be the full Show.";
 
 function markersOf(performance: Performance): string {
   const markers = [

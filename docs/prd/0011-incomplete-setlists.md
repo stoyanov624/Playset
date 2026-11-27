@@ -1,6 +1,6 @@
 # PRD 0011 — Note Unknown Songs and Incomplete Setlists; offer an older complete one
 
-Status: Approved
+Status: Implemented
 Slice: 11
 Depends on: 0002, 0005, 0007, 0008, 0009, 0010
 Module: src/core/performances (Unknown Songs, the incomplete check), src/core/setlistfm (the setlist-level note, the search for an older complete Setlist), src/core/run and src/cli (warnings, the offer question, preview and summary lines)

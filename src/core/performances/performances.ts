@@ -1,5 +1,7 @@
+import { incompleteStatusOf } from "./incomplete.js";
 import type {
   NotedSong,
+  NotedUnknownSong,
   Performance,
   PerformancesResult,
   SetlistFmSet,
@@ -15,9 +17,9 @@ import type {
 const MEDLEY_SEPARATOR = " / ";
 
 /**
- * Turns a setlist.fm Setlist into Performances in played order, plus the noted songs
- * (snippets/teasers) and the Show details. A medley is split into one Performance per part,
- * each carrying the medley name. Pure: never mutates its input.
+ * Turns a setlist.fm Setlist into Performances in played order, plus the noted songs (snippets/teasers
+ * and Unknown Songs), the Show details and the incomplete status. A medley is split into one Performance
+ * per part, each carrying the medley name. Pure: never mutates its input.
  */
 export function toPerformances(setlist: SetlistFmSetlist): PerformancesResult {
   const artist = setlist.artist.name;
@@ -29,7 +31,11 @@ export function toPerformances(setlist: SetlistFmSetlist): PerformancesResult {
     for (const song of set.song ?? []) {
       const rawName = song.name ?? "";
       const name = rawName.trim();
-      if (name === "") continue;
+      // An Unknown Song wins over every other marker (snippet, medley, tape, cover, guest).
+      if (name === "") {
+        noted.push(unknownSong(song, rawName, setLabel, performances.length));
+        continue;
+      }
 
       if (isSnippet(song)) {
         noted.push({ rawName, reason: "snippet", setLabel, afterPosition: performances.length });
@@ -53,7 +59,20 @@ export function toPerformances(setlist: SetlistFmSetlist): PerformancesResult {
     }
   }
 
-  return { show: showOf(setlist), performances, noted };
+  const unknownSongCount = noted.filter((song) => song.reason === "unknown").length;
+  return {
+    show: showOf(setlist),
+    performances,
+    noted,
+    incompleteStatus: incompleteStatusOf(unknownSongCount, setlist.info),
+  };
+}
+
+function unknownSong(song: SetlistFmSong, rawName: string, setLabel: string, afterPosition: number): NotedUnknownSong {
+  const noted: NotedUnknownSong = { rawName, reason: "unknown", setLabel, afterPosition };
+  const info = song.info?.trim();
+  if (info) noted.info = info;
+  return noted;
 }
 
 /**

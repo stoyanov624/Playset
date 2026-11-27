@@ -1,23 +1,37 @@
 import type { Match, MatchOutcome, Miss } from "../matching/index.js";
-import { toPerformances, type NotedSong, type Performance, type SetlistFmSetlist } from "../performances/index.js";
+import {
+  toPerformances,
+  type NotedSong,
+  type Performance,
+  type PerformancesResult,
+  type SetlistFmSetlist,
+} from "../performances/index.js";
 import { looksLikeSetlistFmLink, readSetlistId } from "../setlist-link/index.js";
 import { setlistPlaylistDescription, setlistPlaylistName } from "../setlist-playlist/index.js";
-import type { NotAdded, Preview, PreviewRow, RunOptions, RunOutcome, RunRequest } from "./types.js";
+import type {
+  NotAdded,
+  Preview,
+  PreviewRow,
+  RunFrontEnd,
+  RunOptions,
+  RunOutcome,
+  RunRequest,
+  ShowSummary,
+} from "./types.js";
 
 /**
- * One whole run: Setlist → Show → Tape decisions → Spotify login → Matches → preview → confirmation →
- * Setlist Playlist. Every question and service comes from the caller. Errors are passed on unchanged.
+ * One whole run: Setlist → Show → (offer of an older complete Setlist) → Tape decisions → Spotify login →
+ * Matches → preview → confirmation → Setlist Playlist. Every question and service comes from the caller. Errors are passed on unchanged.
  */
 export async function runPlayset({ input, options, frontEnd, services }: RunRequest): Promise<RunOutcome> {
-  const setlist = await fetchSetlist(input, services, frontEnd.chooseArtist.bind(frontEnd));
-  const { show, performances, noted } = toPerformances(setlist);
+  const chooseArtist = frontEnd.chooseArtist.bind(frontEnd);
+  const { setlist, completeAlternative } = await fetchSetlist(input, options, services, chooseArtist);
+  const latest = toPerformances(setlist);
+  frontEnd.showShow(showSummaryOf(latest));
 
-  frontEnd.showShow({
-    show,
-    performanceCount: performances.length,
-    tapeCount: performances.filter((p) => p.isTape).length,
-  });
-  // Fails early (before any question or Spotify request) when the description would be too long.
+  const inUse = await setlistInUse(latest, completeAlternative, frontEnd);
+  const { show, performances, noted, incompleteStatus } = inUse;
+  // Fails early (before any Tape question or Spotify request) when the description would be too long.
   setlistPlaylistDescription(show);
   if (performances.length === 0) return { kind: "no-performances" };
 
@@ -52,36 +66,68 @@ export async function runPlayset({ input, options, frontEnd, services }: RunRequ
   const duplicates = await services.findPlaylistsNamed(playlistName, accessToken);
   const preview: Preview = {
     rows,
-    notAdded: notAddedInPlayedOrder(noted, leftOutTapes),
+    notAdded: notAddedInPlayedOrder(noted, kept, leftOutTapes),
     playlistName,
     public: options.public,
     trackCount: matches.length,
     missCount: misses.length,
     duplicates,
+    incompleteStatus,
   };
   frontEnd.showPreview(preview);
 
-  if (options.dryRun) return { kind: "dry-run", preview, misses };
+  if (options.dryRun) return { kind: "dry-run", preview, misses, incompleteStatus };
   if (options.confirm === "ask" && !(await frontEnd.confirmCreate(preview))) {
     return { kind: "declined", preview, misses };
   }
 
   const playlist = await services.createSetlistPlaylist(show, matches, { accessToken, public: options.public });
-  return { kind: "created", playlist, misses };
+  return { kind: "created", playlist, misses, incompleteStatus };
 }
 
-/** A setlist.fm link is fetched by id; anything else is an Artist name for the Latest Setlist search. */
+function showSummaryOf({ show, performances, incompleteStatus }: PerformancesResult): ShowSummary {
+  return {
+    show,
+    performanceCount: performances.length,
+    tapeCount: performances.filter((p) => p.isTape).length,
+    incompleteStatus,
+  };
+}
+
+/**
+ * The Setlist the run builds its Setlist Playlist from: the newest complete Setlist when the Latest Setlist
+ * is incomplete and the user accepts the offer (its Show is then reported too), otherwise the fetched one.
+ */
+async function setlistInUse(
+  latest: PerformancesResult,
+  completeAlternative: SetlistFmSetlist | null,
+  frontEnd: RunFrontEnd,
+): Promise<PerformancesResult> {
+  if (completeAlternative === null || !latest.incompleteStatus.isIncomplete) return latest;
+  const complete = toPerformances(completeAlternative);
+  if (!(await frontEnd.askUseCompleteSetlist({ latest: latest.show, complete: complete.show }))) return latest;
+  frontEnd.showShow(showSummaryOf(complete));
+  return complete;
+}
+
+/**
+ * A setlist.fm link is fetched by id; anything else is an Artist name for the Latest Setlist search. An
+ * older complete Setlist is looked for only when the user can be asked about it (not with confirm "skip").
+ */
 async function fetchSetlist(
   input: string,
+  options: RunOptions,
   services: RunRequest["services"],
-  chooseArtist: RunRequest["frontEnd"]["chooseArtist"],
-): Promise<SetlistFmSetlist> {
+  chooseArtist: RunFrontEnd["chooseArtist"],
+): Promise<{ setlist: SetlistFmSetlist; completeAlternative: SetlistFmSetlist | null }> {
   const trimmed = input.trim();
   if (trimmed === "" || looksLikeSetlistFmLink(trimmed)) {
-    return services.getSetlist(readSetlistId(trimmed));
+    return { setlist: await services.getSetlist(readSetlistId(trimmed)), completeAlternative: null };
   }
-  const { setlist } = await services.findLatestSetlistByArtistName(trimmed, chooseArtist);
-  return setlist;
+  const { setlist, completeAlternative } = await services.findLatestSetlistByArtistName(trimmed, chooseArtist, {
+    wantCompleteAlternative: options.confirm !== "skip",
+  });
+  return { setlist, completeAlternative: completeAlternative ?? null };
 }
 
 async function keepTape(
@@ -94,13 +140,26 @@ async function keepTape(
   return askTape(tape);
 }
 
-/** Noted songs and left-out Tapes merged in played order (a noted song follows the Performance before it). */
-function notAddedInPlayedOrder(noted: readonly NotedSong[], leftOutTapes: readonly Performance[]): NotAdded[] {
-  const entries = [
+/**
+ * Noted songs and left-out Tapes merged in played order (a noted song follows the Performance before it).
+ * An Unknown Song is placed after the preview number of the last kept Performance played before it.
+ */
+function notAddedInPlayedOrder(
+  noted: readonly NotedSong[],
+  kept: readonly Performance[],
+  leftOutTapes: readonly Performance[],
+): NotAdded[] {
+  const entries: { order: number; item: NotAdded }[] = [
     ...leftOutTapes.map((tape) => ({ order: tape.position, item: { name: tape.title, reason: "tape" as const } })),
-    ...noted.map((song) => ({ order: song.afterPosition + 0.5, item: { name: song.rawName, reason: song.reason } })),
+    ...noted.map((song) => ({ order: song.afterPosition + 0.5, item: notAddedOf(song, kept) })),
   ];
   return entries.sort((a, b) => a.order - b.order).map((entry) => entry.item);
+}
+
+function notAddedOf(song: NotedSong, kept: readonly Performance[]): NotAdded {
+  if (song.reason === "snippet") return { name: song.rawName, reason: "snippet" };
+  const after = kept.filter((performance) => performance.position <= song.afterPosition).length;
+  return song.info === undefined ? { reason: "unknown", after } : { reason: "unknown", after, info: song.info };
 }
 
 const isMatch = (outcome: MatchOutcome): outcome is Match => outcome.kind === "match";

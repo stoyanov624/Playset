@@ -26,6 +26,8 @@ export interface SetlistFmSetlist {
     readonly city: { readonly name: string; readonly country?: { readonly name?: string } };
   };
   readonly url: string;
+  /** The Setlist note: setlist.fm's free-text info about the whole Setlist (not a song's info). */
+  readonly info?: string;
   readonly sets?: { readonly set?: readonly SetlistFmSet[] };
 }
 
@@ -50,15 +52,43 @@ export interface Performance {
 }
 
 /** Why a song was noted instead of becoming a Performance. */
-export type NotedReason = "snippet";
+export type NotedReason = "snippet" | "unknown";
 
 /** A song that was played but does not become a Performance. */
-export interface NotedSong {
+export type NotedSong = NotedSnippet | NotedUnknownSong;
+
+interface NotedSongBase {
+  /** The song's name exactly as given by setlist.fm ("" when missing). */
   rawName: string;
-  reason: NotedReason;
   setLabel: string;
   /** Position of the Performance this song was played after (0 if before the first). */
   afterPosition: number;
+}
+
+/** A snippet or teaser (PRD 0002 AC-9). */
+export interface NotedSnippet extends NotedSongBase {
+  reason: "snippet";
+}
+
+/** An Unknown Song: a song with a missing, empty or whitespace-only name (PRD 0011 AC-1). */
+export interface NotedUnknownSong extends NotedSongBase {
+  reason: "unknown";
+  /** The song's info text, trimmed; absent when missing or blank. */
+  info?: string;
+}
+
+/**
+ * Whether a Setlist is an Incomplete Setlist (PRD 0011 AC-5): it has an Unknown Song, or its Setlist
+ * note contains one of the incomplete phrases. A complete Setlist is exactly
+ * `{ isIncomplete: false, unknownSongCount: 0 }`.
+ */
+export interface IncompleteStatus {
+  isIncomplete: boolean;
+  unknownSongCount: number;
+  /** The first matching phrase in list order; present only when the Setlist note matches. */
+  matchedPhrase?: string;
+  /** The Setlist note, trimmed; present only when it matches. */
+  setlistNote?: string;
 }
 
 /** Details of the Show a Setlist belongs to. */
@@ -76,4 +106,5 @@ export interface PerformancesResult {
   show: Show;
   performances: Performance[];
   noted: NotedSong[];
+  incompleteStatus: IncompleteStatus;
 }
