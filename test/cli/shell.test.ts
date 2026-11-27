@@ -112,12 +112,13 @@ async function cliHelpDescriptions(): Promise<Record<string, string>> {
 /** The overrides that make "Xyzzq Nonexistent" unknown on setlist.fm while other names work. */
 function unknownXyzzq(err: Error): ServiceOverride {
   return (inner, controls) => ({
-    async findLatestSetlistByArtistName(name: string, chooser: unknown) {
+    async findLatestSetlistByArtistName(name: string, chooser: unknown, ...rest: unknown[]) {
       if (name === "Xyzzq Nonexistent") {
         controls.events.push(`setlistfm:findLatest:${name}`);
         throw err;
       }
-      return inner.findLatestSetlistByArtistName!(name, chooser);
+      // PRD 0011 AC-7: pass the run's options (wantCompleteAlternative) through unchanged.
+      return inner.findLatestSetlistByArtistName!(name, chooser, ...rest);
     },
   });
 }
@@ -913,8 +914,9 @@ describe("shell — sharing across runs", () => {
       {
         overrideServices: () => ({
           getSetlist: (id: string) => client.getSetlist(id),
-          findLatestSetlistByArtistName: (name: string, chooser: Parameters<typeof client.findLatestSetlistByArtistName>[1]) =>
-            client.findLatestSetlistByArtistName(name, chooser),
+          // PRD 0011 AC-7: the run's options are passed through (page 1 has total 1, so no page 2 is requested).
+          findLatestSetlistByArtistName: (...args: Parameters<typeof client.findLatestSetlistByArtistName>) =>
+            client.findLatestSetlistByArtistName(...args),
         }),
       },
     );
@@ -953,8 +955,9 @@ describe("shell — sharing across runs", () => {
           env: { SETLISTFM_API_KEY: undefined },
           overrideServices: () => ({
             getSetlist: (id: string) => client.getSetlist(id),
-            findLatestSetlistByArtistName: (name: string, chooser: Parameters<typeof client.findLatestSetlistByArtistName>[1]) =>
-              client.findLatestSetlistByArtistName(name, chooser),
+            // PRD 0011 AC-7: the run's options are passed through (page 1 has total 1, so no page 2 is requested).
+            findLatestSetlistByArtistName: (...args: Parameters<typeof client.findLatestSetlistByArtistName>) =>
+              client.findLatestSetlistByArtistName(...args),
           }),
         },
       );
@@ -1030,6 +1033,11 @@ function expectS14Transcript(fake: FakeShell, code: number) {
   expect(dry.stdout).toContain("Ziggo Dome");
   expect(dry.stdout).toContain(AUTHORIZE_URL);
   expect(nonEmptyLines(dry.stdout).at(-1)).toMatch(/dry run/i);
+  // PRD 0011 AC-10, AC-14, AC-16, AC-18: Fixture A is incomplete — Show warning, the Unknown Song
+  // under "Not added" (after #8 with --no-tapes), and the Note line right before the dry-run line.
+  expect(dry.stdout).toMatch(/\b1 Unknown Song\b/);
+  expect(nonEmptyLines(dry.stdout).map((l) => l.trim())).toContain("(Unknown song) after #8");
+  expect(nonEmptyLines(dry.stdout).at(-2)).toMatch(/incomplete/i);
   // usage error and shell hint
   expect(fake.afterLine(1).stderr).toMatch(/--tapes/);
   expect(nonEmptyLines(fake.afterLine(1).stderr).at(-1)).toBe(SHELL_HINT);
@@ -1040,6 +1048,10 @@ function expectS14Transcript(fake: FakeShell, code: number) {
   expect(created.stdout).toContain("Ziggo Dome");
   expect(created.stdout).not.toContain(AUTHORIZE_URL);
   expect(nonEmptyLines(created.stdout).at(-1)).toBe(CREATED_SHARE_URL);
+  // PRD 0011 AC-10, AC-14, AC-16, AC-18: the --yes run has the warning, the Unknown Song after #9 and the Note line
+  expect(created.stdout).toMatch(/\b1 Unknown Song\b/);
+  expect(nonEmptyLines(created.stdout).map((l) => l.trim())).toContain("(Unknown song) after #9");
+  expect(nonEmptyLines(created.stdout).at(-2)).toMatch(/incomplete/i);
   // help
   expect(fake.afterLine(4).stdout).toMatch(/--dry-run/);
   expect(fake.afterLine(4).stdout).toMatch(/\bquit\b/);
@@ -1059,7 +1071,7 @@ function expectS14Transcript(fake: FakeShell, code: number) {
 }
 
 describe("shell — testing without a terminal", () => {
-  it("AC-25: S14's scripted session through main([]) completes with fakes; the captured output shows banner, prompts and each run's output in order; exit 0", async () => {
+  it("AC-25 (amended by PRD 0011 AC-18): S14's scripted session through main([]) completes with fakes; the captured output shows banner, prompts and each run's output in order, incomplete lines included; exit 0", async () => {
     const fake = await s14Session();
     const code = await main([], fake.io);
     expectS14Transcript(fake, code);

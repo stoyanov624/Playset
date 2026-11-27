@@ -1,0 +1,36 @@
+{
+  "type": "setlists", "itemsPerPage": 20, "page": 1, "total": 1310,
+  "setlist": [
+    { "id": "4bf1d2a6", "eventDate": "05-12-2026",
+      "artist": { "mbid": "83b9cbe7-9857-49e2-ab8e-b57b01038103", "name": "Pearl Jam" },
+      "venue": { "id": "6bd6b0a2", "name": "Chase Center",
+        "city": { "id": "5391959", "name": "San Francisco", "country": { "code": "US", "name": "United States" } } },
+      "url": "https://www.setlist.fm/setlist/pearl-jam/2026/chase-center-san-francisco-ca-4bf1d2a6.html",
+      "sets": { "set": [] } },
+    { "id": "2bf1c8e4", "eventDate": "22-11-2026",
+      "artist": { "mbid": "83b9cbe7-9857-49e2-ab8e-b57b01038103", "name": "Pearl Jam" },
+      "venue": { "id": "3bd6c1a4", "name": "Moda Center",
+        "city": { "id": "5746545", "name": "Portland", "country": { "code": "US", "name": "United States" } } },
+      "url": "https://www.setlist.fm/setlist/pearl-jam/2026/moda-center-portland-or-2bf1c8e4.html",
+      "sets": { "set": [ { "song": [
+        { "name": "Release" },
+        { "name": "", "info": "New song, title not yet known" },
+        { "name": "Even Flow" },
+        { "name": "Alive" } ] } ] } },
+    { "id": "6bf1b3d0", "eventDate": "20-11-2026",
+      "artist": { "mbid": "83b9cbe7-9857-49e2-ab8e-b57b01038103", "name": "Pearl Jam" },
+      "venue": { "id": "5bd6c3a8", "name": "Climate Pledge Arena",
+        "city": { "id": "5809844", "name": "Seattle", "country": { "code": "US", "name": "United States" } } },
+      "url": "https://www.setlist.fm/setlist/pearl-jam/2026/climate-pledge-arena-seattle-wa-6bf1b3d0.html",
+      "info": "Show cut short after a power outage.",
+      "sets": { "set": [ { "song": [ { "name": "Release" }, { "name": "Corduroy" } ] } ] } },
+    { "id": "3bf1a7c2", "eventDate": "18-11-2026",
+      "artist": { "mbid": "83b9cbe7-9857-49e2-ab8e-b57b01038103", "name": "Pearl Jam" },
+      "venue": { "id": "2bd6d4ac", "name": "Rogers Arena",
+        "city": { "id": "6173331", "name": "Vancouver", "country": { "code": "CA", "name": "Canada" } } },
+      "url": "https://www.setlist.fm/setlist/pearl-jam/2026/rogers-arena-vancouver-bc-canada-3bf1a7c2.html",
+      "sets": { "set": [
+        { "song": [ { "name": "Release" }, { "name": "Daughter" }, { "name": "Even Flow" }, { "name": "Black" }, { "name": "Alive" } ] },
+        { "encore": 1, "song": [ { "name": "Yellow Ledbetter" } ] } ] } }
+  ]
+}

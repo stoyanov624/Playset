@@ -1,6 +1,11 @@
 import type { Match, MatchOutcome, Miss } from "../matching/index.js";
-import type { Performance, SetlistFmSetlist, Show } from "../performances/index.js";
-import type { ArtistCandidate, ArtistChooser } from "../setlistfm/index.js";
+import type { IncompleteStatus, Performance, SetlistFmSetlist, Show } from "../performances/index.js";
+import type {
+  ArtistCandidate,
+  ArtistChooser,
+  LatestSetlistLookup,
+  LatestSetlistOptions,
+} from "../setlistfm/index.js";
 
 /** How one run behaves; the CLI fills this from its flags. */
 export interface RunOptions {
@@ -29,10 +34,12 @@ export interface CreatedPlaylist extends PlaylistLink {
 /** Everything the run needs from setlist.fm and Spotify. Fakes in tests, real adapters in a front-end. */
 export interface RunServices {
   getSetlist(setlistId: string): Promise<SetlistFmSetlist>;
+  /** With `wantCompleteAlternative`, also gives the newest complete Setlist after an incomplete Latest Setlist. */
   findLatestSetlistByArtistName(
     name: string,
     chooser: ArtistChooser,
-  ): Promise<{ artist: ArtistCandidate; setlist: SetlistFmSetlist }>;
+    options?: LatestSetlistOptions,
+  ): Promise<LatestSetlistLookup>;
   getAccessToken(hooks: { openAuthorizeUrl(url: string): Promise<void> }): Promise<string>;
   findMatch(performance: Performance, accessToken: string): Promise<MatchOutcome>;
   findPlaylistsNamed(name: string, accessToken: string): Promise<PlaylistLink[]>;
@@ -48,6 +55,14 @@ export interface ShowSummary {
   show: Show;
   performanceCount: number;
   tapeCount: number;
+  /** Whether this Setlist is an Incomplete Setlist, and why. */
+  incompleteStatus: IncompleteStatus;
+}
+
+/** The offer of the newest complete Setlist after an incomplete Latest Setlist (PRD 0011 AC-11). */
+export interface CompleteSetlistOffer {
+  latest: Show;
+  complete: Show;
 }
 
 export interface MatchProgress {
@@ -63,6 +78,8 @@ export interface RunFrontEnd {
   chooseArtist(candidates: ArtistCandidate[]): Promise<ArtistCandidate | null>;
   /** Whether to keep this Tape. */
   askTape(tape: Performance): Promise<boolean>;
+  /** Whether to use the newest complete Setlist instead of the incomplete Latest Setlist (default: no). */
+  askUseCompleteSetlist(offer: CompleteSetlistOffer): Promise<boolean>;
   confirmCreate(preview: Preview): Promise<boolean>;
   /** A full Spotify login is needed: show (and try to open) the authorize URL. */
   showAuthorizeUrl(url: string): Promise<void>;
@@ -78,10 +95,23 @@ export interface PreviewRow {
   outcome: MatchOutcome;
 }
 
-/** A song that is not added: a noted snippet, or a Tape (or Tape medley part) that was left out. */
-export interface NotAdded {
+/**
+ * A song that is not added: a noted snippet, a Tape (or Tape medley part) that was left out, or an
+ * Unknown Song.
+ */
+export type NotAdded = NotAddedSong | NotAddedUnknownSong;
+
+export interface NotAddedSong {
   name: string;
   reason: "snippet" | "tape";
+}
+
+export interface NotAddedUnknownSong {
+  reason: "unknown";
+  /** Preview number of the last kept Performance played before it; 0 when none (at the start). */
+  after: number;
+  /** The Unknown Song's info text, trimmed; absent when it has none. */
+  info?: string;
 }
 
 /** What will be created, shown before the confirmation. */
@@ -96,11 +126,13 @@ export interface Preview {
   missCount: number;
   /** Playlists that already have the Setlist Playlist name. */
   duplicates: PlaylistLink[];
+  /** Whether the Setlist in use is an Incomplete Setlist, and why. */
+  incompleteStatus: IncompleteStatus;
 }
 
 export type RunOutcome =
-  | { kind: "created"; playlist: CreatedPlaylist; misses: Miss[] }
-  | { kind: "dry-run"; preview: Preview; misses: Miss[] }
+  | { kind: "created"; playlist: CreatedPlaylist; misses: Miss[]; incompleteStatus: IncompleteStatus }
+  | { kind: "dry-run"; preview: Preview; misses: Miss[]; incompleteStatus: IncompleteStatus }
   | { kind: "declined"; preview: Preview; misses: Miss[] }
   | { kind: "all-misses"; misses: Miss[] }
   | { kind: "nothing-to-add" }

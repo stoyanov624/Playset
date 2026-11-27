@@ -1,0 +1,12 @@
+{
+  "type": "artists",
+  "itemsPerPage": 30,
+  "page": 1,
+  "total": 2,
+  "artist": [
+    { "mbid": "83b9cbe7-9857-49e2-ab8e-b57b01038103", "name": "Pearl Jam", "sortName": "Pearl Jam",
+      "disambiguation": "", "url": "https://www.setlist.fm/setlists/pearl-jam-bd6bd12.html" },
+    { "mbid": "6c3b9f2e-1a4d-4e8b-9f0a-2b3c4d5e6f70", "name": "Pearl Jam Tribute", "sortName": "Pearl Jam Tribute",
+      "url": "https://www.setlist.fm/setlists/pearl-jam-tribute-2bd6c4a6.html" }
+  ]
+}

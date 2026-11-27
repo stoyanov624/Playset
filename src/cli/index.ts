@@ -66,7 +66,8 @@ function realServices(): RunServices {
 
   return {
     getSetlist: (setlistId) => setlistFmClient().getSetlist(setlistId),
-    findLatestSetlistByArtistName: (name, chooser) => setlistFmClient().findLatestSetlistByArtistName(name, chooser),
+    findLatestSetlistByArtistName: (name, chooser, options) =>
+      setlistFmClient().findLatestSetlistByArtistName(name, chooser, options),
     async getAccessToken({ openAuthorizeUrl }) {
       await closeOpenReceivers();
       return getAccessToken({ fetch, sleep, now, env, openAuthorizeUrl, startCallbackReceiver: startTrackedReceiver });

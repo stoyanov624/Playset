@@ -393,21 +393,23 @@ describe("run — preview", () => {
     expect(preview.rows[11].performance.originalArtist).toBe("Barbara Lewis");
   });
 
-  it("AC-27: 'not added' lists noted snippets and left-out Tapes in played order with their reasons, no medleys (T1, PRD 0008 P2)", async () => {
+  it("AC-27 (amended by PRD 0011 AC-14): 'not added' lists noted snippets, the Unknown Song (after #9) and left-out Tapes in played order with their reasons, no medleys (T1, PRD 0008 P2)", async () => {
     const t = setup();
     await t.run();
     expect(t.record.previews[0].notAdded).toEqual([
       { name: "Hey Jude", reason: "snippet" },
+      { reason: "unknown", after: 9 },
       { name: "Mr. Blue Sky", reason: "tape" },
     ]);
   });
 
-  it("AC-27: with every Tape left out, the first Tape comes before the noted songs that follow it (T2)", async () => {
+  it("AC-27 (amended by PRD 0011 AC-14): with every Tape left out, the first Tape comes before the noted songs that follow it; the Unknown Song is after #8 (T2)", async () => {
     const t = setup({ input: FIXTURE_A_URL, options: { tapes: "none", dryRun: true } });
     await t.run();
     expect(t.record.previews[0].notAdded).toEqual([
       { name: "I Want It All", reason: "tape" },
       { name: "Hey Jude", reason: "snippet" },
+      { reason: "unknown", after: 8 },
       { name: "Mr. Blue Sky", reason: "tape" },
     ]);
   });
@@ -601,7 +603,7 @@ describe("run — errors and cancellation", () => {
 // ---------------------------------------------------------------- the core without a terminal
 
 describe("run — the whole run through the core with fakes (E18)", () => {
-  it("AC-44: completes with no terminal and no network, asking and reporting everything to the front-end", async () => {
+  it("AC-44 (amended by PRD 0011 AC-19): completes with no terminal and no network, asking and reporting everything to the front-end, incomplete status included (E18)", async () => {
     const t = setup();
     const outcome = await t.run();
 
@@ -617,7 +619,9 @@ describe("run — the whole run through the core with fakes (E18)", () => {
     expect(t.record.previews).toHaveLength(1);
     const preview = t.record.previews[0];
     expect(preview.rows).toHaveLength(13);
-    expect(preview.notAdded).toHaveLength(2);
+    // PRD 0011 AC-14, AC-19: Fixture A's Unknown Song is a third not-added entry.
+    expect(preview.notAdded).toHaveLength(3);
+    expect(preview.incompleteStatus).toEqual({ isIncomplete: true, unknownSongCount: 1 });
     expect(preview.playlistName).toBe(FIXTURE_A_PLAYLIST_NAME);
     expect(preview.public).toBe(false);
     expect(preview.trackCount).toBe(12);
@@ -630,6 +634,12 @@ describe("run — the whole run through the core with fakes (E18)", () => {
     expect(created.playlist.shareUrl).toBe(CREATED_SHARE_URL);
     expect(created.playlist.trackCount).toBe(12);
     expect(created.misses).toHaveLength(1);
+    expect(t.record.shows[0].incompleteStatus).toEqual({ isIncomplete: true, unknownSongCount: 1 });
+    expect((outcome as { incompleteStatus?: unknown }).incompleteStatus).toEqual({ isIncomplete: true, unknownSongCount: 1 });
+    // PRD 0011 AC-11: T1 is an Artist name without --yes, so the lookup is asked for a complete alternative;
+    // the fake finds none, so no offer question is asked.
+    expect(t.calls.findLatestOptions[0]?.wantCompleteAlternative).toBe(true);
+    expect(t.record.offerQuestions).toEqual([]);
   });
 
   it("AC-44: the questions and reports come in the order of the run", async () => {

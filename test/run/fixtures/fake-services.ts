@@ -182,6 +182,12 @@ export interface FakeServicesOptions {
   duplicates?: { id: string; name: string; shareUrl: string }[];
   /** Errors thrown by a service. */
   fail?: Partial<Record<ServiceName, unknown>>;
+  /**
+   * PRD 0011 AC-7: the newest complete Setlist the Artist lookup finds after an incomplete
+   * Latest Setlist. Returned only when the run asks for an alternative
+   * (`{ wantCompleteAlternative: true }`); otherwise the lookup says there is none (AC-8).
+   */
+  completeAlternative?: SetlistFmSetlist | undefined;
 }
 
 export interface RecordedCreate {
@@ -196,6 +202,8 @@ export function makeFakeServices(opts: FakeServicesOptions = {}, events: string[
   const calls = {
     getSetlist: [] as string[],
     findLatest: [] as string[],
+    /** PRD 0011: the options the run passed to the Artist lookup, one entry per call. */
+    findLatestOptions: [] as ({ wantCompleteAlternative?: boolean } | undefined)[],
     chooserAnswers: [] as (ArtistCandidate | null)[],
     getAccessToken: 0,
     findMatch: [] as { performance: Performance; accessToken: string }[],
@@ -217,9 +225,14 @@ export function makeFakeServices(opts: FakeServicesOptions = {}, events: string[
       return structuredClone(setlist);
     },
 
-    async findLatestSetlistByArtistName(name: string, chooser: ArtistChooser) {
+    async findLatestSetlistByArtistName(
+      name: string,
+      chooser: ArtistChooser,
+      options?: { wantCompleteAlternative?: boolean },
+    ) {
       events.push(`setlistfm:findLatest:${name}`);
       calls.findLatest.push(name);
+      calls.findLatestOptions.push(options === undefined ? undefined : { ...options });
       let artist: ArtistCandidate = {
         name: (setlist as unknown as { artist: { name: string } }).artist.name,
         mbid: (setlist as unknown as { artist: { mbid: string } }).artist.mbid,
@@ -234,7 +247,11 @@ export function makeFakeServices(opts: FakeServicesOptions = {}, events: string[
         events.push(`setlistfm:setlists:${picked.mbid}`);
       }
       failIfAsked("findLatestSetlistByArtistName");
-      return { artist, setlist: structuredClone(setlist) };
+      const completeAlternative =
+        options?.wantCompleteAlternative === true && opts.completeAlternative !== undefined
+          ? structuredClone(opts.completeAlternative)
+          : null;
+      return { artist, setlist: structuredClone(setlist), completeAlternative };
     },
 
     async getAccessToken(hooks: { openAuthorizeUrl(url: string): Promise<void> | void }): Promise<string> {
@@ -303,6 +320,8 @@ export interface FakeFrontEndOptions {
   tapeAnswers?: Answer<boolean>[];
   /** Answer to the final confirmation. Default: true. */
   confirm?: Answer<boolean>;
+  /** PRD 0011 AC-11: answer to the offer of the newest complete Setlist. Unset: the question is unexpected. */
+  offer?: Answer<boolean>;
 }
 
 function answerOrThrow<T>(answer: Answer<T>): T {
@@ -322,6 +341,8 @@ export function makeFakeFrontEnd(opts: FakeFrontEndOptions = {}, events: string[
     progress: [] as any[],
     previews: [] as any[],
     confirmQuestions: [] as any[],
+    /** PRD 0011 AC-11: each offer question ({ latest: Show, complete: Show }). */
+    offerQuestions: [] as any[],
   };
 
   const frontEnd = {
@@ -340,6 +361,12 @@ export function makeFakeFrontEnd(opts: FakeFrontEndOptions = {}, events: string[
       const next = tapeAnswers.shift();
       if (next === undefined) throw new Error(`fake front-end: unexpected Tape question for "${tape.title}"`);
       return answerOrThrow(next);
+    },
+    async askUseCompleteSetlist(offer: unknown): Promise<boolean> {
+      events.push("ask:offer");
+      record.offerQuestions.push(offer);
+      if (opts.offer === undefined) throw new Error("fake front-end: unexpected offer question");
+      return answerOrThrow(opts.offer);
     },
     async confirmCreate(preview: unknown): Promise<boolean> {
       events.push("ask:confirm");

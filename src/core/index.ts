@@ -18,6 +18,9 @@ export {
   type SetlistFmSetlist,
   type SetlistFmSong,
   type Show,
+  type IncompleteStatus,
+  type NotedSnippet,
+  type NotedUnknownSong,
 } from "./performances/index.js";
 export {
   createSpotifyTrackSearch,
@@ -82,6 +85,8 @@ export {
   resolveSetlistFmApiKey,
   type ArtistCandidate,
   type ArtistChooser,
+  type LatestSetlistLookup,
+  type LatestSetlistOptions,
   type SetlistFmClient,
   type SetlistFmClientDeps,
 } from "./setlistfm/index.js";
@@ -99,4 +104,7 @@ export {
   type RunRequest,
   type RunServices,
   type ShowSummary,
+  type CompleteSetlistOffer,
+  type NotAddedSong,
+  type NotAddedUnknownSong,
 } from "./run/index.js";

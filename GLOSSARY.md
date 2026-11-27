@@ -41,6 +41,14 @@ The artist whose song a **Cover** performs.
 **Latest Setlist**:
 The most recent **Setlist** for an **Artist** that contains at least one **Performance**. Placeholder setlists with no songs are ignored.
 
+**Unknown Song**:
+A **Performance** slot where a song was played but its title is not known. setlist.fm stores it as a song with an empty name and shows it as "(Unknown)". It cannot be matched, so it is never added to the **Setlist Playlist**; it is reported with its played position.
+_Avoid_: Missing song, blank song
+
+**Incomplete Setlist**:
+A **Setlist** that does not show the whole **Show**: it contains at least one **Unknown Song**, or its setlist.fm note says it is incomplete (e.g. "incomplete", "partial", "rest unknown", "cut short"). A Setlist that simply stops early without saying so cannot be detected.
+_Avoid_: Partial setlist, broken setlist
+
 ### Playlist side (Spotify)
 
 **Setlist Playlist**:

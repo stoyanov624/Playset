@@ -96,12 +96,13 @@ describe("toPerformances — Fixture A revisited (PRD 0008)", () => {
     expect(result.noted.map((n) => n.rawName)).not.toContain("Cornerstone");
   });
 
-  it("AC-9: only the snippet 'Hey Jude' is noted; no medley is noted", () => {
+  it("AC-9 (amended by PRD 0011 AC-1): only the snippet 'Hey Jude' and the Unknown Song after Cornerstone are noted; no medley is noted", () => {
     const result = toPerformances(loadSetlist("fixture-a-full-show.json"));
 
     expect(result.noted).toEqual([
       { rawName: "Hey Jude", reason: "snippet", setLabel: "main", afterPosition: 3 },
-    ] satisfies NotedSong[]);
+      { rawName: "   ", reason: "unknown", setLabel: "Acoustic", afterPosition: 9 },
+    ] as NotedSong[]);
   });
 
   it("AC-5: the Tape list is unchanged: I Want It All, Mr. Blue Sky", () => {

@@ -2,9 +2,12 @@
 // Front-end agnostic: no terminal or Node-UI imports; every question and service is injected.
 export { runPlayset } from "./run-playset.js";
 export type {
+  CompleteSetlistOffer,
   CreatedPlaylist,
   MatchProgress,
   NotAdded,
+  NotAddedSong,
+  NotAddedUnknownSong,
   PlaylistLink,
   Preview,
   PreviewRow,

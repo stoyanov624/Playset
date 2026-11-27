@@ -44,11 +44,31 @@ export interface SetlistFmClient {
   findArtist(name: string, chooser: ArtistChooser): Promise<ArtistCandidate>;
   /** The Artist's Latest Setlist: the newest one with at least one Performance. */
   findLatestSetlist(artist: ArtistCandidate): Promise<SetlistFmSetlist>;
-  /** Artist lookup, then Latest Setlist search. */
+  /**
+   * Artist lookup, then Latest Setlist search. With `wantCompleteAlternative`, an incomplete Latest Setlist
+   * also leads to a search for the newest complete Setlist after it (PRD 0011 AC-7 to AC-9).
+   */
   findLatestSetlistByArtistName(
     name: string,
     chooser: ArtistChooser,
-  ): Promise<{ artist: ArtistCandidate; setlist: SetlistFmSetlist }>;
+    options?: LatestSetlistOptions,
+  ): Promise<LatestSetlistLookup>;
+}
+
+export interface LatestSetlistOptions {
+  /** Look for the newest complete Setlist when the Latest Setlist is an Incomplete Setlist. Default: false. */
+  wantCompleteAlternative?: boolean;
+}
+
+export interface LatestSetlistLookup {
+  artist: ArtistCandidate;
+  /** The Latest Setlist, complete or not. */
+  setlist: SetlistFmSetlist;
+  /**
+   * The newest complete Setlist after an incomplete Latest Setlist, unchanged as listed on its page;
+   * null when none was found, none was wanted, or the Latest Setlist is complete.
+   */
+  completeAlternative: SetlistFmSetlist | null;
 }
 
 interface SearchArtist {
@@ -148,6 +168,20 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
   }
 
   async function findLatestSetlist(artist: ArtistCandidate): Promise<SetlistFmSetlist> {
+    return (await scanSetlists(artist, false)).setlist;
+  }
+
+  /**
+   * Walks the Artist's setlists in setlist.fm's order, page by page (PRD 0005 AC-19: a next page only when
+   * the previous one had setlists and was not the last, never past page 3). The first setlist with a
+   * Performance is the Latest Setlist. When an alternative is wanted and the Latest Setlist is incomplete,
+   * the walk goes on to the first complete Setlist. A 404 page ends the walk like an empty page.
+   */
+  async function scanSetlists(
+    artist: ArtistCandidate,
+    wantCompleteAlternative: boolean,
+  ): Promise<{ setlist: SetlistFmSetlist; completeAlternative: SetlistFmSetlist | null }> {
+    let latest: SetlistFmSetlist | undefined;
     for (let page = 1; page <= MAX_SETLIST_PAGES; page++) {
       const result = await get<SetlistsPage>(`/artist/${encodeURIComponent(artist.mbid)}/setlists`, {
         p: String(page),
@@ -155,20 +189,32 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
       if (!result.found) break;
 
       const setlists = result.body.setlist ?? [];
-      const latest = setlists.find(hasPerformance);
-      if (latest) return latest;
+      for (const setlist of setlists) {
+        const { performances, incompleteStatus } = toPerformances(setlist);
+        if (performances.length === 0) continue;
+        if (latest === undefined) {
+          latest = setlist;
+          if (!wantCompleteAlternative || !incompleteStatus.isIncomplete) {
+            return { setlist: latest, completeAlternative: null };
+          }
+        } else if (!incompleteStatus.isIncomplete) {
+          return { setlist: latest, completeAlternative: setlist };
+        }
+      }
       if (setlists.length === 0 || isLastPage(result.body, page)) break;
     }
-    throw new NoSetlistError(artist.name);
+    if (latest === undefined) throw new NoSetlistError(artist.name);
+    return { setlist: latest, completeAlternative: null };
   }
 
   async function findLatestSetlistByArtistName(
     name: string,
     chooser: ArtistChooser,
-  ): Promise<{ artist: ArtistCandidate; setlist: SetlistFmSetlist }> {
+    options: LatestSetlistOptions = {},
+  ): Promise<LatestSetlistLookup> {
     const artist = await findArtist(name, chooser);
-    const setlist = await findLatestSetlist(artist);
-    return { artist, setlist };
+    const found = await scanSetlists(artist, options.wantCompleteAlternative === true);
+    return { artist, ...found };
   }
 
   return { getSetlist, findArtist, findLatestSetlist, findLatestSetlistByArtistName };
@@ -184,10 +230,6 @@ function toArtistCandidate(a: SearchArtist): ArtistCandidate {
   const candidate: ArtistCandidate = { name: a.name, mbid: a.mbid };
   if (a.disambiguation) candidate.disambiguation = a.disambiguation;
   return candidate;
-}
-
-function hasPerformance(setlist: SetlistFmSetlist): boolean {
-  return toPerformances(setlist).performances.length > 0;
 }
 
 function isLastPage(body: SetlistsPage, requestedPage: number): boolean {

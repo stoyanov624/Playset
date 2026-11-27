@@ -24,7 +24,7 @@ import {
 } from "../core/index.js";
 import { runPlayset, type RunFrontEnd, type RunOptions, type RunOutcome, type RunServices } from "../core/run/index.js";
 import type { CliIo } from "./main.js";
-import { createTerminalFrontEnd, missLine, plural, type WriteLine } from "./terminal-front-end.js";
+import { INCOMPLETE_NOTE, createTerminalFrontEnd, missLine, plural, type WriteLine } from "./terminal-front-end.js";
 
 export const EXIT_OK = 0;
 export const EXIT_ERROR = 1;
@@ -132,8 +132,8 @@ function guardServices(services: RunServices, state: CancelState): RunServices {
     state.cancelled ? Promise.reject(new InterruptedError()) : call();
   return {
     getSetlist: (setlistId) => unlessCancelled(() => services.getSetlist(setlistId)),
-    findLatestSetlistByArtistName: (name, chooser) =>
-      unlessCancelled(() => services.findLatestSetlistByArtistName(name, chooser)),
+    findLatestSetlistByArtistName: (name, chooser, options) =>
+      unlessCancelled(() => services.findLatestSetlistByArtistName(name, chooser, options)),
     getAccessToken: (hooks) => unlessCancelled(() => services.getAccessToken(hooks)),
     findMatch: (performance, accessToken) => unlessCancelled(() => services.findMatch(performance, accessToken)),
     findPlaylistsNamed: (name, accessToken) => unlessCancelled(() => services.findPlaylistsNamed(name, accessToken)),
@@ -164,6 +164,7 @@ function reportOutcome(outcome: RunOutcome, out: WriteLine, err: WriteLine): num
       return EXIT_OK;
     case "dry-run":
       printMisses(outcome.misses, out);
+      printIncompleteNote(outcome.incompleteStatus.isIncomplete, out);
       out();
       out("Dry run: no playlist created.");
       return EXIT_OK;
@@ -171,6 +172,7 @@ function reportOutcome(outcome: RunOutcome, out: WriteLine, err: WriteLine): num
       out();
       out(`Created "${outcome.playlist.name}" with ${plural(outcome.playlist.trackCount, "track")}.`);
       printMisses(outcome.misses, out);
+      printIncompleteNote(outcome.incompleteStatus.isIncomplete, out);
       out();
       out(outcome.playlist.shareUrl);
       return EXIT_OK;
@@ -185,6 +187,12 @@ function printMisses(misses: Miss[], out: WriteLine): void {
   }
   out(`${plural(misses.length, "Miss", "Misses")} (not in the playlist):`);
   for (const miss of misses) out(missLine(miss));
+}
+
+function printIncompleteNote(isIncomplete: boolean, out: WriteLine): void {
+  if (!isIncomplete) return;
+  out();
+  out(INCOMPLETE_NOTE);
 }
 
 function reportError(error: unknown, debug: boolean, out: WriteLine, err: WriteLine): number {
