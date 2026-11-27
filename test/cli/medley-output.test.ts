@@ -162,19 +162,24 @@ describe("playset — 'Not added' without medleys", () => {
     expect(notAddedSection(fake)).toEqual(["Kashmir / Whole Lotta Love (snippet)"]);
   });
 
-  it("AC-12: P2 lists Hey Jude (snippet) and Mr. Blue Sky (Tape, left out), and no medley", async () => {
+  it("AC-12 (amended by PRD 0011 AC-14): P2 lists Hey Jude (snippet), (Unknown song) after #9 and Mr. Blue Sky (Tape, left out), and no medley", async () => {
     const fake = p2();
     await main(["arctic", "monkey"], fake.io);
-    expect(notAddedSection(fake)).toEqual(["Hey Jude (snippet)", "Mr. Blue Sky (Tape, left out)"]);
+    expect(notAddedSection(fake)).toEqual([
+      "Hey Jude (snippet)",
+      "(Unknown song) after #9",
+      "Mr. Blue Sky (Tape, left out)",
+    ]);
     expect(fake.stdout()).not.toContain("(medley)");
   });
 
-  it("AC-12: T2 under PRD 0008 (--dry-run --no-tapes) lists I Want It All, Hey Jude, Mr. Blue Sky", async () => {
+  it("AC-12 (amended by PRD 0011 AC-14): T2 under PRD 0008 (--dry-run --no-tapes) lists I Want It All, Hey Jude, (Unknown song) after #8, Mr. Blue Sky", async () => {
     const fake = makeFakeIo({ confirmAnswers: [] });
     await main(["--dry-run", "--no-tapes", FIXTURE_A_URL], fake.io);
     expect(notAddedSection(fake)).toEqual([
       "I Want It All (Tape, left out)",
       "Hey Jude (snippet)",
+      "(Unknown song) after #8",
       "Mr. Blue Sky (Tape, left out)",
     ]);
   });

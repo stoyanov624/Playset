@@ -63,8 +63,10 @@ const fixtureAPerformances: Performance[] = [
   performance(14, "Mr. Blue Sky", "Encore 2", true, "Electric Light Orchestra"),
 ];
 
+// PRD 0011 AC-1: the whitespace-only song after Cornerstone (#9) is now noted as an Unknown Song.
 const fixtureANoted: NotedSong[] = [
   { rawName: "Hey Jude", reason: "snippet", setLabel: "main", afterPosition: 3 },
+  { rawName: "   ", reason: "unknown", setLabel: "Acoustic", afterPosition: 9 } as NotedSong,
 ];
 
 function titles(result: PerformancesResult): string[] {
@@ -158,7 +160,7 @@ describe("toPerformances — Fixture A (full Show)", () => {
     expect(JSON.stringify(result)).not.toContain("Miles Kane");
   });
 
-  it("AC-8: a whitespace-only song name produces nothing and uses no position; titles are trimmed", () => {
+  it("AC-8 (amended by PRD 0011 AC-1): a whitespace-only song name is no Performance and uses no position, but is noted as 'unknown'; titles are trimmed", () => {
     const result = toPerformances(loadSetlist("fixture-a-full-show.json"));
 
     expect(result.performances[2]?.title).toBe("Brianstorm");
@@ -166,8 +168,10 @@ describe("toPerformances — Fixture A (full Show)", () => {
       [9, "Cornerstone"],
       [10, "I Wanna Be Yours"],
     ]);
-    expect(result.noted.map((n) => n.rawName)).not.toContain("   ");
-    expect(result.noted.some((n) => n.rawName.trim() === "")).toBe(false);
+    expect(result.performances.some((p) => p.title.trim() === "")).toBe(false);
+    expect(result.noted.filter((n) => n.rawName.trim() === "")).toEqual([
+      { rawName: "   ", reason: "unknown", setLabel: "Acoustic", afterPosition: 9 },
+    ]);
   });
 
   it("AC-9: a song whose info is 'snippet' is noted as a snippet, not a Performance", () => {
@@ -185,7 +189,7 @@ describe("toPerformances — Fixture A (full Show)", () => {
   // PRD 0002 AC-10 (medleys are noted, not split) is superseded in full by PRD 0008
   // AC-1, AC-2, AC-3, AC-6 and AC-7; see test/performances/medley-split.test.ts.
 
-  it("AC-11: noted songs record raw name, reason, Set label and the position they were played after, in played order", () => {
+  it("AC-11 (amended by PRD 0011 AC-1, AC-3): noted songs record raw name, reason ('snippet' or 'unknown'), Set label and the position they were played after, in played order", () => {
     const result = toPerformances(loadSetlist("fixture-a-full-show.json"));
 
     expect(result.noted).toEqual(fixtureANoted);
@@ -215,7 +219,7 @@ describe("toPerformances — Fixture A (full Show)", () => {
     expect(toPerformances(setlist).performances).toEqual(fixtureAPerformances);
   });
 
-  it("AC-14: results from separate calls do not share mutable state", () => {
+  it("AC-14 (noted list per PRD 0011 AC-1): results from separate calls do not share mutable state", () => {
     const setlist = loadSetlist("fixture-a-full-show.json");
     const first = toPerformances(setlist);
     first.performances.pop();
@@ -293,7 +297,7 @@ describe("toPerformances — Fixture E (unusable cover names and missing song na
     for (const p of result.performances) expect(p.artist).toBe(ARTIST);
   });
 
-  it("AC-8: missing or empty song names produce nothing and use no position", () => {
+  it("AC-8 (amended by PRD 0011 AC-1, AC-3): missing or empty song names are no Performance and use no position, but are noted as 'unknown'", () => {
     const result = toPerformances(loadSetlist("fixture-e-covers-and-missing-names.json"));
 
     expect(result.performances).toEqual([
@@ -301,7 +305,10 @@ describe("toPerformances — Fixture E (unusable cover names and missing song na
       performance(2, "Karma Police", "main", false),
       performance(3, "No Surprises", "main", false),
     ]);
-    expect(result.noted).toEqual([]);
+    expect(result.noted).toEqual([
+      { rawName: "", reason: "unknown", setLabel: "main", afterPosition: 2, info: "Unknown song" },
+      { rawName: "", reason: "unknown", setLabel: "main", afterPosition: 2 },
+    ]);
   });
 });
 

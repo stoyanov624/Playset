@@ -85,7 +85,7 @@ describe("playset — choosing the Artist", () => {
 // ---------------------------------------------------------------- Show
 
 describe("playset — the Show", () => {
-  it("AC-9: prints the Show line (Artist, date, venue, city), the URL and the Performance and Tape counts before any Tape question and login (T1)", async () => {
+  it("AC-9 (amended by PRD 0011 AC-10): prints the Show line (Artist, date, venue, city), the URL and the Performance and Tape counts, then the incomplete warning (1 Unknown Song), before any Tape question and login (T1)", async () => {
     const fake = t1();
     await main(T1_ARGV, fake.io);
     const out = fake.stdout();
@@ -99,6 +99,14 @@ describe("playset — the Show", () => {
     expect(showAt).toBeGreaterThanOrEqual(0);
     expect(showAt).toBeLessThan(firstTape);
     expect(showAt).toBeLessThan(positionOf(fake, AUTHORIZE_URL));
+    // PRD 0011 AC-10: Fixture A is an Incomplete Setlist; the warning follows the counts line right away.
+    const counts = lineIndex(lines, (l) => /14 Performances/.test(l));
+    expect(lines[counts + 1]).toMatch(/incomplete/i);
+    expect(lines[counts + 1]).toMatch(/\b1 Unknown Song\b(?!s)/);
+    const warnAt = fake.transcript.findIndex((e, i) => i > showAt && e.stream === "stdout" && /incomplete/i.test(e.text));
+    expect(warnAt).toBeLessThan(firstTape);
+    // T1 is an Artist name without --yes: the fake finds no complete alternative, so no offer question.
+    expect(fake.confirmQuestions).toHaveLength(3);
   });
 
   it("AC-10: a Setlist with no Performances prints the Show line, then a message that it has no Performances yet; exit 1, no question, no Spotify request (E2)", async () => {
@@ -363,28 +371,32 @@ describe("playset — preview", () => {
     expect(`${lines[untitled]}\n${lines[untitled + 1]}`).toMatch(/\bMiss\b/);
   });
 
-  it("AC-27: a 'Not added' section lists snippets and left-out Tapes in played order, and no medleys (T1, PRD 0008 P2)", async () => {
+  it("AC-27 (amended by PRD 0011 AC-14): a 'Not added' section lists snippets, the Unknown Song and left-out Tapes in played order, and no medleys (T1, PRD 0008 P2)", async () => {
     const fake = t1();
     await main(T1_ARGV, fake.io);
     const lines = fake.stdoutLines();
     const heading = lineIndex(lines, (l) => /not added/i.test(l));
     expect(heading).toBeGreaterThanOrEqual(0);
     const heyJude = lineIndex(lines, (l) => hasAll(l, "Hey Jude", "snippet"), heading);
+    const unknown = lineIndex(lines, (l) => l.trim() === "(Unknown song) after #9", heading);
     const blueSky = lineIndex(lines, (l) => hasAll(l, "Mr. Blue Sky", "Tape, left out"), heading);
-    expect([heyJude, blueSky].every((i) => i > heading)).toBe(true);
-    expect(heyJude).toBeLessThan(blueSky);
+    expect([heyJude, unknown, blueSky].every((i) => i > heading)).toBe(true);
+    expect(heyJude).toBeLessThan(unknown);
+    expect(unknown).toBeLessThan(blueSky);
     expect(lineIndex(lines, (l) => /medley/i.test(l), heading)).toBe(-1);
   });
 
-  it("AC-27: with --no-tapes, the first Tape is listed before the snippet (T2)", async () => {
+  it("AC-27 (amended by PRD 0011 AC-14): with --no-tapes, the first Tape is listed before the snippet; the Unknown Song is after #8 (T2)", async () => {
     const fake = makeFakeIo({ confirmAnswers: [] });
     await main(["--dry-run", "--no-tapes", FIXTURE_A_URL], fake.io);
     const lines = fake.stdoutLines();
     const heading = lineIndex(lines, (l) => /not added/i.test(l));
     const wantItAll = lineIndex(lines, (l) => hasAll(l, "I Want It All", "Tape, left out"), heading);
     const heyJude = lineIndex(lines, (l) => hasAll(l, "Hey Jude", "snippet"), heading);
+    const unknown = lineIndex(lines, (l) => l.trim() === "(Unknown song) after #8", heading);
     expect(wantItAll).toBeGreaterThan(heading);
     expect(wantItAll).toBeLessThan(heyJude);
+    expect(heyJude).toBeLessThan(unknown);
   });
 
   it("AC-27: with nothing left out there is no 'Not added' section", async () => {
@@ -393,11 +405,16 @@ describe("playset — preview", () => {
     expect(fake.stdout()).not.toMatch(/not added/i);
   });
 
-  it("AC-28: shows the playlist name, private, the number of tracks and the number of Misses (T1)", async () => {
+  it("AC-28 (amended by PRD 0011 AC-15): shows the incomplete warning line, then the playlist name, private, the number of tracks and the number of Misses (T1)", async () => {
     const fake = t1();
     await main(T1_ARGV, fake.io);
     const lines = fake.stdoutLines();
-    expect(lineIndex(lines, (l) => hasAll(l, FIXTURE_A_PLAYLIST_NAME, "private"))).toBeGreaterThanOrEqual(0);
+    const nameAt = lineIndex(lines, (l) => hasAll(l, FIXTURE_A_PLAYLIST_NAME, "private"));
+    expect(nameAt).toBeGreaterThanOrEqual(0);
+    const lastProgress = lines.map((l) => l.includes("13/13")).lastIndexOf(true);
+    const previewWarning = lines.slice(lastProgress + 1, nameAt).filter((l) => /incomplete/i.test(l));
+    expect(previewWarning).toHaveLength(1);
+    expect(previewWarning[0]).toMatch(/\b1 Unknown Song\b(?!s)/);
     expect(fake.stdout()).toMatch(/\b12 tracks\b/);
     expect(fake.stdout()).toMatch(/\b1 Miss\b/);
   });
@@ -413,10 +430,13 @@ describe("playset — preview", () => {
     expect(fake.calls.findPlaylistsNamed).toHaveLength(1);
   });
 
-  it("AC-29: no playlist with the same name means no warning (E10)", async () => {
+  it("AC-29: no playlist with the same name means no duplicate warning (E10; PRD 0011 AC-10/AC-15: only the incomplete warnings remain)", async () => {
     const fake = t1({ services: { duplicates: [] } });
     await main(T1_ARGV, fake.io);
-    expect(fake.output()).not.toMatch(/warning/i);
+    const warnings = fake.output().split("\n").filter((l) => /warning/i.test(l));
+    for (const w of warnings) expect(w).toMatch(/incomplete/i);
+    expect(fake.output()).not.toMatch(/already/i);
+    expect(fake.output()).not.toMatch(/new playlist/i);
     expect(fake.output()).not.toContain(DUPLICATE.shareUrl);
   });
 
@@ -482,7 +502,7 @@ describe("playset — confirming and creating", () => {
   });
 
   for (const flags of [["--dry-run"], ["--dry-run", "--yes"]]) {
-    it(`AC-35: ${flags.join(" ")} shows the preview and the Misses, ends with a dry-run line, asks nothing and creates nothing; exit 0 (T2)`, async () => {
+    it(`AC-35 (amended by PRD 0011 AC-16): ${flags.join(" ")} shows the preview and the Misses, then the incomplete Note line, ends with a dry-run line, asks nothing and creates nothing; exit 0 (T2)`, async () => {
       const fake = makeFakeIo({ confirmAnswers: [] });
       const code = await main([...flags, "--no-tapes", FIXTURE_A_URL], fake.io);
       expect(code).toBe(0);
@@ -494,6 +514,9 @@ describe("playset — confirming and creating", () => {
       expect(lineIndex(lines, (l) => hasAll(l, "Baby, I'm Yours", "Arctic Monkeys", "Cover of Barbara Lewis"))).toBeGreaterThanOrEqual(0);
       expect(fake.lastStdoutLine()).toMatch(/dry run/i);
       expect(fake.lastStdoutLine()).toMatch(/no playlist/i);
+      const nonEmpty = lines.filter((l) => l.trim() !== "");
+      expect(nonEmpty.at(-2)).toMatch(/incomplete/i);
+      expect(nonEmpty.at(-2)).toMatch(/full Show/i);
     });
   }
 });
@@ -501,7 +524,7 @@ describe("playset — confirming and creating", () => {
 // ---------------------------------------------------------------- result
 
 describe("playset — result", () => {
-  it("AC-36: prints the created line, then the Misses under a heading with their count, then the share link last (T1)", async () => {
+  it("AC-36 (amended by PRD 0011 AC-16): prints the created line, then the Misses under a heading with their count, then the incomplete Note line, then the share link last (T1)", async () => {
     const fake = t1();
     const code = await main(T1_ARGV, fake.io);
     expect(code).toBe(0);
@@ -514,7 +537,9 @@ describe("playset — result", () => {
     expect(created).toBeGreaterThan(lastPreviewRow);
     expect(missHeading).toBeGreaterThan(created);
     expect(missLine).toBeGreaterThan(missHeading);
-    expect(link).toBeGreaterThan(missLine);
+    const note = lineIndex(lines, (l) => /incomplete/i.test(l) && /full Show/i.test(l), missLine + 1);
+    expect(note).toBeGreaterThan(missLine);
+    expect(link).toBeGreaterThan(note);
     expect(fake.lastStdoutLine()).toBe(CREATED_SHARE_URL);
   });
 
