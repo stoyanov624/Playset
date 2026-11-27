@@ -92,6 +92,7 @@ const lastIndexOf = (events: string[], prefix: string) => {
 };
 const firstIndexOf = (events: string[], prefix: string) => events.findIndex((e) => e.startsWith(prefix));
 
+// T1's kept Performances under PRD 0008 (P2): Fixture A's medley parts are kept Performances.
 const T1_KEPT_TITLES = [
   "I Want It All",
   "Sculptures of Anything Goes",
@@ -99,6 +100,9 @@ const T1_KEPT_TITLES = [
   "Don't Sit Down 'Cause I've Moved Your Chair",
   "505",
   "Mardy Bum",
+  "Teddy Picker",
+  "Crying Lightning",
+  "Cornerstone",
   "I Wanna Be Yours",
   "505",
   "Baby, I'm Yours",
@@ -165,7 +169,7 @@ describe("run — the Show", () => {
     expect(t.record.shows).toHaveLength(1);
     const summary = t.record.shows[0];
     expect(summary.show).toEqual(fixtureAShow);
-    expect(summary.performanceCount).toBe(11);
+    expect(summary.performanceCount).toBe(14);
     expect(summary.tapeCount).toBe(2);
     const shown = indexOf(t.events, "show:show");
     expect(shown).toBeLessThan(firstIndexOf(t.events, "ask:tape:"));
@@ -310,7 +314,7 @@ describe("run — matching", () => {
     const t = setup();
     await t.run();
     expect(t.calls.findMatch.map((c) => c.performance.title)).toEqual(T1_KEPT_TITLES);
-    expect(t.calls.findMatch.map((c) => c.performance.position)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(t.calls.findMatch.map((c) => c.performance.position)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
     expect(t.stats.maxInFlightMatches).toBe(1);
   });
 
@@ -318,10 +322,10 @@ describe("run — matching", () => {
     const t = setup();
     await t.run();
     expect(t.record.progress.map((p) => [p.n, p.total, p.performance.title])).toEqual(
-      T1_KEPT_TITLES.map((title, i) => [i + 1, 10, title]),
+      T1_KEPT_TITLES.map((title, i) => [i + 1, 13, title]),
     );
-    for (let n = 1; n <= 10; n++) {
-      const progressAt = indexOf(t.events, `show:progress:${n}/10`);
+    for (let n = 1; n <= 13; n++) {
+      const progressAt = indexOf(t.events, `show:progress:${n}/13`);
       const matchEvents = t.events
         .map((e, i) => [e, i] as const)
         .filter(([e]) => e.startsWith("spotify:findMatch:"))
@@ -370,10 +374,10 @@ describe("run — preview", () => {
     await t.run();
     expect(t.record.previews).toHaveLength(1);
     const preview = t.record.previews[0];
-    expect(preview.rows.map((r: any) => r.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(preview.rows.map((r: any) => r.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
     expect(preview.rows.map((r: any) => r.performance.title)).toEqual(T1_KEPT_TITLES);
     expect(preview.rows.map((r: any) => r.performance.setLabel)).toEqual([
-      "main", "main", "main", "main", "main", "Acoustic", "Encore 1", "Encore 1", "Encore 1", "Encore 2",
+      "main", "main", "main", "main", "main", "Acoustic", "Acoustic", "Acoustic", "Acoustic", "Encore 1", "Encore 1", "Encore 1", "Encore 2",
     ]);
     expect(preview.rows[0].performance.isTape).toBe(true);
     expect(preview.rows[0].performance.originalArtist).toBe("Queen");
@@ -385,17 +389,15 @@ describe("run — preview", () => {
       album: "The Miracle (2011 Remaster)",
       live: false,
     });
-    expect(preview.rows[8].outcome.kind).toBe("miss");
-    expect(preview.rows[8].performance.originalArtist).toBe("Barbara Lewis");
+    expect(preview.rows[11].outcome.kind).toBe("miss");
+    expect(preview.rows[11].performance.originalArtist).toBe("Barbara Lewis");
   });
 
-  it("AC-27: 'not added' lists noted songs and left-out Tapes in played order with their reasons (T1)", async () => {
+  it("AC-27: 'not added' lists noted snippets and left-out Tapes in played order with their reasons, no medleys (T1, PRD 0008 P2)", async () => {
     const t = setup();
     await t.run();
     expect(t.record.previews[0].notAdded).toEqual([
       { name: "Hey Jude", reason: "snippet" },
-      { name: "Teddy Picker / Crying Lightning", reason: "medley" },
-      { name: "Cornerstone", reason: "medley" },
       { name: "Mr. Blue Sky", reason: "tape" },
     ]);
   });
@@ -406,8 +408,6 @@ describe("run — preview", () => {
     expect(t.record.previews[0].notAdded).toEqual([
       { name: "I Want It All", reason: "tape" },
       { name: "Hey Jude", reason: "snippet" },
-      { name: "Teddy Picker / Crying Lightning", reason: "medley" },
-      { name: "Cornerstone", reason: "medley" },
       { name: "Mr. Blue Sky", reason: "tape" },
     ]);
   });
@@ -430,7 +430,7 @@ describe("run — preview", () => {
     const preview = t.record.previews[0];
     expect(preview.playlistName).toBe(FIXTURE_A_PLAYLIST_NAME);
     expect(preview.public).toBe(false);
-    expect(preview.trackCount).toBe(9);
+    expect(preview.trackCount).toBe(12);
     expect(preview.missCount).toBe(1);
   });
 
@@ -504,7 +504,7 @@ describe("run — confirming and creating", () => {
       const outcome = await t.run();
       expect(outcome.kind).toBe("dry-run");
       expect((outcome as { misses: { title: string }[] }).misses.map((m) => m.title)).toEqual(["Baby, I'm Yours"]);
-      expect(t.calls.findMatch).toHaveLength(9);
+      expect(t.calls.findMatch).toHaveLength(12);
       expect(t.calls.findPlaylistsNamed).toHaveLength(1);
       expect(t.record.previews).toHaveLength(1);
       expect(t.record.confirmQuestions).toEqual([]);
@@ -526,7 +526,7 @@ describe("run — result", () => {
     };
     expect(created.playlist.shareUrl).toBe(CREATED_SHARE_URL);
     expect(created.playlist.name).toBe(FIXTURE_A_PLAYLIST_NAME);
-    expect(created.playlist.trackCount).toBe(9);
+    expect(created.playlist.trackCount).toBe(12);
     expect(created.misses.map((m) => [m.title, m.artist, m.originalArtist])).toEqual([
       ["Baby, I'm Yours", "Arctic Monkeys", "Barbara Lewis"],
     ]);
@@ -537,7 +537,7 @@ describe("run — result", () => {
     const outcome = await t.run();
     expect(outcome.kind).toBe("created");
     expect((outcome as { misses: unknown[]; playlist: { trackCount: number } }).misses).toEqual([]);
-    expect((outcome as { playlist: { trackCount: number } }).playlist.trackCount).toBe(11);
+    expect((outcome as { playlist: { trackCount: number } }).playlist.trackCount).toBe(14);
   });
 
   it("AC-37: a partly created playlist ends the run with PRD 0006's error, which carries the share link (E16)", async () => {
@@ -612,15 +612,15 @@ describe("run — the whole run through the core with fakes (E18)", () => {
     expect(t.record.tapeQuestions.map((p) => p.title)).toEqual(["I Want It All", "Mr. Blue Sky"]);
     expect(t.record.authorizeUrls).toHaveLength(1);
     expect(t.record.progress.map((p) => `${p.n}/${p.total}`)).toEqual(
-      Array.from({ length: 10 }, (_, i) => `${i + 1}/10`),
+      Array.from({ length: 13 }, (_, i) => `${i + 1}/13`),
     );
     expect(t.record.previews).toHaveLength(1);
     const preview = t.record.previews[0];
-    expect(preview.rows).toHaveLength(10);
-    expect(preview.notAdded).toHaveLength(4);
+    expect(preview.rows).toHaveLength(13);
+    expect(preview.notAdded).toHaveLength(2);
     expect(preview.playlistName).toBe(FIXTURE_A_PLAYLIST_NAME);
     expect(preview.public).toBe(false);
-    expect(preview.trackCount).toBe(9);
+    expect(preview.trackCount).toBe(12);
     expect(preview.missCount).toBe(1);
     expect(preview.duplicates).toHaveLength(1);
     expect(t.record.confirmQuestions).toHaveLength(1);
@@ -628,7 +628,7 @@ describe("run — the whole run through the core with fakes (E18)", () => {
     expect(outcome.kind).toBe("created");
     const created = outcome as { playlist: { shareUrl: string; trackCount: number }; misses: unknown[] };
     expect(created.playlist.shareUrl).toBe(CREATED_SHARE_URL);
-    expect(created.playlist.trackCount).toBe(9);
+    expect(created.playlist.trackCount).toBe(12);
     expect(created.misses).toHaveLength(1);
   });
 
@@ -641,8 +641,8 @@ describe("run — the whole run through the core with fakes (E18)", () => {
       indexOf(t.events, "ask:tape:I Want It All"),
       indexOf(t.events, "ask:tape:Mr. Blue Sky"),
       indexOf(t.events, "show:authorizeUrl"),
-      indexOf(t.events, "show:progress:1/10"),
-      indexOf(t.events, "show:progress:10/10"),
+      indexOf(t.events, "show:progress:1/13"),
+      indexOf(t.events, "show:progress:13/13"),
       indexOf(t.events, "show:preview"),
       indexOf(t.events, "ask:confirm"),
       indexOf(t.events, "spotify:createSetlistPlaylist"),

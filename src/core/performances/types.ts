@@ -42,10 +42,15 @@ export interface Performance {
   isTape: boolean;
   /** Present only for a Cover with a usable Original Artist name. */
   originalArtist?: string;
+  /**
+   * The medley marker: the medley name (the song's trimmed name) when this Performance is a part
+   * of a split medley, or its own title for an info-only medley. Absent otherwise.
+   */
+  medley?: string;
 }
 
 /** Why a song was noted instead of becoming a Performance. */
-export type NotedReason = "snippet" | "medley";
+export type NotedReason = "snippet";
 
 /** A song that was played but does not become a Performance. */
 export interface NotedSong {

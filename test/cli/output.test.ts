@@ -92,7 +92,7 @@ describe("playset — the Show", () => {
     const lines = fake.stdoutLines();
     expect(lineIndex(lines, (l) => hasAll(l, "Arctic Monkeys", "2025-08-23", "Ziggo Dome", "Amsterdam"))).toBeGreaterThanOrEqual(0);
     expect(out).toContain(FIXTURE_A_URL);
-    expect(out).toMatch(/11 Performances/);
+    expect(out).toMatch(/14 Performances/);
     expect(out).toMatch(/2 Tapes/);
     const showAt = positionOf(fake, "Ziggo Dome", "stdout");
     const firstTape = fake.transcript.findIndex((e) => e.stream === "prompt" && e.text.includes("I Want It All"));
@@ -164,7 +164,7 @@ describe("playset — Tapes", () => {
     const code = await main([FIXTURE_A_URL, "--tapes", "--yes"], fake.io);
     expect(code).toBe(0);
     expect(fake.confirmQuestions).toEqual([]);
-    expect(fake.calls.findMatch).toHaveLength(11);
+    expect(fake.calls.findMatch).toHaveLength(14);
   });
 
   it("AC-14: --no-tapes leaves out every Tape and asks no Tape question (T2)", async () => {
@@ -248,7 +248,7 @@ describe("playset — Spotify login", () => {
     expect(fake.stdout().split(AUTHORIZE_URL)).toHaveLength(2);
     expect(fake.stderr()).toBe("");
     expect(fake.output()).not.toMatch(/ENOENT|xdg-open/);
-    expect(fake.calls.findMatch).toHaveLength(10);
+    expect(fake.calls.findMatch).toHaveLength(13);
   });
 
   it("AC-21: a cached or refreshed token opens no browser and prints no authorize URL (T2)", async () => {
@@ -266,7 +266,7 @@ describe("playset — matching", () => {
     const fake = t1();
     await main(T1_ARGV, fake.io);
     const titles = fake.calls.findMatch.map((c) => c.performance.title);
-    expect(titles).toHaveLength(10);
+    expect(titles).toHaveLength(13);
     expect(titles.filter((t) => t === "505")).toHaveLength(2);
   });
 
@@ -277,8 +277,8 @@ describe("playset — matching", () => {
     const titles = fake.calls.findMatch.map((c) => c.performance.title);
     let from = 0;
     titles.forEach((title, i) => {
-      const at = lineIndex(lines, (l) => hasAll(l, `${i + 1}/10`, title), from);
-      expect(at, `progress ${i + 1}/10 ${title}`).toBeGreaterThanOrEqual(0);
+      const at = lineIndex(lines, (l) => hasAll(l, `${i + 1}/13`, title), from);
+      expect(at, `progress ${i + 1}/13 ${title}`).toBeGreaterThanOrEqual(0);
       from = at + 1;
     });
   });
@@ -288,7 +288,7 @@ describe("playset — matching", () => {
     const fake = t1({ services: { failMatchOn: { "Don't Sit Down 'Cause I've Moved Your Chair": searchError } } });
     const code = await main(T1_ARGV, fake.io);
     expect(code).toBe(1);
-    expect(fake.stdout()).toMatch(/4\/10/);
+    expect(fake.stdout()).toMatch(/4\/13/);
     expect(fake.stderr()).toContain(searchError.message);
     expect(fake.calls.findMatch).toHaveLength(4);
     expect(fake.calls.findPlaylistsNamed).toEqual([]);
@@ -337,8 +337,8 @@ describe("playset — preview", () => {
     expect(lines[first]).toContain("Tape");
     expect(lines[first]).toContain("Cover of Queen");
     expect(row(6, "Mardy Bum")).toBeGreaterThan(acousticAt);
-    expect(row(7, "I Wanna Be Yours")).toBeGreaterThan(encore1At);
-    expect(row(10, "R U Mine?")).toBeGreaterThan(encore2At);
+    expect(row(10, "I Wanna Be Yours")).toBeGreaterThan(encore1At);
+    expect(row(13, "R U Mine?")).toBeGreaterThan(encore2At);
     expect(lines[row(2, "Sculptures of Anything Goes")]).not.toContain("Tape");
 
     const out = fake.stdout();
@@ -346,7 +346,7 @@ describe("playset — preview", () => {
     expect(out).toContain("Mardy Bum — Arctic Monkeys · Whatever People Say I Am, That's What I'm Not");
     expect(out).toContain("R U Mine? — Arctic Monkeys · AM");
 
-    const missRow = row(9, "Baby, I'm Yours");
+    const missRow = row(12, "Baby, I'm Yours");
     expect(lines[missRow]).toContain("Cover of Barbara Lewis");
     const missRowAndNext = `${lines[missRow]}\n${lines[missRow + 1]}`;
     expect(missRowAndNext).toMatch(/\bMiss\b/);
@@ -363,18 +363,17 @@ describe("playset — preview", () => {
     expect(`${lines[untitled]}\n${lines[untitled + 1]}`).toMatch(/\bMiss\b/);
   });
 
-  it("AC-27: a 'Not added' section lists snippets, medleys and left-out Tapes in played order (T1)", async () => {
+  it("AC-27: a 'Not added' section lists snippets and left-out Tapes in played order, and no medleys (T1, PRD 0008 P2)", async () => {
     const fake = t1();
     await main(T1_ARGV, fake.io);
     const lines = fake.stdoutLines();
     const heading = lineIndex(lines, (l) => /not added/i.test(l));
     expect(heading).toBeGreaterThanOrEqual(0);
     const heyJude = lineIndex(lines, (l) => hasAll(l, "Hey Jude", "snippet"), heading);
-    const teddy = lineIndex(lines, (l) => hasAll(l, "Teddy Picker / Crying Lightning", "medley"), heading);
-    const cornerstone = lineIndex(lines, (l) => hasAll(l, "Cornerstone", "medley"), heading);
     const blueSky = lineIndex(lines, (l) => hasAll(l, "Mr. Blue Sky", "Tape, left out"), heading);
-    expect([heyJude, teddy, cornerstone, blueSky].every((i) => i > heading)).toBe(true);
-    expect([heyJude, teddy, cornerstone, blueSky]).toEqual([...[heyJude, teddy, cornerstone, blueSky]].sort((a, b) => a - b));
+    expect([heyJude, blueSky].every((i) => i > heading)).toBe(true);
+    expect(heyJude).toBeLessThan(blueSky);
+    expect(lineIndex(lines, (l) => /medley/i.test(l), heading)).toBe(-1);
   });
 
   it("AC-27: with --no-tapes, the first Tape is listed before the snippet (T2)", async () => {
@@ -399,7 +398,7 @@ describe("playset — preview", () => {
     await main(T1_ARGV, fake.io);
     const lines = fake.stdoutLines();
     expect(lineIndex(lines, (l) => hasAll(l, FIXTURE_A_PLAYLIST_NAME, "private"))).toBeGreaterThanOrEqual(0);
-    expect(fake.stdout()).toMatch(/\b9 tracks\b/);
+    expect(fake.stdout()).toMatch(/\b12 tracks\b/);
     expect(fake.stdout()).toMatch(/\b1 Miss\b/);
   });
 
@@ -426,7 +425,7 @@ describe("playset — preview", () => {
     await main(T1_ARGV, fake.io);
     const confirmAt = fake.transcript.findIndex((e) => e.stream === "prompt" && /create/i.test(e.text));
     expect(confirmAt).toBeGreaterThan(0);
-    for (const needle of ["R U Mine? — Arctic Monkeys · AM", "Mr. Blue Sky", "9 tracks", DUPLICATE.shareUrl]) {
+    for (const needle of ["R U Mine? — Arctic Monkeys · AM", "Mr. Blue Sky", "12 tracks", DUPLICATE.shareUrl]) {
       const at = positionOf(fake, needle, "stdout");
       expect(at, needle).toBeGreaterThanOrEqual(0);
       expect(at, needle).toBeLessThan(confirmAt);
@@ -487,7 +486,7 @@ describe("playset — confirming and creating", () => {
       const fake = makeFakeIo({ confirmAnswers: [] });
       const code = await main([...flags, "--no-tapes", FIXTURE_A_URL], fake.io);
       expect(code).toBe(0);
-      expect(fake.calls.findMatch).toHaveLength(9);
+      expect(fake.calls.findMatch).toHaveLength(12);
       expect(fake.calls.findPlaylistsNamed).toHaveLength(1);
       expect(fake.confirmQuestions).toEqual([]);
       expect(fake.calls.create).toEqual([]);
@@ -508,7 +507,7 @@ describe("playset — result", () => {
     expect(code).toBe(0);
     const lines = fake.stdoutLines();
     const lastPreviewRow = lineIndex(lines, (l) => hasAll(l, "R U Mine? — Arctic Monkeys · AM"));
-    const created = lineIndex(lines, (l) => hasAll(l, FIXTURE_A_PLAYLIST_NAME) && /\b9 tracks\b/.test(l) && /created|added/i.test(l), lastPreviewRow + 1);
+    const created = lineIndex(lines, (l) => hasAll(l, FIXTURE_A_PLAYLIST_NAME) && /\b12 tracks\b/.test(l) && /created|added/i.test(l), lastPreviewRow + 1);
     const missHeading = lineIndex(lines, (l) => /\b1 Miss\b/.test(l), created + 1);
     const missLine = lineIndex(lines, (l) => l.includes("Baby, I'm Yours — Arctic Monkeys (Cover of Barbara Lewis)"), missHeading + 1);
     const link = lines.lastIndexOf(CREATED_SHARE_URL);
@@ -524,7 +523,7 @@ describe("playset — result", () => {
     const code = await main(["Arctic", "Monkeys", "--tapes", "--yes"], fake.io);
     expect(code).toBe(0);
     const lines = fake.stdoutLines();
-    expect(lineIndex(lines, (l) => hasAll(l, FIXTURE_A_PLAYLIST_NAME) && /\b11 tracks\b/.test(l) && /created|added/i.test(l))).toBeGreaterThanOrEqual(0);
+    expect(lineIndex(lines, (l) => hasAll(l, FIXTURE_A_PLAYLIST_NAME) && /\b14 tracks\b/.test(l) && /created|added/i.test(l))).toBeGreaterThanOrEqual(0);
     expect(fake.stdout()).toMatch(/every Performance has a Match/i);
     expect(fake.lastStdoutLine()).toBe(CREATED_SHARE_URL);
   });

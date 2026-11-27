@@ -1,6 +1,6 @@
 # PRD 0008 — Split medleys into Performances
 
-Status: Approved
+Status: Implemented
 Slice: 8
 Depends on: 0002, 0007
 Module: src/core/performances (primary); the medley marker in the preview in src/core/run and src/cli
@@ -375,7 +375,7 @@ Exit code 2, no request. `playset --help` prints the same options as PRD 0007 T4
 
 ## Changes to earlier PRDs
 
-This PRD changes behaviour that PRDs 0002 and 0007 defined. Where they disagree, this PRD wins.
+This PRD changes behaviour that PRDs 0002, 0005 and 0007 defined. Where they disagree, this PRD wins.
 
 **PRD 0002 — Turn a Setlist into Performances**
 
@@ -394,7 +394,11 @@ This PRD changes behaviour that PRDs 0002 and 0007 defined. Where they disagree,
 - **Examples:** the expected output of **T1**, **T2** and **E18** changes as shown in P2. The other examples are unchanged.
 - The CLAUDE.md request of PRD 0007 to say "medleys are noted, never added, and medleys are not split" is superseded by the request below.
 
-Existing tests that cite PRD 0002 AC-10 or AC-11, Fixture A's or Fixture D's expected output, or PRD 0007 AC-26, AC-27, T1, T2 or E18 must change to match this PRD. These test changes are part of this Slice and must be visible in its PR.
+**PRD 0005 — Find the Latest Setlist by Artist name**
+
+- **AC-18 is amended.** Setlists are skipped only when their songs are all snippets or songs with no name (or they have no Sets). A setlist whose only songs are medleys now has **Performances** (its split parts or info-only medleys, AC-1 and AC-6 here), so it is not skipped and can be the **Latest Setlist**. No setlist.fm code changes: the check already turns the setlist into **Performances** with PRD 0002's rules.
+
+Existing tests that cite PRD 0002 AC-10 or AC-11, Fixture A's or Fixture D's expected output, PRD 0005 AC-18's medley-only case, or PRD 0007 AC-26, AC-27, T1, T2 or E18 must change to match this PRD. These test changes are part of this Slice and must be visible in its PR.
 
 ## Glossary terms used
 

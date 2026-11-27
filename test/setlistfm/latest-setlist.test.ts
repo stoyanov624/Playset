@@ -55,21 +55,35 @@ describe("finding the Latest Setlist", () => {
     expect(req.parsed.searchParams.get("p")).toBe("1");
   });
 
-  it("AC-18: setlists with no Sets key, only medleys, or only songs with no name are skipped", async () => {
+  it("AC-18: setlists with no Sets key or only songs with no name are skipped", async () => {
     const noSetKey = makeSetlist("a0000001", undefined);
     const setsWithoutSongs = makeSetlist("a0000002", { set: [{ name: "Acoustic" }, { encore: 1, song: [] }] });
-    const medleyOnly = makeSetlist("a0000003", {
-      set: [{ song: [{ name: "Teddy Picker / Crying Lightning" }, { name: "Cornerstone", info: "Medley with 'Fluorescent Adolescent'" }] }],
-    });
     const noNames = makeSetlist("a0000004", { set: [{ song: [{ name: "" }, { name: "   " }, {}] }] });
     const played = makeSetlist("a0000005", { set: [{ song: [{ name: "505" }] }] });
-    for (const s of [noSetKey, setsWithoutSongs, medleyOnly, noNames]) {
+    for (const s of [noSetKey, setsWithoutSongs, noNames]) {
       expect(toPerformances(s).performances).toHaveLength(0);
     }
 
-    const fakes = makeFakes([ok(setlistsPage(1, 5, [noSetKey, setsWithoutSongs, medleyOnly, noNames, played]))]);
+    const fakes = makeFakes([ok(setlistsPage(1, 5, [noSetKey, setsWithoutSongs, noNames, played]))]);
     const setlist = await makeClient(fakes).findLatestSetlist(ARCTIC_MONKEYS);
     expect(setlist).toEqual(played);
+  });
+
+  it("AC-18 (amended by PRD 0008): a setlist whose only songs are medleys is not skipped", async () => {
+    const noSetKey = makeSetlist("a0000001", undefined);
+    const medleyOnly = makeSetlist("a0000003", {
+      set: [{ song: [{ name: "Teddy Picker / Crying Lightning" }, { name: "Cornerstone", info: "Medley with 'Fluorescent Adolescent'" }] }],
+    });
+    const played = makeSetlist("a0000005", { set: [{ song: [{ name: "505" }] }] });
+    expect(toPerformances(medleyOnly).performances.map((p) => p.title)).toEqual([
+      "Teddy Picker",
+      "Crying Lightning",
+      "Cornerstone",
+    ]);
+
+    const fakes = makeFakes([ok(setlistsPage(1, 5, [noSetKey, medleyOnly, played]))]);
+    const setlist = await makeClient(fakes).findLatestSetlist(ARCTIC_MONKEYS);
+    expect(setlist).toEqual(medleyOnly);
   });
 
   it("AC-18: setlists are checked in the order given, without re-sorting by date (a future-dated setlist with songs is kept)", async () => {

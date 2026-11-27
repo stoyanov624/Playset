@@ -78,10 +78,10 @@ export interface PreviewRow {
   outcome: MatchOutcome;
 }
 
-/** A song that is not added: a noted snippet or medley, or a Tape that was left out. */
+/** A song that is not added: a noted snippet, or a Tape (or Tape medley part) that was left out. */
 export interface NotAdded {
   name: string;
-  reason: "snippet" | "medley" | "tape";
+  reason: "snippet" | "tape";
 }
 
 /** What will be created, shown before the confirmation. */

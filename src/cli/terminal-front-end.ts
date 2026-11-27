@@ -86,7 +86,7 @@ function printPreview(preview: Preview, out: WriteLine): void {
     out();
     out("Not added:");
     for (const { name, reason } of preview.notAdded) {
-      out(`  ${name} (${reason === "tape" ? "Tape, left out" : reason})`);
+      out(`  ${name} (${reason === "tape" ? "Tape, left out" : "snippet"})`);
     }
   }
 
@@ -105,6 +105,7 @@ function printPreview(preview: Preview, out: WriteLine): void {
 function markersOf(performance: Performance): string {
   const markers = [
     ...(performance.isTape ? ["Tape"] : []),
+    ...(performance.medley !== undefined ? ["Medley"] : []),
     ...(performance.originalArtist ? [`Cover of ${performance.originalArtist}`] : []),
   ];
   return markers.length > 0 ? ` [${markers.join(", ")}]` : "";

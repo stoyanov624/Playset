@@ -16,8 +16,22 @@ export const FIXTURE_A_URL =
 export const FIXTURE_A_SETLIST_ID = "63a5e2b7";
 export const FIXTURE_A_PLAYLIST_NAME = "Arctic Monkeys – 2025-08-23 – Amsterdam";
 
-/** PRD 0002 Fixture A: 11 Performances, 2 Tapes, 3 noted songs. */
+/** PRD 0002 Fixture A (revisited by PRD 0008): 14 Performances, 2 Tapes, 1 noted song. */
 export const fixtureA = (): SetlistFmSetlist => loadShared("fixture-a-full-show.json");
+/** PRD 0008 Fixture M: Pearl Jam in Amsterdam, every kind of medley (15 Performances, 2 Tapes). */
+export const fixtureM = (): SetlistFmSetlist => loadShared("fixture-m-pearl-jam-medleys.json");
+export const FIXTURE_M_URL =
+  "https://www.setlist.fm/setlist/pearl-jam/2026/johan-cruijff-arena-amsterdam-netherlands-5bf2a3c4.html";
+export const FIXTURE_M_SETLIST_ID = "5bf2a3c4";
+export const FIXTURE_M_PLAYLIST_NAME = "Pearl Jam – 2026-07-08 – Amsterdam";
+export const fixtureMShow: Show = {
+  artist: "Pearl Jam",
+  date: "2026-07-08",
+  city: "Amsterdam",
+  venue: "Johan Cruijff ArenA",
+  url: FIXTURE_M_URL,
+};
+
 /** PRD 0002 Fixture C: no Tapes. */
 export const fixtureC = (): SetlistFmSetlist => loadShared("fixture-c-snippets-and-teases.json");
 /** PRD 0002 Fixture F: the Tape "Baba O'Riley" (The Who) played twice. */
