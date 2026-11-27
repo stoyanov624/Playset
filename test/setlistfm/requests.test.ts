@@ -143,7 +143,6 @@ describe("rate limit (HTTP 429)", () => {
   const fallbackCases: Array<[string, string | null]> = [
     ["the Retry-After header is missing", null],
     ["Retry-After is not a whole number of seconds (\"soon\")", "soon"],
-    ["Retry-After is fractional (\"1.5\")", "1.5"],
   ];
 
   for (const [label, header] of fallbackCases) {
@@ -157,6 +156,16 @@ describe("rate limit (HTTP 429)", () => {
       expect(fakes.requests[1]!.at - fakes.requests[0]!.at).toBeGreaterThanOrEqual(1000);
     });
   }
+
+  it('AC-7 (unified Retry-After): waits 1.5 s when Retry-After is "1.5"', async () => {
+    const fixtureA = loadFixtureA();
+    const fakes = makeFakes([tooManyRequests("1.5"), ok(fixtureA)]);
+    const setlist = await makeClient(fakes).getSetlist(SETLIST_ID);
+    expect(setlist).toEqual(fixtureA);
+    expect(fakes.requests).toHaveLength(2);
+    expect(fakes.sleeps).toContain(1500);
+    expect(fakes.requests[1]!.at - fakes.requests[0]!.at).toBeGreaterThanOrEqual(1500);
+  });
 
   it("AC-8: after 429 to the first request and to 3 retries, exactly 4 requests are sent and a rate-limit error is raised", async () => {
     const fakes = makeFakes([
