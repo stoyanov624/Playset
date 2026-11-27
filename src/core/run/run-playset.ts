@@ -1,19 +1,15 @@
-import type { Match, MatchOutcome, Miss } from "../matching/index.js";
 import {
   toPerformances,
-  type NotedSong,
   type Performance,
   type PerformancesResult,
   type SetlistFmSetlist,
 } from "../performances/index.js";
 import { looksLikeSetlistFmLink, readSetlistId } from "../setlist-link/index.js";
-import { setlistPlaylistDescription, setlistPlaylistName } from "../setlist-playlist/index.js";
 import { guardRun } from "./cancellation.js";
 import { RunCancelledError, RunInputError } from "./errors.js";
+import { createSetlistPlaylist, findLatestSetlist, getSetlist, prepareSetlist, previewMatches } from "./steps.js";
 import type {
-  NotAdded,
   Preview,
-  PreviewRow,
   RunFrontEnd,
   RunOptions,
   RunOutcome,
@@ -61,45 +57,26 @@ async function run(
   const latest = toPerformances(setlist);
   frontEnd.showShow(showSummaryOf(latest));
 
-  const inUse = await setlistInUse(latest, completeAlternative, frontEnd);
-  const { show, performances, noted, incompleteStatus } = inUse;
-  // Fails early (before any Tape question or Spotify request) when the description would be too long.
-  setlistPlaylistDescription(show);
-  if (performances.length === 0) return { kind: "no-performances" };
-
-  const kept: Performance[] = [];
-  const leftOutTapes: Performance[] = [];
-  for (const performance of performances) {
-    if (!performance.isTape || (await keepTape(performance, options, frontEnd))) {
-      kept.push(performance);
-    } else {
-      leftOutTapes.push(performance);
-    }
-  }
-  if (kept.length === 0) return { kind: "nothing-to-add" };
+  const inUse = await setlistInUse(setlist, latest, completeAlternative, frontEnd);
+  const prepared = await prepareSetlist(inUse.setlist, { keepTape: (tape) => keepTape(tape, options, frontEnd) });
+  if (inUse.performances.length === 0) return { kind: "no-performances" };
+  const { show, keptPerformances, notAdded, incompleteStatus } = prepared;
+  if (keptPerformances.length === 0) return { kind: "nothing-to-add" };
 
   const accessToken = await services.getAccessToken({
     openAuthorizeUrl: (url) => frontEnd.showAuthorizeUrl(url),
     signal,
   });
 
-  const rows: PreviewRow[] = [];
-  for (const [index, performance] of kept.entries()) {
-    frontEnd.showProgress({ n: index + 1, total: kept.length, performance });
-    const outcome = await services.findMatch(performance, accessToken);
-    rows.push({ number: index + 1, performance, outcome });
-  }
-
-  const outcomes = rows.map((row) => row.outcome);
-  const matches = outcomes.filter(isMatch);
-  const misses = outcomes.filter(isMiss);
+  const { rows, matches, misses, playlistName } = await previewMatches(services, prepared, accessToken, {
+    onProgress: (progress) => frontEnd.showProgress(progress),
+  });
   if (matches.length === 0) return { kind: "all-misses", misses };
 
-  const playlistName = setlistPlaylistName(show);
   const duplicates = await services.findPlaylistsNamed(playlistName, accessToken);
   const preview: Preview = {
     rows,
-    notAdded: notAddedInPlayedOrder(noted, kept, leftOutTapes),
+    notAdded,
     playlistName,
     public: options.public,
     trackCount: matches.length,
@@ -114,7 +91,7 @@ async function run(
     return { kind: "declined", preview, misses };
   }
 
-  const playlist = await services.createSetlistPlaylist(show, matches, { accessToken, public: options.public });
+  const playlist = await createSetlistPlaylist(services, show, matches, { accessToken, public: options.public });
   return { kind: "created", playlist, misses, incompleteStatus };
 }
 
@@ -132,15 +109,17 @@ function showSummaryOf({ show, performances, incompleteStatus }: PerformancesRes
  * is incomplete and the user accepts the offer (its Show is then reported too), otherwise the fetched one.
  */
 async function setlistInUse(
+  setlist: SetlistFmSetlist,
   latest: PerformancesResult,
   completeAlternative: SetlistFmSetlist | null,
   frontEnd: RunFrontEnd,
-): Promise<PerformancesResult> {
-  if (completeAlternative === null || !latest.incompleteStatus.isIncomplete) return latest;
+): Promise<{ setlist: SetlistFmSetlist; performances: readonly Performance[] }> {
+  const fetched = { setlist, performances: latest.performances };
+  if (completeAlternative === null || !latest.incompleteStatus.isIncomplete) return fetched;
   const complete = toPerformances(completeAlternative);
-  if (!(await frontEnd.askUseCompleteSetlist({ latest: latest.show, complete: complete.show }))) return latest;
+  if (!(await frontEnd.askUseCompleteSetlist({ latest: latest.show, complete: complete.show }))) return fetched;
   frontEnd.showShow(showSummaryOf(complete));
-  return complete;
+  return { setlist: completeAlternative, performances: complete.performances };
 }
 
 /**
@@ -154,9 +133,9 @@ async function fetchSetlist(
   chooseArtist: RunFrontEnd["chooseArtist"],
 ): Promise<{ setlist: SetlistFmSetlist; completeAlternative: SetlistFmSetlist | null }> {
   if (looksLikeSetlistFmLink(input)) {
-    return { setlist: await services.getSetlist(readSetlistId(input)), completeAlternative: null };
+    return { setlist: await getSetlist(services, readSetlistId(input)), completeAlternative: null };
   }
-  return services.findLatestSetlistByArtistName(input, chooseArtist, {
+  return findLatestSetlist(services, input, chooseArtist, {
     wantCompleteAlternative: options.confirm !== "skip",
   });
 }
@@ -167,36 +146,3 @@ async function keepTape(tape: Performance, options: RunOptions, frontEnd: RunFro
   if (options.tapes === "none") return false;
   return frontEnd.askTape(tape);
 }
-
-/**
- * Noted songs and left-out Tapes merged in played order. A left-out Tape sits at its own position; a noted
- * song was played right after the Performance at its `afterPosition`, so it comes after a Tape at that
- * position and before the next one. Noted songs at the same place keep their played order.
- */
-function notAddedInPlayedOrder(
-  noted: readonly NotedSong[],
-  kept: readonly Performance[],
-  leftOutTapes: readonly Performance[],
-): NotAdded[] {
-  const entries: { position: number; playedAfterPosition: boolean; item: NotAdded }[] = [
-    ...leftOutTapes.map((tape) => ({
-      position: tape.position,
-      playedAfterPosition: false,
-      item: { name: tape.title, reason: "tape" as const },
-    })),
-    ...noted.map((song) => ({ position: song.afterPosition, playedAfterPosition: true, item: notAddedOf(song, kept) })),
-  ];
-  const inPlayedOrder = (a: (typeof entries)[number], b: (typeof entries)[number]) =>
-    a.position - b.position || Number(a.playedAfterPosition) - Number(b.playedAfterPosition);
-  return entries.sort(inPlayedOrder).map((entry) => entry.item);
-}
-
-/** An Unknown Song is shown after the preview number of the last kept Performance played before it. */
-function notAddedOf(song: NotedSong, kept: readonly Performance[]): NotAdded {
-  if (song.reason === "snippet") return { name: song.rawName, reason: "snippet" };
-  const after = kept.filter((performance) => performance.position <= song.afterPosition).length;
-  return song.info === undefined ? { reason: "unknown", after } : { reason: "unknown", after, info: song.info };
-}
-
-const isMatch = (outcome: MatchOutcome): outcome is Match => outcome.kind === "match";
-const isMiss = (outcome: MatchOutcome): outcome is Miss => outcome.kind === "miss";

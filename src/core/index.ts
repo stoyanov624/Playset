@@ -1,19 +1,32 @@
-// The Playset core for any front-end: one run from a setlist.fm link or Artist name to a Setlist Playlist,
+// The Playset core for any front-end: one run from a setlist.fm link or Artist name to a Setlist Playlist
+// (or the same run as stateless steps, for front-ends that keep no run in flight),
 // the real setlist.fm and Spotify services behind it, the settings stores, and every error a run can raise.
 // No terminal or UI code lives here; every question to the user goes through the injected RunFrontEnd.
 export {
+  InvalidSetlistPageError,
   RunCancelledError,
   RunInputError,
   createRunServices,
+  createSetlistPlaylist,
+  findArtists,
+  findLatestSetlist,
+  getSetlist,
+  listSetlists,
+  prepareSetlist,
+  previewMatches,
   runPlayset,
   type CompleteSetlistOffer,
   type CreatedPlaylist,
+  type MatchPreview,
   type MatchProgress,
   type NotAdded,
   type NotAddedSong,
   type NotAddedUnknownSong,
   type PlaylistLink,
+  type PreparedSetlist,
+  type PrepareSetlistOptions,
   type Preview,
+  type PreviewMatchesOptions,
   type PreviewRow,
   type RunFrontEnd,
   type RunOptions,
@@ -21,6 +34,9 @@ export {
   type RunRequest,
   type RunServices,
   type RunServicesDeps,
+  type SetlistBrowsingServices,
+  type SetlistSummary,
+  type SetlistSummaryPage,
   type ShowSummary,
 } from "./run/index.js";
 export {
@@ -68,9 +84,11 @@ export {
   SetlistFmRequestError,
   SetlistNotFoundError,
   type ArtistCandidate,
+  type ArtistCandidates,
   type ArtistChooser,
   type LatestSetlistLookup,
   type LatestSetlistOptions,
+  type SetlistPage,
 } from "./setlistfm/index.js";
 export {
   createFileSettingsStore,

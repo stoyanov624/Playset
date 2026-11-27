@@ -1,4 +1,4 @@
-// The real RunServices: the setlist.fm client, the Spotify login, the Match search, the duplicate check and
+// The real RunServices (plus the Artist search and Setlist pages for picking a Show): the setlist.fm client, the Spotify login, the Match search, the duplicate check and
 // the creation, wired from injected fetch / sleep / clock / settings / callback receiver for any front-end.
 import { defaultSleep, type FetchLike, type Sleep } from "../http/index.js";
 import { createSpotifyTrackSearch, matchPerformance } from "../matching/index.js";
@@ -7,7 +7,7 @@ import { createSetlistPlaylist, findPlaylistsNamed } from "../setlist-playlist/i
 import { createSetlistFmClient, type SetlistFmClient } from "../setlistfm/index.js";
 import { getAccessToken, type CallbackReceiver } from "../spotify-auth/index.js";
 import { RunCancelledError } from "./errors.js";
-import type { RunServices } from "./types.js";
+import type { RunServices, SetlistBrowsingServices } from "./types.js";
 
 export interface RunServicesDeps {
   /** Defaults to the global `fetch`. */
@@ -28,7 +28,7 @@ export interface RunServicesDeps {
  * Build once per process (or session): every run then shares the setlist.fm request spacing and the Spotify
  * token. The setlist.fm client is created on first use, so a missing API key is reported only when needed.
  */
-export function createRunServices(deps: RunServicesDeps): RunServices {
+export function createRunServices(deps: RunServicesDeps): RunServices & SetlistBrowsingServices {
   const fetch = deps.fetch ?? globalThis.fetch;
   const sleep = deps.sleep ?? defaultSleep;
   const now = deps.now ?? Date.now;
@@ -67,6 +67,8 @@ export function createRunServices(deps: RunServicesDeps): RunServices {
 
   return {
     getSetlist: (setlistId) => setlistFmClient().getSetlist(setlistId),
+    findArtistCandidates: (name) => setlistFmClient().findArtistCandidates(name),
+    getSetlistPage: (mbid, page) => setlistFmClient().getSetlistPage(mbid, page),
     findLatestSetlistByArtistName: (name, chooser, options) =>
       setlistFmClient().findLatestSetlistByArtistName(name, chooser, options),
     async getAccessToken({ openAuthorizeUrl, signal }) {

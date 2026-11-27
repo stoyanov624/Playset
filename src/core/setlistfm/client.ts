@@ -18,7 +18,7 @@ const API_BASE = "https://api.setlist.fm/rest/1.0";
 const MIN_REQUEST_GAP_MS = 500;
 /** The first request and up to 3 retries on HTTP 429. */
 const MAX_ATTEMPTS = 4;
-/** The user is asked to choose from at most this many Artists. */
+/** At most this many Artists are offered to choose from. */
 const MAX_CHOOSER_CANDIDATES = 10;
 /** The Latest Setlist is looked for on this many pages of the Artist's setlists at most (20 per page). */
 const MAX_SETLIST_PAGES = 3;
@@ -29,6 +29,21 @@ export interface ArtistCandidate {
   mbid: string;
   /** setlist.fm's short description; absent when none is given. */
   disambiguation?: string;
+}
+
+/** The Artists found for a typed name, and the one to take without asking, if any. */
+export interface ArtistCandidates {
+  /** The first results of the search, in setlist.fm's order. */
+  candidates: ArtistCandidate[];
+  /** The only exact match for the typed name among the whole first page; absent when none or several. */
+  autoPick?: ArtistCandidate;
+}
+
+/** One page of an Artist's setlists, newest first, placeholders included. */
+export interface SetlistPage {
+  setlists: SetlistFmSetlist[];
+  /** Whether setlist.fm has a later page. */
+  hasMore: boolean;
 }
 
 /** Asks the user to pick one Artist; resolves to null when they cancel. */
@@ -49,6 +64,10 @@ export interface SetlistFmClientDeps {
 export interface SetlistFmClient {
   /** Fetches one Setlist by its setlist.fm id, unchanged. */
   getSetlist(id: string): Promise<SetlistFmSetlist>;
+  /** Searches Artists by a typed name without asking anything. */
+  findArtistCandidates(name: string): Promise<ArtistCandidates>;
+  /** One page of the Artist's setlists; a page setlist.fm doesn't have (HTTP 404) is empty with no more. */
+  getSetlistPage(mbid: string, page: number): Promise<SetlistPage>;
   /** Resolves a typed Artist name, asking the chooser when it is ambiguous. */
   findArtist(name: string, chooser: ArtistChooser): Promise<ArtistCandidate>;
   /** The Artist's Latest Setlist: the newest one with at least one Performance. */
@@ -123,7 +142,10 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
 
   async function get<T>(path: string, params: Record<string, string> = {}): Promise<GetResult<T>> {
     const key = await apiKey();
-    const query = new URLSearchParams(params).toString();
+    // Percent-encoding throughout (a space is %20, not "+"), as setlist.fm's own documentation writes queries.
+    const query = Object.entries(params)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join("&");
     const url = `${API_BASE}${path}${query ? `?${query}` : ""}`;
 
     let response: Response;
@@ -150,7 +172,7 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
     return result.body;
   }
 
-  async function findArtist(name: string, chooser: ArtistChooser): Promise<ArtistCandidate> {
+  async function findArtistCandidates(name: string): Promise<ArtistCandidates> {
     const typed = name.trim();
     if (typed === "") throw new ArtistNotFoundError(name);
 
@@ -158,13 +180,26 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
     const found = result.found ? (result.body.artist ?? []) : [];
     if (found.length === 0) throw new ArtistNotFoundError(typed);
 
-    const candidates = found.map(toArtistCandidate);
-    const exact = candidates.filter((c) => artistNamesMatch(typed, c.name));
-    if (exact.length === 1) return exact[0]!;
+    const all = found.map(toArtistCandidate);
+    const candidates = all.slice(0, MAX_CHOOSER_CANDIDATES);
+    // A typed name that names exactly one Artist needs no choice, even when that Artist ranks past the list.
+    const exact = all.filter((c) => artistNamesMatch(typed, c.name));
+    return exact.length === 1 ? { candidates, autoPick: exact[0]! } : { candidates };
+  }
 
-    const picked = await chooser(candidates.slice(0, MAX_CHOOSER_CANDIDATES));
+  async function findArtist(name: string, chooser: ArtistChooser): Promise<ArtistCandidate> {
+    const { candidates, autoPick } = await findArtistCandidates(name);
+    if (autoPick !== undefined) return autoPick;
+
+    const picked = await chooser(candidates);
     if (picked === null) throw new ArtistChoiceCancelledError();
     return picked;
+  }
+
+  async function getSetlistPage(mbid: string, page: number): Promise<SetlistPage> {
+    const body = await fetchSetlistsPage(mbid, page);
+    if (body === null) return { setlists: [], hasMore: false };
+    return { setlists: body.setlist ?? [], hasMore: hasMorePages(body, page) };
   }
 
   async function findLatestSetlist(artist: ArtistCandidate): Promise<SetlistFmSetlist> {
@@ -172,8 +207,8 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
   }
 
   /** One page of the Artist's setlists, newest first; null when setlist.fm has no such page (HTTP 404). */
-  async function fetchSetlistsPage(artist: ArtistCandidate, page: number): Promise<SetlistsPage | null> {
-    const result = await get<SetlistsPage>(`/artist/${encodeURIComponent(artist.mbid)}/setlists`, {
+  async function fetchSetlistsPage(mbid: string, page: number): Promise<SetlistsPage | null> {
+    const result = await get<SetlistsPage>(`/artist/${encodeURIComponent(mbid)}/setlists`, {
       p: String(page),
     });
     return result.found ? result.body : null;
@@ -191,7 +226,7 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
     const seen: SetlistFmSetlist[] = [];
     let pick = pickSetlists(seen, wantCompleteAlternative);
     for (let page = 1; page <= MAX_SETLIST_PAGES && !pick.settled; page++) {
-      const body = await fetchSetlistsPage(artist, page);
+      const body = await fetchSetlistsPage(artist.mbid, page);
       if (body === null) break;
       const setlists = body.setlist ?? [];
       seen.push(...setlists);
@@ -212,7 +247,14 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
     return { artist, ...found };
   }
 
-  return { getSetlist, findArtist, findLatestSetlist, findLatestSetlistByArtistName };
+  return {
+    getSetlist,
+    findArtistCandidates,
+    getSetlistPage,
+    findArtist,
+    findLatestSetlist,
+    findLatestSetlistByArtistName,
+  };
 }
 
 /** What the setlists seen so far, newest first, say about the Artist's Latest Setlist. */
@@ -275,6 +317,12 @@ function toArtistCandidate(a: SearchArtist): ArtistCandidate {
   const candidate: ArtistCandidate = { name: a.name, mbid: a.mbid };
   if (a.disambiguation) candidate.disambiguation = a.disambiguation;
   return candidate;
+}
+
+/** Without paging totals, a page with setlists may have a next one; an empty page is the end. */
+function hasMorePages(body: SetlistsPage, requestedPage: number): boolean {
+  if (body.itemsPerPage === undefined || body.total === undefined) return (body.setlist ?? []).length > 0;
+  return !isLastPage(body, requestedPage);
 }
 
 function isLastPage(body: SetlistsPage, requestedPage: number): boolean {
