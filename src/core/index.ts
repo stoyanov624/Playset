@@ -87,6 +87,8 @@ export {
   PlaylistRateLimitError,
   SpotifyPlaylistError,
   type CreatedSetlistPlaylist,
+  type PlaylistToUpdate,
+  type SetlistPlaylistUpdate,
   type ExistingPlaylist,
 } from "./setlist-playlist/index.js";
 export {
