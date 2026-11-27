@@ -50,13 +50,13 @@ async function run(
 ): Promise<RunOutcome> {
   const chooseArtist = frontEnd.chooseArtist.bind(frontEnd);
   const { setlist, completeAlternative } = await fetchSetlist(input, options, services, chooseArtist);
-  const latest = toPerformances(setlist);
-  frontEnd.showShow(showSummaryOf(latest));
+  const fetched = toPerformances(setlist);
+  frontEnd.showShow(showSummaryOf(fetched));
 
-  const inUse = await setlistInUse({ setlist, performances: latest }, completeAlternative, frontEnd);
+  const inUse = await setlistInUse({ setlist, read: fetched }, completeAlternative, frontEnd);
   // Prepared even without Performances, so a description that is too long still fails first.
   const prepared = await prepareSetlist(inUse.setlist, { keepTape: (tape) => keepTape(tape, options, frontEnd) });
-  if (inUse.performances.performances.length === 0) return { kind: "no-performances" };
+  if (inUse.read.performances.length === 0) return { kind: "no-performances" };
   const { show, keptPerformances, notAdded, incompleteStatus } = prepared;
   if (keptPerformances.length === 0) return { kind: "nothing-to-add" };
 
@@ -103,9 +103,9 @@ function showSummaryOf({ show, performances, incompleteStatus }: PerformancesRes
 }
 
 /** A Setlist together with the Performances the run already read from it for its Show line. */
-interface ReadSetlist {
+interface SetlistWithPerformances {
   setlist: SetlistFmSetlist;
-  performances: PerformancesResult;
+  read: PerformancesResult;
 }
 
 /**
@@ -113,16 +113,16 @@ interface ReadSetlist {
  * is incomplete and the user accepts the offer (its Show is then reported too), otherwise the fetched one.
  */
 async function setlistInUse(
-  latest: ReadSetlist,
+  fetched: SetlistWithPerformances,
   completeAlternative: SetlistFmSetlist | null,
   frontEnd: RunFrontEnd,
-): Promise<ReadSetlist> {
-  if (completeAlternative === null || !latest.performances.incompleteStatus.isIncomplete) return latest;
+): Promise<SetlistWithPerformances> {
+  if (completeAlternative === null || !fetched.read.incompleteStatus.isIncomplete) return fetched;
   const complete = toPerformances(completeAlternative);
-  const shows = { latest: latest.performances.show, complete: complete.show };
-  if (!(await frontEnd.askUseCompleteSetlist(shows))) return latest;
+  const shows = { latest: fetched.read.show, complete: complete.show };
+  if (!(await frontEnd.askUseCompleteSetlist(shows))) return fetched;
   frontEnd.showShow(showSummaryOf(complete));
-  return { setlist: completeAlternative, performances: complete };
+  return { setlist: completeAlternative, read: complete };
 }
 
 /**
