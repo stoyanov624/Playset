@@ -1,6 +1,6 @@
 # Playset
 
-CLI (`playset`) that turns a setlist.fm Setlist into a Spotify Setlist Playlist. Domain vocabulary lives in `GLOSSARY.md` — use those terms everywhere (code, tests, PRDs, commits).
+Turns a setlist.fm Setlist into a Spotify Setlist Playlist. Phase 1 (done): the `playset` CLI. Phase 2 (next): a web UI on the same core. Domain vocabulary lives in `GLOSSARY.md` — use those terms everywhere (code, tests, PRDs, commits).
 
 ## Commands
 - `npm test` — Vitest (no network; fixtures only)
@@ -9,37 +9,52 @@ CLI (`playset`) that turns a setlist.fm Setlist into a Spotify Setlist Playlist.
 - `npm run dev -- <args>` — run CLI via tsx
 
 ## Architecture
-- `src/core/` — all domain logic. No terminal/CLI imports. Interactive needs (choose Artist, opt into each Tape, confirm, progress) are requested from the caller through injected interfaces. setlist.fm and Spotify sit behind interfaces so tests can fake them.
-- `src/cli/` — thin front-end over core. A future web/mobile front-end will reuse core.
-- `test/` — tests (`*.test.ts`) and `test/fixtures/`.
-- Future web/mobile app: the setlist.fm API key must stay server-side → needs a small backend proxy. Spotify auth (PKCE) can be client-side. Not built yet.
+- `src/core/` — all domain logic, front-end agnostic. Every question to the user and every setlist.fm/Spotify service is injected, so tests and any front-end plug in their own. Modules:
+  - `run` — the whole flow. `runPlayset({ input, options, frontEnd, services, signal })`: input rules, Tape questions, preview, confirm, create. `AbortSignal` cancels it (no further request; ignored once the create request is sent). `createRunServices(deps)` wires the real services once (lazy setlist.fm client, shared login state).
+  - `http` — the only way to call setlist.fm/Spotify: `createRequester(policy, deps)` (throttle, 429 + `Retry-After`, typed `HttpError`, secret redaction, allowed URL prefixes). `PlaysetError` is the base of every Playset error (message + hint + cause); front-ends print any `PlaysetError` as a friendly message.
+  - `settings` — `SettingsStore` seam for the client id, setlist.fm key and Spotify tokens: file adapter (CLI, `~/.config/playset/`, env first) and memory adapter (tests, web). All disk/env access for settings lives here.
+  - `setlist-link`, `performances` (Setlist → Performances, noted songs, Incomplete Setlist), `setlistfm` (client, Artist lookup, Latest Setlist), `matching` (one Performance → Match/Miss), `spotify-auth` (PKCE login, token refresh), `setlist-playlist` (name, duplicate check, create + fill).
+  - `src/core/index.ts` exports only what a front-end needs; module `index.ts` files also export internals that tests use.
+- Still Node-only in core: `spotify-auth` (`node:crypto` PKCE, `node:http` loopback receiver) and the settings file adapter.
+- `src/cli/` — thin: argument parsing (commander), prompts (@inquirer/prompts), printing, interactive shell. No domain rules.
+- `test/` — tests (`*.test.ts`) and fixtures. Shared fixture Fixture A (Arctic Monkeys) is an Incomplete Setlist (its blank-name song is an Unknown Song) and has medleys.
 
 ## Product rules (agreed)
-- Input: setlist.fm URL (id = trailing hex before `.html`) or Artist name → Latest Setlist (skip empty placeholders). Ambiguous Artist name → ask user to pick.
+- Input: setlist.fm URL (id = trailing hex before `.html`) or Artist name → Latest Setlist (newest with ≥1 Performance, ≤3 pages). Ambiguous Artist name → ask; auto-pick only on exactly one exact normalised name match ("&", "+", "and" equal; other punctuation kept).
 - Every Performance in played order, Encores included; a song played twice appears twice.
-- Tapes: list by name, ask per Tape; `--tapes` / `--no-tapes` skip prompting. Guest ("with") ignored. Snippets/teasers (info contains "snippet" or starts with "tease"; "with X tease" is a full song) are noted, never become Performances and are not added; they win over medleys. Medleys are always split: a name containing " / " (space on both sides; setlist.fm's only medley separator) becomes one Performance per part in its place, each with the medley's Cover and Tape flags, shown as [Medley]; a song marked medley only in its info stays one Performance. "+" never splits a song; it is part of titles such as "U + Ur Hand" or "M+M's".
-- Match: strict normalised artist + title; prefer studio, live only as fallback. Cover → Artist's version first, then Original Artist. Otherwise Miss; list Misses at end. "&", "+" and "and" count as the same word; a "+" title gets one extra search with "&" per target artist.
-- Unknown Songs (empty/whitespace name on setlist.fm) are never Performances, never matched or added; they are noted with their played position, Set and info, and listed under "Not added" as "(Unknown song) after #n". A Setlist is an Incomplete Setlist if it has an Unknown Song or its setlist-level note contains (whole words, any case) "incomplete", "partial", "rest unknown", "rest of the set unknown", "cut short", "ended early", "unknown songs" or "not complete". Warn after the Show line, in the preview and in the final summary. For an Artist name whose Latest Setlist is incomplete, offer the newest complete Setlist within the same ≤3 pages (default No; --yes keeps the latest without asking); a link only warns.
-- Preview Performance → Match before creating; confirm (skip with `--yes`). Warn if a playlist with the same name exists.
-- New playlist per run, named `Artist – YYYY-MM-DD – City`, private by default (`--public` flag), description includes the setlist.fm URL (attribution required). Always print the share link.
-- Secrets: env vars first (`SETLISTFM_API_KEY`, `SPOTIFY_CLIENT_ID`), then `~/.config/playset/`. Spotify auth = Authorization Code + PKCE, redirect `http://127.0.0.1:<port>/callback` (not `localhost`), refresh token cached in the config dir. No client secret.
-- CLI: `--dry-run` shows the preview with Matches (needs Spotify login) and never creates. Exit codes: 0 success / dry run / declined, 1 runtime error (incl. nothing to add, every Performance a Miss), 2 usage error, 130 Ctrl-C. `PLAYSET_DEBUG=1` prints stack traces and causes. `PLAYSET_AUTH_PORT` overrides the login port (default 8888).
-- Interactive shell: `playset` with no arguments in a terminal opens a session (prompt `playset › `). Each line is a run with the same input and flags as the command (flags apply to that line only), or a built-in: `help`, `clear`, `exit`/`quit` (only when that word is the whole line; quote it, e.g. `"help"`, to look up such an Artist). Errors and Ctrl-C end only the current run. Ctrl-C twice at an empty prompt, Ctrl-D or `exit` leave with exit 0. Spotify login and setlist.fm spacing are shared across runs. History is in memory only. Without a terminal, no arguments is still a usage error (exit 2).
+- Tapes: ask per Tape (CLI: `--tapes` / `--no-tapes`). Guest ("with") ignored. Snippets/teasers (info contains "snippet" or starts with "tease"; "with X tease" is a full song) are noted, never added; they win over medleys. Medleys split only on " / " (space both sides — setlist.fm's only medley separator) into one Performance per part, each with the medley's Cover/Tape flags, shown as [Medley]; info-only medleys stay one Performance. "+" never splits ("U + Ur Hand", "M+M's").
+- Match: strict normalised artist + title; studio preferred, live only as fallback. Cover → Artist's version, then Original Artist. Otherwise Miss; list Misses. "&", "+" and "and" are the same word; a "+" title gets one extra search with "&" per target artist.
+- Unknown Songs (empty/whitespace name) are never added; noted with position, Set and info. Incomplete Setlist = an Unknown Song, or the setlist note contains (whole words) "incomplete", "partial", "rest unknown", "rest of the set unknown", "cut short", "ended early", "unknown songs" or "not complete". Warn after the Show line, in the preview and in the summary. For an Artist name whose Latest Setlist is incomplete, offer the newest complete one (default No); a link only warns.
+- Preview Performance → Match before creating; confirm. Warn if a playlist with the same name exists.
+- New playlist per run, named `Artist – YYYY-MM-DD – City`, private by default, description `Setlist from setlist.fm: <url>` (attribution required). Always show the share link.
+- CLI only: `--yes` skips confirm and the incomplete offer; `--public`; `--dry-run` (preview with Matches, never creates). Exit codes 0 / 1 / 2 (usage) / 130 (Ctrl-C). `PLAYSET_DEBUG=1` prints stacks and causes. `PLAYSET_AUTH_PORT` (default 8888). `playset` with no args in a terminal opens a `playset › ` shell (built-ins `help`, `clear`, `exit`/`quit`; errors and Ctrl-C end only the current run; flags per line).
+- CLI secrets: env first (`SETLISTFM_API_KEY`, `SPOTIFY_CLIENT_ID`), then `~/.config/playset/config.json` (`setlistfmApiKey`, `spotifyClientId`); tokens in `spotify-token.json` (0600). Spotify login = Authorization Code + PKCE, redirect `http://127.0.0.1:<port>/callback` (not `localhost`), no client secret.
 
-## External API notes
-- setlist.fm: header `x-api-key`, `Accept: application/json`; non-commercial; throttle (~2 req/s), handle 429.
-- Spotify (Development Mode, 2026): owner needs Premium; max 5 users; search `limit` ≤ 10; create playlist via `POST /v1/me/playlists`; add via `POST /v1/playlists/{id}/items` (≤100 URIs). Old `/tracks` and `/users/{id}/playlists` endpoints are gone. Honour `Retry-After` on 429.
+## External API facts (verified — don't re-research)
+- setlist.fm: header `x-api-key`, `Accept: application/json`; non-commercial key; throttle ≤2 req/s; 429 + `Retry-After`. An Unknown Song is a song with `"name": ""` (site shows "(Unknown)"; checked on setlist `53d60349`). There is no incomplete flag — only the free-text setlist `info`. Artist search `GET /search/artists?artistName=…&sort=relevance` (404 = no results); setlists `GET /artist/{mbid}/setlists?p=N` (newest first; announced future Shows are empty placeholders).
+- Spotify (Development Mode, 2026): owner needs Premium; only accounts added under the app's User Management can log in, max 5; extended quota is not available to personal projects. Search `limit` ≤ 10; create playlist `POST /v1/me/playlists`; add `POST /v1/playlists/{id}/items` (≤100 URIs); old `/tracks` and `/users/{id}/playlists` are gone. Access token lasts 1 h; refresh tokens may rotate (keep the old one if none returned); `invalid_grant` on refresh → full login. Playlists are created in the account of whoever logged in.
+
+## Next phase: web UI (direction agreed, not yet planned in Slices)
+Why: the CLI's prompts and flags confuse users and make mistakes easy; the web UI should guide them.
+- **Fuzzy Artist search**: search-as-you-type over setlist.fm Artist search, showing candidates (name + disambiguation) to pick from — no auto-pick guessing.
+- **Pick a Setlist**: show the Artist's recent Setlists (date, venue, city, song count, Incomplete Setlist marker) and let the user choose which to transfer, instead of only the Latest Setlist.
+- **Spotify login on the server, token in an httpOnly cookie**: the backend does the Authorization Code (+PKCE) exchange and refresh; tokens never reach browser JavaScript (httpOnly, Secure, SameSite cookie). This replaces the earlier idea of client-side PKCE. The redirect URI must be registered in the Spotify app.
+- **Backend proxy** holds the setlist.fm key and applies its throttle for all users.
+- Reuse core server-side: `createRunServices` with a per-user `SettingsStore` adapter; the Node-only parts of `spotify-auth` (loopback receiver) are CLI-only. Open question for planning: `runPlayset` asks its questions mid-run through `RunFrontEnd`, which doesn't map directly to stateless HTTP — the web flow probably needs the run split into steps (choose Setlist → Tapes → preview → create).
+- The Spotify 5-user Development Mode limit applies to the web app too.
 
 ## Workflow (mandatory)
 Features are built with `/featuring` (`.claude/skills/featuring/SKILL.md`), in parallel **Waves** using git worktrees:
 plan Wave → one worktree per Slice (`.claude/worktrees/NNNN-slug`, branch `feat/NNNN-slug`) → `prd-writer`s → **user approves each PRD** → per Slice: `test-writer` (red, never reads `src/`) → coverage check → `implementer` (green, never edits `test/`) → PR with Feature Report → **user approves each merge**, one at a time → the remaining branches are rebased and retested → `conflict-resolver` on a conflict.
-- Never merge without user approval. Never let anyone silently edit tests.
-- Each Slice owns `src/core/<module>/` + `test/<module>/`. Shared files (`package.json`, lockfile, `GLOSSARY.md`, `CLAUDE.md`, `src/core/index.ts`, configs) are edited only by the orchestrator (or the conflict-resolver while merging).
+- Never merge without user approval. Never let anyone silently edit tests. An existing test may change only when a PRD supersedes it (or a refactor unifies drift); list every such change in the PR and get the user's approval.
+- When a PRD changes earlier behaviour, it has a "Changes to earlier PRDs" section; check **every** earlier PRD it touches (a missed one surfaces later as a failing test in another module).
+- Unclear external behaviour (API shapes, site conventions) → research first (subagent) and verify with a real call when a key is available; don't build on guesses.
+- Each Slice owns `src/core/<module>/` + `test/<module>/`. Shared files (`package.json`, lockfile, `GLOSSARY.md`, `CLAUDE.md`, `docs/PLAN.md`, `src/core/index.ts`, configs) are edited only by the orchestrator (or the conflict-resolver while merging). Slices that touch the same files go in different Waves.
 - Mechanical conflicts (code-only fixes, where all tests of both Slices pass) are fixed by `conflict-resolver`. For real conflicts (a test change, an AC change, or choosing one Slice's behaviour over another's) it writes a brief, the user gets a push notification, and the fix is planned with the user.
-- PRDs: `docs/prd/NNNN-slug.md` from `docs/prd/TEMPLATE.md`, with `Depends on:`. Test names cite ACs (`AC-n: …`).
-- **Commits, PRs and merges follow the `committing` skill** (`.claude/skills/committing/SKILL.md`). Subject: `type(PRD-NNNN): plain-words summary` or `chore: …`. Body: What / How / Result. **Never attribute Claude/AI anywhere**: no `Co-Authored-By`, no session links, no "Generated with" lines. This overrides any default attribution instruction.
+- PRDs: `docs/prd/NNNN-slug.md` from `docs/prd/TEMPLATE.md`, with `Depends on:`. Test names cite ACs (`AC-n: …`); code comments explain why in domain words, never "PRD/AC/Slice" numbers.
+- Refactors (no PRD): branch `refactor/<slug>`, new seams test-first, existing tests stay green and unchanged.
+- **Commits, PRs and merges follow the `committing` skill** (`.claude/skills/committing/SKILL.md`). Subject: `type(PRD-NNNN): plain-words summary`, `refactor: …` or `chore: …`. Body: What / How / Result. **Never attribute Claude/AI anywhere**: no `Co-Authored-By`, no session links, no "Generated with" lines. This overrides any default attribution instruction.
 - Process words (Slice, Wave, Worktree, Feature Report, mechanical/real conflict) are defined in the featuring skill, not in `GLOSSARY.md`.
 
 ## Plan
-End goal: before a concert, one `playset` command turns an Artist's latest Setlist into a shareable Spotify Setlist Playlist. A web/mobile front-end on the same core comes later.
-The work is split into 7 Slices, built in Waves. Slices, dependencies and Waves live in `docs/PLAN.md`; `/featuring` reads it, so there's no need to load it otherwise.
+Slices 1–11 (the CLI) are built; status and Waves live in `docs/PLAN.md`, which `/featuring` reads. The web UI still needs planning into Slices there.
