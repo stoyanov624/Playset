@@ -48,4 +48,4 @@ plan Wave → one worktree per Slice (`.claude/worktrees/NNNN-slug`, branch `fea
 - Process words (Slice, Wave, Worktree, Feature Report, mechanical/real conflict) are defined in the featuring skill, not in `GLOSSARY.md`.
 
 ## Plan
-Slices, dependencies and Waves live in `docs/PLAN.md`, which `/featuring` reads. The current phase's direction and open questions live in `docs/phases/` (now: `web-ui.md`); read it only when planning or building that phase.
+Slices, dependencies and Waves live in `docs/PLAN.md`, which `/featuring` reads. The current phase's direction and open questions live in `docs/phases/` (now: `web-ui.md`); read it only when planning or building that phase. Decisions that are hard to reverse are ADRs in `docs/adr/`. Web UI Slices follow the extra steps in the featuring skill (design lock in `docs/design.md`, `design-review` agent); third-party skills are vendored and pinned, listed in `.claude/skills/VENDORED.md`.

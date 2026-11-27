@@ -51,6 +51,16 @@ For every approved Slice, as its own background pipeline (Slices don't wait for 
    Commit (per `committing`): `feat(PRD-NNNN): <plain-words summary>`.
 5. `git push -u origin feat/NNNN-slug` and `gh pr create --base main`; title and body per the `committing` skill (What / How / Result + **Feature Report**).
 
+## Web UI Slices (extra steps)
+A UI Slice is any Slice that touches `src/web/client/`.
+- **Design lock first.** Before the first UI Slice, a design pass (the `frontend-design` skill) produces `docs/design.md`: concept grounded in the subject (printed setlists, tour posters), 4–6 named colour tokens, fonts and type scale, a wireframe per screen, banned patterns. It is a shared file owned by you, and the **user approves it like a PRD**. Every UI PRD links it; changing the look later means changing `docs/design.md` first, with approval.
+- **Styling:** plain CSS Modules + the tokens from `docs/design.md`. No Tailwind, no component kits.
+- **Prompts:** `prd-writer` gets `docs/design.md`; `test-writer` adds an axe check (`vitest-axe`) for every screen it renders; `implementer` reads `docs/design.md` and the `vercel-react-best-practices` skill (client rules only — no Next.js/RSC/server rules).
+- **After step 4 (green), before the PR**, in the Worktree:
+  1. `web-design-guidelines` review of the changed client files (you run the skill, findings `file:line`).
+  2. Start the app, then spawn `design-review` (Worktree path, URL, PRD) — screenshots at 375 / 768 / 1440, flows, a11y, states.
+  3. Blockers and High findings go back to `implementer` (it never changes tests); a finding that needs a test or AC change goes to the user. Medium/Nit are listed in the Feature Report under "Design review".
+
 ## 5. Merge one at a time → user gate
 Repeat until the Wave's PRs are all merged or parked:
 1. **GATE — ask the user to approve merging one PR** (suggest the order: fewest dependents first). Never merge without approval.
