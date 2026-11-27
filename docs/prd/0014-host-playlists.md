@@ -1,6 +1,6 @@
 # PRD 0014 — One Setlist Playlist per Setlist in the Host Account
 
-Status: Approved
+Status: Implemented
 Slice: 14
 Depends on: 0012
 Module: src/core/setlist-playlist (also src/core/run for the Host steps and the preview cache, src/core/performances and src/core/setlistfm for the setlist.fm `versionId`)
