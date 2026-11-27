@@ -1,5 +1,7 @@
 // PRD 0008 — what `playset` prints for medleys: the `Medley` marker in the preview (P1, P2),
 // the "Not added" section, Tape questions per Tape part, the counts, and no medley option (P3).
+// PRD 0010 replaced P1 by "P1 revisited" (only " / " splits; "+" stays in titles): 13 Performances,
+// 12 kept, 9 tracks, 3 Misses. Tests whose expectations changed for that reason cite the PRD 0010 AC.
 import { describe, expect, it } from "vitest";
 import { main } from "../../src/cli/main.js";
 import { makeFakeIo, type FakeIoOptions } from "./fixtures/fake-io";
@@ -46,6 +48,7 @@ function notAddedSection(fake: ReturnType<typeof makeFakeIo>): string[] | undefi
   return lines.slice(heading + 1, end < 0 ? undefined : end);
 }
 
+/** PRD 0010 "P1 revisited": the preview block of P1. */
 const P1_PREVIEW = [
   "main",
   "1. Interstellar Overdrive [Tape, Medley, Cover of Pink Floyd]",
@@ -56,44 +59,40 @@ const P1_PREVIEW = [
   "→ Daughter — Pearl Jam · Vs.",
   "4. W.M.A. [Medley]",
   "→ W.M.A. — Pearl Jam · Vs.",
-  "5. Even Flow [Medley]",
-  "→ Even Flow — Pearl Jam · Ten",
-  "6. Alive [Medley]",
-  "→ Alive — Pearl Jam · Ten",
-  "7. Black [Medley]",
+  "5. Even Flow + Alive [Medley]",
+  "→ Miss",
+  "6. Black [Medley]",
   "→ Black — Pearl Jam · Ten",
-  "8. Jeremy [Medley]",
+  "7. Jeremy [Medley]",
   "→ Jeremy — Pearl Jam · Ten",
-  "9. Love/Hate",
+  "8. Love/Hate",
   "→ Miss",
   "Encore 1",
-  "10. Baba O'Riley [Medley, Cover of The Who]",
+  "9. Baba O'Riley [Medley, Cover of The Who]",
   "→ Baba O'Riley — The Who · Who's Next",
-  "11. Won't Get Fooled Again [Medley, Cover of The Who]",
+  "10. Won't Get Fooled Again [Medley, Cover of The Who]",
   "→ Won't Get Fooled Again — The Who · Who's Next",
-  "12. Black",
+  "11. Black",
   "→ Black — Pearl Jam · Ten",
-  "13. Porch [Medley]",
-  "→ Porch — Pearl Jam · Ten",
-  "14. Yellow Ledbetter [Medley]",
-  "→ Yellow Ledbetter — Pearl Jam · rearviewmirror (Greatest Hits 1991-2003)",
+  "12. Porch + Yellow Ledbetter [Medley]",
+  "→ Miss",
 ];
 
 // ---------------------------------------------------------------- AC-10
 
 describe("playset — the Medley marker in the preview", () => {
-  it("AC-10: P1's preview marks each medley Performance with Medley, in the order Tape, Medley, Cover of …; Match lines unchanged", async () => {
+  it("AC-6 (PRD 0010), PRD 0008 AC-10: P1 revisited's preview marks each medley Performance with Medley, in the order Tape, Medley, Cover of …; '+' titles shown whole", async () => {
     const fake = p1();
     const code = await main([FIXTURE_M_URL], fake.io);
     expect(code).toBe(0);
     expectBlock(fake, P1_PREVIEW);
   });
 
-  it("AC-10: a row with no markers has no brackets (Release, Love/Hate, the second Black)", async () => {
+  it("AC-6 (PRD 0010), PRD 0008 AC-10: a row with no markers has no brackets (Release #2, Love/Hate #8, the second Black #11)", async () => {
     const fake = p1();
     await main([FIXTURE_M_URL], fake.io);
     const lines = trimmedLines(fake);
-    for (const row of ["2. Release", "9. Love/Hate", "12. Black"]) {
+    for (const row of ["2. Release", "8. Love/Hate", "11. Black"]) {
       expect(lines).toContain(row);
       expect(lines.find((l) => l.startsWith(row))).toBe(row);
     }
@@ -228,40 +227,46 @@ describe("playset — Tape questions for Tape medley parts", () => {
 // ---------------------------------------------------------------- AC-14
 
 describe("playset — each part counts as one Performance", () => {
-  it("AC-14: P1's Show line counts 15 Performances, 2 Tapes", async () => {
+  it("AC-6 (PRD 0010), PRD 0008 AC-14: P1 revisited's Show line counts 13 Performances, 2 Tapes", async () => {
     const fake = p1();
     await main([FIXTURE_M_URL], fake.io);
     expectBlock(fake, [
       "Pearl Jam – 2026-07-08 – Johan Cruijff ArenA, Amsterdam",
       FIXTURE_M_URL,
-      "15 Performances, 2 Tapes",
+      "13 Performances, 2 Tapes",
     ]);
   });
 
-  it("AC-14: P1's progress runs 1/14 … 14/14, one step per kept part", async () => {
+  it("AC-6 (PRD 0010), PRD 0008 AC-14: P1 revisited's progress runs 1/12 … 12/12, one step per kept Performance", async () => {
     const fake = p1();
     await main([FIXTURE_M_URL], fake.io);
     const progress = trimmedLines(fake).filter((l) => l.startsWith("Finding Matches"));
-    expect(progress).toHaveLength(14);
-    expect(progress[0]).toBe("Finding Matches 1/14: Interstellar Overdrive");
-    expect(progress[1]).toBe("Finding Matches 2/14: Release");
-    expect(progress[13]).toBe("Finding Matches 14/14: Yellow Ledbetter");
+    expect(progress).toHaveLength(12);
+    expect(progress[0]).toBe("Finding Matches 1/12: Interstellar Overdrive");
+    expect(progress[1]).toBe("Finding Matches 2/12: Release");
+    expect(progress[4]).toBe("Finding Matches 5/12: Even Flow + Alive");
+    expect(progress[11]).toBe("Finding Matches 12/12: Porch + Yellow Ledbetter");
   });
 
-  it("AC-14: P1's preview counts 13 tracks and 1 Miss; the created line says 13 tracks; the Miss list has Love/Hate; the share link is last", async () => {
+  it("AC-6 (PRD 0010), PRD 0008 AC-14: P1 revisited's preview counts 9 tracks and 3 Misses; the created line says 9 tracks; the Miss list has the two '+' Performances and Love/Hate; the share link is last", async () => {
     const fake = p1();
     const code = await main([FIXTURE_M_URL], fake.io);
     expect(code).toBe(0);
     const lines = trimmedLines(fake);
     expect(lines).toContain("Playlist: Pearl Jam – 2026-07-08 – Amsterdam (private)");
-    expect(lines).toContain("13 tracks, 1 Miss");
-    expect(lines).toContain('Created "Pearl Jam – 2026-07-08 – Amsterdam" with 13 tracks.');
-    expectBlock(fake, ["1 Miss (not in the playlist):", "Love/Hate — Pearl Jam"]);
+    expect(lines).toContain("9 tracks, 3 Misses");
+    expect(lines).toContain('Created "Pearl Jam – 2026-07-08 – Amsterdam" with 9 tracks.');
+    expectBlock(fake, [
+      "3 Misses (not in the playlist):",
+      "Even Flow + Alive — Pearl Jam",
+      "Love/Hate — Pearl Jam",
+      "Porch + Yellow Ledbetter — Pearl Jam",
+    ]);
     expect(fake.lastStdoutLine()).toBe(CREATED_SHARE_URL);
-    expect(fake.calls.create[0]!.matches).toHaveLength(13);
+    expect(fake.calls.create[0]!.matches).toHaveLength(9);
   });
 
-  it("AC-14: a Miss that came from a medley is listed with no medley marker (with Cover of … for a Cover)", async () => {
+  it("AC-6 (PRD 0010), PRD 0008 AC-14: a Miss that came from a medley is listed with no medley marker (with Cover of … for a Cover)", async () => {
     const fake = p1({
       services: {
         outcomes: { ...fixtureMOutcomes, "W.M.A.": "miss", "Won't Get Fooled Again": "miss" },
@@ -269,12 +274,14 @@ describe("playset — each part counts as one Performance", () => {
     });
     await main([FIXTURE_M_URL], fake.io);
     expectBlock(fake, [
-      "3 Misses (not in the playlist):",
+      "5 Misses (not in the playlist):",
       "W.M.A. — Pearl Jam",
+      "Even Flow + Alive — Pearl Jam",
       "Love/Hate — Pearl Jam",
       "Won't Get Fooled Again — Pearl Jam (Cover of The Who)",
+      "Porch + Yellow Ledbetter — Pearl Jam",
     ]);
-    const missList = trimmedLines(fake).slice(trimmedLines(fake).indexOf("3 Misses (not in the playlist):"));
+    const missList = trimmedLines(fake).slice(trimmedLines(fake).indexOf("5 Misses (not in the playlist):"));
     expect(missList.join("\n")).not.toMatch(/medley/i);
   });
 
@@ -350,5 +357,75 @@ describe("playset — no medley option or question", () => {
     }
     expect(p1Run.confirmQuestions).toHaveLength(3);
     expect(p2Run.confirmQuestions).toHaveLength(3);
+  });
+});
+
+// ---------------------------------------------------------------- PRD 0010 AC-5, AC-6
+
+/** A Pearl Jam Setlist (Fixture M's Show) with a "+" Tape, a "+" song and a "+" info-only medley. */
+function plusSongsIo(confirmAnswers: (boolean | "default" | "cancel")[]) {
+  return makeFakeIo({
+    confirmAnswers,
+    services: {
+      setlist: {
+        ...(fixtureM() as unknown as Record<string, unknown>),
+        sets: {
+          set: [
+            {
+              song: [
+                { name: "Intro + Release", tape: true },
+                { name: "Love + Hate" },
+                { name: "Porch + Yellow Ledbetter", info: "Medley" },
+              ],
+            },
+          ],
+        },
+      } as never,
+      outcomes: { "Love + Hate": "miss", "Porch + Yellow Ledbetter": "miss" },
+    },
+  });
+}
+
+describe("playset — a '+' in a title (PRD 0010)", () => {
+  it("AC-5: a Tape 'Intro + Release' gets exactly one Tape question showing its full title with '+', default No", async () => {
+    const fake = plusSongsIo([true, true]);
+    const code = await main([FIXTURE_M_URL], fake.io);
+    expect(code).toBe(0);
+    const tapeQuestions = fake.confirmQuestions.filter((q) => q.message.startsWith("Add the Tape"));
+    expect(tapeQuestions.map((q) => q.message)).toEqual(['Add the Tape "Intro + Release" to the playlist?']);
+    expect(tapeQuestions[0]!.default).toBe(false);
+    expect(fake.calls.findMatch.map((c) => c.performance.title)).toEqual([
+      "Intro + Release",
+      "Love + Hate",
+      "Porch + Yellow Ledbetter",
+    ]);
+  });
+
+  it("AC-6: a '+' song's row shows its full title with no Medley marker; a '+' info-only medley's row shows Medley", async () => {
+    const fake = plusSongsIo([true, true]);
+    await main([FIXTURE_M_URL], fake.io);
+    const lines = trimmedLines(fake);
+    expect(lines).toContain("2. Love + Hate");
+    expect(lines).toContain("3. Porch + Yellow Ledbetter [Medley]");
+    const tapeRow = lines.find((l) => l.startsWith("1. "));
+    expect(tapeRow).toMatch(/^1\. Intro \+ Release \[Tape\]$/);
+    for (const part of ["Intro", "Release", "Love", "Hate", "Porch", "Yellow Ledbetter"]) {
+      expect(lines.some((l) => new RegExp(`^\\d+\\. ${part}( \\[.*\\])?$`).test(l))).toBe(false);
+    }
+  });
+
+  it("AC-6: each '+' song counts as one Performance in the Show line, progress, tracks and Misses", async () => {
+    const fake = plusSongsIo([true, true]);
+    await main([FIXTURE_M_URL], fake.io);
+    const lines = trimmedLines(fake);
+    expect(lines.some((l) => /^3 Performances, 1 Tapes?$/.test(l))).toBe(true);
+    const progress = lines.filter((l) => l.startsWith("Finding Matches"));
+    expect(progress).toEqual([
+      "Finding Matches 1/3: Intro + Release",
+      "Finding Matches 2/3: Love + Hate",
+      "Finding Matches 3/3: Porch + Yellow Ledbetter",
+    ]);
+    expect(lines.some((l) => /^1 tracks?, 2 Misses$/.test(l))).toBe(true);
+    expectBlock(fake, ["2 Misses (not in the playlist):", "Love + Hate — Pearl Jam", "Porch + Yellow Ledbetter — Pearl Jam"]);
   });
 });

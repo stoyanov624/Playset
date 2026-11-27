@@ -1,6 +1,7 @@
 // PRD 0008 — splitting medleys into Performances (src/core/performances).
 // Fixture A revisited, Fixture D revisited, Fixture M (Pearl Jam, every kind of medley) and
-// Fixture N (single-song edge cases). No network: recorded setlist.fm "get setlist" shapes only.
+// Fixture N (single-song edge cases). PRD 0010 supersedes the " + " splitting: Fixture M and
+// the Fixture N rows with " + " follow PRD 0010 ("Fixture M revisited", song names table). No network: recorded setlist.fm "get setlist" shapes only.
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -159,7 +160,10 @@ describe("toPerformances — Fixture D revisited (PRD 0008)", () => {
   });
 });
 
-// ---------------------------------------------------------------- Fixture M
+// ---------------------------------------------------------------- Fixture M (revisited by PRD 0010)
+// PRD 0010 replaced PRD 0008's expected Performances for Fixture M: only " / " splits, so
+// "Even Flow + Alive / Black" gives two parts and "Porch + Yellow Ledbetter" (info "Medley")
+// is one Performance. 13 Performances instead of 15; Kashmir is noted after 8 instead of 9.
 
 const PJ = "Pearl Jam";
 const PINK_FLOYD_MEDLEY = "Interstellar Overdrive / Astronomy Domine";
@@ -174,74 +178,72 @@ const fixtureMPerformances: Performance[] = [
   performance(PJ, 3, "Release", "main", false),
   performance(PJ, 4, "Daughter", "main", false, undefined, DAUGHTER_MEDLEY),
   performance(PJ, 5, "W.M.A.", "main", false, undefined, DAUGHTER_MEDLEY),
-  performance(PJ, 6, "Even Flow", "main", false, undefined, EVEN_FLOW_MEDLEY),
-  performance(PJ, 7, "Alive", "main", false, undefined, EVEN_FLOW_MEDLEY),
-  performance(PJ, 8, "Black", "main", false, undefined, EVEN_FLOW_MEDLEY),
-  performance(PJ, 9, "Jeremy", "main", false, undefined, "Jeremy"),
-  performance(PJ, 10, "Love/Hate", "main", false),
-  performance(PJ, 11, "Baba O'Riley", "Encore 1", false, "The Who", WHO_MEDLEY),
-  performance(PJ, 12, "Won't Get Fooled Again", "Encore 1", false, "The Who", WHO_MEDLEY),
-  performance(PJ, 13, "Black", "Encore 1", false),
-  performance(PJ, 14, "Porch", "Encore 1", false, undefined, PORCH_MEDLEY),
-  performance(PJ, 15, "Yellow Ledbetter", "Encore 1", false, undefined, PORCH_MEDLEY),
+  performance(PJ, 6, "Even Flow + Alive", "main", false, undefined, EVEN_FLOW_MEDLEY),
+  performance(PJ, 7, "Black", "main", false, undefined, EVEN_FLOW_MEDLEY),
+  performance(PJ, 8, "Jeremy", "main", false, undefined, "Jeremy"),
+  performance(PJ, 9, "Love/Hate", "main", false),
+  performance(PJ, 10, "Baba O'Riley", "Encore 1", false, "The Who", WHO_MEDLEY),
+  performance(PJ, 11, "Won't Get Fooled Again", "Encore 1", false, "The Who", WHO_MEDLEY),
+  performance(PJ, 12, "Black", "Encore 1", false),
+  performance(PJ, 13, "Porch + Yellow Ledbetter", "Encore 1", false, undefined, PORCH_MEDLEY),
 ];
 
 const fixtureM = () => loadSetlist("fixture-m-pearl-jam-medleys.json");
 
-describe("toPerformances — Fixture M (Pearl Jam, every kind of medley)", () => {
-  it("AC-1: produces exactly the expected 15 Performances for Fixture M", () => {
+describe("toPerformances — Fixture M (Pearl Jam, every kind of medley; revisited by PRD 0010)", () => {
+  it("AC-1 (PRD 0010): produces exactly the expected 13 Performances for Fixture M revisited", () => {
     const result = toPerformances(fixtureM());
 
     expect(result.performances).toEqual(fixtureMPerformances);
   });
 
-  it("AC-1: splits at ' / ' and ' + ' (also mixed in one name), keeps the parts in name order, positions 1..15 with no gaps", () => {
+  it("AC-3 (PRD 0010): splits only at ' / ' (a '+' part stays whole), keeps the parts in name order, positions 1..13 with no gaps", () => {
     const result = toPerformances(fixtureM());
 
-    expect(positions(result)).toEqual(Array.from({ length: 15 }, (_, i) => i + 1));
-    expect(result.performances.slice(3, 8).map((p) => p.title)).toEqual(["Daughter", "W.M.A.", "Even Flow", "Alive", "Black"]);
-    expect(result.performances.slice(13).map((p) => p.title)).toEqual(["Porch", "Yellow Ledbetter"]);
+    expect(positions(result)).toEqual(Array.from({ length: 13 }, (_, i) => i + 1));
+    expect(result.performances.slice(3, 7).map((p) => p.title)).toEqual(["Daughter", "W.M.A.", "Even Flow + Alive", "Black"]);
+    expect(result.performances.slice(12).map((p) => p.title)).toEqual(["Porch + Yellow Ledbetter"]);
   });
 
-  it("AC-1: each part has the Set label of the medley's Set", () => {
+  it("AC-1 (PRD 0010): each part has the Set label of the medley's Set", () => {
     const result = toPerformances(fixtureM());
 
     expect(result.performances.map((p) => p.setLabel)).toEqual([
-      ...Array(10).fill("main"),
-      ...Array(5).fill("Encore 1"),
+      ...Array(9).fill("main"),
+      ...Array(4).fill("Encore 1"),
     ]);
   });
 
-  it("AC-2: 'Love/Hate' (slash without spaces) is one normal Performance with no medley marker", () => {
+  it("AC-1 (PRD 0010), PRD 0008 AC-2: 'Love/Hate' (slash without spaces) is one normal Performance (#9) with no medley marker", () => {
     const result = toPerformances(fixtureM());
 
-    const loveHate = result.performances[9]!;
-    expect(loveHate).toEqual(performance(PJ, 10, "Love/Hate", "main", false));
+    const loveHate = result.performances[8]!;
+    expect(loveHate).toEqual(performance(PJ, 9, "Love/Hate", "main", false));
     expect(medleyOf(loveHate)).toBeUndefined();
   });
 
-  it("AC-3: every part carries the medley name; Release, Love/Hate and the second Black carry none", () => {
+  it("AC-3 (PRD 0010): every part carries the full medley name; Release, Love/Hate and the second Black carry none", () => {
     const result = toPerformances(fixtureM());
 
     expect(result.performances.map(medleyOf)).toEqual([
       PINK_FLOYD_MEDLEY, PINK_FLOYD_MEDLEY,
       undefined,
       DAUGHTER_MEDLEY, DAUGHTER_MEDLEY,
-      EVEN_FLOW_MEDLEY, EVEN_FLOW_MEDLEY, EVEN_FLOW_MEDLEY,
+      EVEN_FLOW_MEDLEY, EVEN_FLOW_MEDLEY,
       "Jeremy",
       undefined,
       WHO_MEDLEY, WHO_MEDLEY,
       undefined,
-      PORCH_MEDLEY, PORCH_MEDLEY,
+      PORCH_MEDLEY,
     ]);
   });
 
-  it("AC-4: every part of a Cover medley has the medley's Original Artist; every Artist is the Setlist's Artist; the guest is ignored", () => {
+  it("AC-1 (PRD 0010), PRD 0008 AC-4: every part of a Cover medley has the medley's Original Artist; every Artist is the Setlist's Artist; the guest is ignored", () => {
     const result = toPerformances(fixtureM());
 
     for (const p of result.performances) expect(p.artist).toBe(PJ);
     expect(result.performances.slice(0, 2).map((p) => p.originalArtist)).toEqual(["Pink Floyd", "Pink Floyd"]);
-    expect(result.performances.slice(10, 12).map((p) => p.originalArtist)).toEqual(["The Who", "The Who"]);
+    expect(result.performances.slice(9, 11).map((p) => p.originalArtist)).toEqual(["The Who", "The Who"]);
     expect(JSON.stringify(result)).not.toContain("Josh Klinghoffer");
   });
 
@@ -252,23 +254,22 @@ describe("toPerformances — Fixture M (Pearl Jam, every kind of medley)", () =>
     expect(listTapes(result.performances)).toEqual(["Interstellar Overdrive", "Astronomy Domine"]);
   });
 
-  it("AC-6: 'Jeremy' (info-only medley) is one Performance with medley name 'Jeremy'; 'Footsteps' is not added", () => {
+  it("AC-4 (PRD 0010), PRD 0008 AC-6: 'Jeremy' (info-only medley) is one Performance (#8) with medley name 'Jeremy'; 'Footsteps' is not added", () => {
     const result = toPerformances(fixtureM());
 
-    expect(result.performances[8]).toEqual(performance(PJ, 9, "Jeremy", "main", false, undefined, "Jeremy"));
+    expect(result.performances[7]).toEqual(performance(PJ, 8, "Jeremy", "main", false, undefined, "Jeremy"));
     expect(titles(result)).not.toContain("Footsteps");
   });
 
-  it("AC-6: 'Porch + Yellow Ledbetter' with info 'Medley' is split as under AC-1; the info changes nothing", () => {
+  it("AC-4 (PRD 0010): 'Porch + Yellow Ledbetter' with info 'Medley' is one Performance whose medley name is its own title", () => {
     const result = toPerformances(fixtureM());
 
-    expect(result.performances.slice(13)).toEqual([
-      performance(PJ, 14, "Porch", "Encore 1", false, undefined, PORCH_MEDLEY),
-      performance(PJ, 15, "Yellow Ledbetter", "Encore 1", false, undefined, PORCH_MEDLEY),
+    expect(result.performances.slice(12)).toEqual([
+      performance(PJ, 13, "Porch + Yellow Ledbetter", "Encore 1", false, undefined, PORCH_MEDLEY),
     ]);
   });
 
-  it("AC-7: the snippet 'Kashmir / Whole Lotta Love' is noted as a snippet with its raw name, not split and not a Performance", () => {
+  it("AC-1 (PRD 0010), PRD 0008 AC-7: the snippet 'Kashmir / Whole Lotta Love' is noted as a snippet with its raw name (after 8), not split and not a Performance", () => {
     const result = toPerformances(fixtureM());
 
     for (const t of ["Kashmir", "Whole Lotta Love", "Kashmir / Whole Lotta Love"]) {
@@ -278,25 +279,25 @@ describe("toPerformances — Fixture M (Pearl Jam, every kind of medley)", () =>
       rawName: "Kashmir / Whole Lotta Love",
       reason: "snippet",
       setLabel: "main",
-      afterPosition: 9,
+      afterPosition: 8,
     });
   });
 
-  it("AC-8: a part with the same title as a later song ('Black' #8 and #13) stays two separate Performances", () => {
+  it("AC-3 (PRD 0010), PRD 0008 AC-8: a part with the same title as a later song ('Black' #7 and #12) stays two separate Performances", () => {
     const result = toPerformances(fixtureM());
 
     const blacks = result.performances.filter((p) => p.title === "Black");
     expect(blacks.map((p) => [p.position, p.setLabel, medleyOf(p)])).toEqual([
-      [8, "main", EVEN_FLOW_MEDLEY],
-      [13, "Encore 1", undefined],
+      [7, "main", EVEN_FLOW_MEDLEY],
+      [12, "Encore 1", undefined],
     ]);
   });
 
-  it("AC-9: the noted list is only the snippet, played after 9 (parts counted as Performances)", () => {
+  it("AC-6 (PRD 0010), PRD 0008 AC-9: the noted list is only the snippet, played after 8 (parts counted as Performances)", () => {
     const result = toPerformances(fixtureM());
 
     expect(result.noted).toEqual([
-      { rawName: "Kashmir / Whole Lotta Love", reason: "snippet", setLabel: "main", afterPosition: 9 },
+      { rawName: "Kashmir / Whole Lotta Love", reason: "snippet", setLabel: "main", afterPosition: 8 },
     ]);
   });
 
@@ -325,36 +326,11 @@ function titleAndMedley(result: PerformancesResult): [string, string | undefined
 describe("toPerformances — Fixture N (single songs and edge cases)", () => {
   it.each<[string, Record<string, unknown>, [string, string | undefined][]]>([
     [
-      "' + ' splits",
-      { name: "Dead Star + In Your World" },
-      [
-        ["Dead Star", "Dead Star + In Your World"],
-        ["In Your World", "Dead Star + In Your World"],
-      ],
-    ],
-    [
-      "mixed ' + ' and ' / ' give three parts",
-      { name: "Map of the Problematique + Stockholm Syndrome / Knights of Cydonia" },
-      [
-        ["Map of the Problematique", "Map of the Problematique + Stockholm Syndrome / Knights of Cydonia"],
-        ["Stockholm Syndrome", "Map of the Problematique + Stockholm Syndrome / Knights of Cydonia"],
-        ["Knights of Cydonia", "Map of the Problematique + Stockholm Syndrome / Knights of Cydonia"],
-      ],
-    ],
-    [
       "the medley name is the trimmed name",
       { name: "  Do I Wanna Know? / 505  " },
       [
         ["Do I Wanna Know?", "Do I Wanna Know? / 505"],
         ["505", "Do I Wanna Know? / 505"],
-      ],
-    ],
-    [
-      "an empty part between separators is dropped",
-      { name: "Alive /  + Black" },
-      [
-        ["Alive", "Alive /  + Black"],
-        ["Black", "Alive /  + Black"],
       ],
     ],
     [
@@ -366,6 +342,38 @@ describe("toPerformances — Fixture N (single songs and edge cases)", () => {
       ],
     ],
   ])("AC-1: %s", (_label, song, expected) => {
+    const result = toPerformances(singleSongSetlist(song));
+
+    expect(titleAndMedley(result)).toEqual(expected);
+    expect(positions(result)).toEqual(expected.map((_, i) => i + 1));
+    expect(result.performances.every((p) => p.setLabel === "main" && p.artist === AM && !p.isTape)).toBe(true);
+    expect(result.noted).toEqual([]);
+  });
+
+  // PRD 0010 replaced these three Fixture N rows: "+" never splits a song, only " / " does.
+  it.each<[string, Record<string, unknown>, [string, string | undefined][]]>([
+    [
+      "AC-2 (PRD 0010): 'Dead Star + In Your World' is one Performance with no medley marker",
+      { name: "Dead Star + In Your World" },
+      [["Dead Star + In Your World", undefined]],
+    ],
+    [
+      "AC-3 (PRD 0010): mixed ' + ' and ' / ' give two parts, split only at ' / '",
+      { name: "Map of the Problematique + Stockholm Syndrome / Knights of Cydonia" },
+      [
+        ["Map of the Problematique + Stockholm Syndrome", "Map of the Problematique + Stockholm Syndrome / Knights of Cydonia"],
+        ["Knights of Cydonia", "Map of the Problematique + Stockholm Syndrome / Knights of Cydonia"],
+      ],
+    ],
+    [
+      "AC-3 (PRD 0010): 'Alive /  + Black' splits only at ' / '; the second part is the trimmed '+ Black'",
+      { name: "Alive /  + Black" },
+      [
+        ["Alive", "Alive /  + Black"],
+        ["+ Black", "Alive /  + Black"],
+      ],
+    ],
+  ])("%s", (_label, song, expected) => {
     const result = toPerformances(singleSongSetlist(song));
 
     expect(titleAndMedley(result)).toEqual(expected);
@@ -464,7 +472,7 @@ describe("toPerformances — Fixture N (single songs and edge cases)", () => {
     expect(result.performances.map((p) => p.setLabel)).toEqual(["main", "main", "main", "Encore 1", "Encore 1"]);
   });
 
-  it("AC-9: a snippet after a medley counts the parts in its 'played after' position; 'medley' is never a reason", () => {
+  it("AC-6 (PRD 0010), PRD 0008 AC-9: a snippet after a '+' song and a medley counts each as one Performance in its 'played after' position; 'medley' is never a reason", () => {
     const base = loadSetlist("fixture-a-full-show.json") as unknown as Record<string, unknown>;
     const setlist = {
       ...base,
@@ -483,7 +491,7 @@ describe("toPerformances — Fixture N (single songs and edge cases)", () => {
 
     const result = toPerformances(setlist);
 
-    expect(result.noted).toEqual([{ rawName: "Hey Jude", reason: "snippet", setLabel: "main", afterPosition: 3 }]);
+    expect(result.noted).toEqual([{ rawName: "Hey Jude", reason: "snippet", setLabel: "main", afterPosition: 2 }]);
     expect(result.noted.some((n) => (n.reason as string) === "medley")).toBe(false);
   });
 });

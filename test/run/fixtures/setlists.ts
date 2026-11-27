@@ -18,7 +18,7 @@ export const FIXTURE_A_PLAYLIST_NAME = "Arctic Monkeys – 2025-08-23 – Amster
 
 /** PRD 0002 Fixture A (revisited by PRD 0008): 14 Performances, 2 Tapes, 1 noted song. */
 export const fixtureA = (): SetlistFmSetlist => loadShared("fixture-a-full-show.json");
-/** PRD 0008 Fixture M: Pearl Jam in Amsterdam, every kind of medley (15 Performances, 2 Tapes). */
+/** PRD 0008 Fixture M: Pearl Jam in Amsterdam, every kind of medley (PRD 0010 revisited: 13 Performances, 2 Tapes). */
 export const fixtureM = (): SetlistFmSetlist => loadShared("fixture-m-pearl-jam-medleys.json");
 export const FIXTURE_M_URL =
   "https://www.setlist.fm/setlist/pearl-jam/2026/johan-cruijff-arena-amsterdam-netherlands-5bf2a3c4.html";
