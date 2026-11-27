@@ -5,7 +5,7 @@ Slice: <n from docs/PLAN.md>
 Depends on: <Slice numbers, or "none">
 Module: <src/core/<module> | src/web/server | src/web/client | src/web/shared | src/cli>
 
-The plan agreed with the user in the planning session. The Ralph loop's `prd-writer` turns it into `docs/prd/NNNN-slug.md` (a `design` Slice produces `docs/design.md` instead). Use `GLOSSARY.md` terms.
+The plan agreed with the user in the planning session. `/implementing`'s `prd-writer` turns it into `docs/prd/NNNN-slug.md` (a `design` Slice produces `docs/design.md` instead). Use `GLOSSARY.md` terms.
 
 ## Behaviour
 - <what the user can do / what happens, with concrete examples>

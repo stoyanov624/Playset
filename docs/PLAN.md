@@ -1,6 +1,6 @@
 # Playset — Plan
 
-Read by the Ralph loop (`scripts/ralph/wave.mjs`) to choose the next Wave. Not loaded into every session; `CLAUDE.md` only points here.
+Read by `/implementing` (and `node scripts/wave.mjs`) to choose the next Wave. Not loaded into every session; `CLAUDE.md` only points here.
 
 ## End goal
 
@@ -27,12 +27,12 @@ Phase 2: a web front-end on the same core — direction in `docs/phases/web-ui.m
 ## Waves (history)
 
 - Phase 1: Wave 1 = Slices 1, 2, 3, 5 · Wave 2 = 4, 6 · Wave 3 = 7 · Wave 4 = 8 · Wave 5 = 9, 10 · Wave 6 = 11.
-- From now on Waves are computed by `node scripts/ralph/wave.mjs`, not written here.
+- From now on Waves are computed by `node scripts/wave.mjs`, not written here.
 
-## Rules for the Ralph loop
+## Rules for /implementing
 
 - **Id** = `NNNN-slug`: the PRD number (next free, consecutive) and a short slug. It names the brief (`docs/briefs/Id.md`), the PRD (`docs/prd/Id.md`), the Worktree and the branch (`feat/Id`). A row without an Id is not planned yet and never runs.
 - **Depends on** lists Slice numbers (`#`). Until a Slice has a PRD, this column is the truth; after that, the PRD's `Depends on:` wins — if they disagree, update this table in the same PR.
 - A Slice is **built** when its PRD on `main` says `Status: Implemented` (a `design` Slice: `docs/design.md` says `Status: Approved`). Progress is derived from those files, so this table has no status column.
 - The next Wave = every planned, unbuilt Slice whose dependencies are all built. Slices that change the same shared files should depend on each other so they don't run in parallel.
-- New Slices (row + brief) are added in an interactive planning session, in a `chore` PR the user approves, before `scripts/ralph/run-wave.sh` runs.
+- New Slices (row + brief) are added in an interactive planning session, in a `chore` PR the user approves, before `/implementing` runs.

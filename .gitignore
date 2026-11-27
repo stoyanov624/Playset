@@ -7,6 +7,4 @@ coverage/
 .claude/settings.local.json
 .claude/worktrees/
 .ralph/
-.ralph-review.md
-.ralph-stuck.md
 .conflict-brief.md
