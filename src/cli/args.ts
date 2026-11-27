@@ -4,12 +4,8 @@ import type { RunOptions } from "../core/run/index.js";
 export const VERSION = "0.1.0";
 export const USAGE_LINE = "Usage: playset [options] <setlist.fm link | Artist name...>";
 
-const HELP_TEXT = `${USAGE_LINE}
-
-Turn a setlist.fm Setlist into a Spotify Setlist Playlist.
-Give a setlist.fm Setlist link, or an Artist name to use their Latest Setlist.
-
-Options:
+/** The options with their one-line descriptions, shared by `--help` and the shell's help (PRD 0009 AC-9). */
+export const OPTIONS_HELP = `Options:
   --tapes      add every Tape without asking
   --no-tapes   leave out every Tape without asking
   --yes        create the playlist without asking for confirmation
@@ -18,6 +14,14 @@ Options:
   --version    print the version number
   --help       show this help
 `;
+
+const HELP_TEXT = `${USAGE_LINE}
+
+Turn a setlist.fm Setlist into a Spotify Setlist Playlist.
+Give a setlist.fm Setlist link, or an Artist name to use their Latest Setlist.
+Run playset with no arguments to open an interactive session.
+
+${OPTIONS_HELP}`;
 
 export type ParsedArgs =
   | { kind: "run"; words: string[]; options: RunOptions }

@@ -1,6 +1,6 @@
 # PRD 0009 — Interactive shell: many runs in one `playset` session
 
-Status: Approved
+Status: Implemented
 Slice: 9
 Depends on: 0007, 0008
 Module: src/cli (the shell is part of the command-line front-end; it reuses PRD 0007's run in src/core/run unchanged)
