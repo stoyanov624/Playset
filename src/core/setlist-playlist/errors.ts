@@ -32,6 +32,16 @@ export class SpotifyPlaylistError extends PlaysetError {
   }
 }
 
+/**
+ * A playlist request failed before anything was written: `summary` says what was left unchanged, the
+ * cause's message says why, and Spotify's status is kept so callers can tell a missing playlist apart.
+ */
+export function playlistRequestFailed(summary: string, cause: unknown): SpotifyPlaylistError {
+  const reason = cause instanceof Error ? cause.message : String(cause);
+  const status = cause instanceof SpotifyPlaylistError ? cause.status : undefined;
+  return new SpotifyPlaylistError(`${summary} ${reason}`, { status, cause });
+}
+
 /** Spotify kept answering HTTP 429 after every retry was used. */
 export class PlaylistRateLimitError extends SpotifyPlaylistError {
   constructor(what: string, retries: number, options: { cause?: unknown } = {}) {

@@ -94,11 +94,17 @@ export async function createOrUpdateSetlistPlaylist(
   return create(services, prepared, matches, { setlistId, versionId, accessToken, records, now });
 }
 
+/** What creating a Host Setlist Playlist needs besides the Show and its Matches: where to record it, and when. */
+interface NewSetlistPlaylistDetails extends Required<CreateOrUpdateSetlistPlaylistOptions> {
+  setlistId: string;
+  versionId: string;
+}
+
 async function create(
   services: HostServices,
   prepared: PreparedSetlist,
   matches: Match[],
-  details: { setlistId: string; versionId: string; accessToken: string; records: SetlistPlaylistRecords; now: () => number },
+  details: NewSetlistPlaylistDetails,
 ): Promise<CreateOrUpdateResult> {
   const { setlistId, versionId, accessToken, records } = details;
   const createdAt = new Date(details.now()).toISOString();

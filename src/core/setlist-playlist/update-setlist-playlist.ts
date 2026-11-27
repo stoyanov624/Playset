@@ -3,7 +3,7 @@
 import type { Match } from "../matching/index.js";
 import type { Show } from "../performances/index.js";
 import { addInBatches, BATCH_SIZE, type CreatedSetlistPlaylist } from "./create-setlist-playlist.js";
-import { NothingToAddError, PartlyUpdatedPlaylistError, SpotifyPlaylistError } from "./errors.js";
+import { NothingToAddError, PartlyUpdatedPlaylistError, playlistRequestFailed, SpotifyPlaylistError } from "./errors.js";
 import { setlistPlaylistDescription, setlistPlaylistName } from "./name.js";
 import { playlistItemsUrl, playlistUrl } from "./spotify-playlist.js";
 import { sendSpotifyRequest, type SpotifyPlaylistOptions } from "./spotify-request.js";
@@ -48,7 +48,7 @@ export async function updateSetlistPlaylist(
     );
   } catch (err) {
     if (err instanceof SpotifyPlaylistError && err.status === 404) return { held: false };
-    throw notChanged(err);
+    throw playlistRequestFailed("Could not update the Setlist Playlist, so it was not changed.", err);
   }
 
   const partly = (tracksWritten: number, cause: unknown) =>
@@ -70,13 +70,4 @@ export async function updateSetlistPlaylist(
   }
 
   return { held: true, playlist: { id: playlist.id, shareUrl: playlist.shareUrl, name, trackCount: uris.length } };
-}
-
-function notChanged(cause: unknown): SpotifyPlaylistError {
-  const reason = cause instanceof Error ? cause.message : String(cause);
-  const status = cause instanceof SpotifyPlaylistError ? cause.status : undefined;
-  return new SpotifyPlaylistError(`Could not update the Setlist Playlist, so it was not changed. ${reason}`, {
-    status,
-    cause,
-  });
 }

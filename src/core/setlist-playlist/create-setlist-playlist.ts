@@ -1,6 +1,6 @@
 import type { Match } from "../matching/index.js";
 import type { Show } from "../performances/index.js";
-import { NothingToAddError, PartlyCreatedPlaylistError, SpotifyPlaylistError } from "./errors.js";
+import { NothingToAddError, PartlyCreatedPlaylistError, playlistRequestFailed, SpotifyPlaylistError } from "./errors.js";
 import { setlistPlaylistDescription, setlistPlaylistName } from "./name.js";
 import { MY_PLAYLISTS_URL, playlistItemsUrl, shareUrlFor, type SpotifyPlaylist } from "./spotify-playlist.js";
 import { sendSpotifyRequest, type SpotifyPlaylistOptions } from "./spotify-request.js";
@@ -38,7 +38,7 @@ export async function createSetlistPlaylist(
       options,
     )) as typeof created;
   } catch (err) {
-    throw notCreated(err);
+    throw playlistRequestFailed("Could not create the Setlist Playlist, so no playlist was created.", err);
   }
   if (typeof created?.id !== "string" || !created.id) {
     throw new SpotifyPlaylistError("Spotify's create playlist response had no playlist id, so no playlist was created.");
@@ -78,13 +78,4 @@ export async function addInBatches(
     }
     tracksWritten += batch.length;
   }
-}
-
-function notCreated(cause: unknown): SpotifyPlaylistError {
-  const reason = cause instanceof Error ? cause.message : String(cause);
-  const status = cause instanceof SpotifyPlaylistError ? cause.status : undefined;
-  return new SpotifyPlaylistError(`Could not create the Setlist Playlist, so no playlist was created. ${reason}`, {
-    status,
-    cause,
-  });
 }
