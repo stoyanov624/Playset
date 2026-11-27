@@ -36,16 +36,16 @@ export type VersionId = z.output<typeof versionIdSchema>;
 
 /**
  * A Show's page on setlist.fm or one of its language subdomains. The link goes into an href on the
- * page and into the playlist description, so after the host only characters that are safe there
- * pass: no whitespace, quotes, angle brackets or invisible format characters (zero-width space,
- * byte-order mark). Percent-escapes, a query and a fragment stay allowed.
+ * page and into the playlist description, so after the host only ASCII URL characters pass:
+ * letters, digits, percent-escapes and the URL punctuation (query and fragment included), but not
+ * the single quote. Whitespace, quotes, angle brackets, backticks, control, invisible and any other
+ * non-ASCII characters are all outside that set, so nothing unsafe reaches the href or the
+ * description. Plain `/i` (no `u` flag) keeps the host ASCII-only: look-alike letters such as "ſ"
+ * can't pass as setlist.fm.
  */
 export const setlistFmUrl = z
   .string()
-  .regex(/^https:\/\/(?:[a-z0-9-]+\.)*setlist\.fm\/\S*$/i)
-  // A separate Unicode check: with the `u` flag, case-insensitive matching would let look-alike
-  // letters such as "ſ" through in the host.
-  .regex(/^[^"'<>\p{Cf}]*$/u);
+  .regex(/^https:\/\/(?:[a-z0-9-]+\.)*setlist\.fm\/[A-Za-z0-9\-._~:/?#[\]@!$&()*+,;=%]*$/i);
 
 /** The plain share link of a Setlist Playlist: no tracking query, no other Spotify page. */
 export const spotifyShareUrl = z
