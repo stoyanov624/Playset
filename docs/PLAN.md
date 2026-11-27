@@ -23,10 +23,19 @@ Phase 2: a web front-end on the same core — direction in `docs/phases/web-ui.m
 | 9 | Interactive shell: `playset` with no arguments opens its own prompt session | `0009-interactive-shell` | 7, 8 |
 | 10 | '+' is part of a title, not a medley separator; match '+' like '&' | `0010-plus-as-and` | 3, 8 |
 | 11 | Note Unknown Songs and Incomplete Setlists; offer an older complete one | `0011-incomplete-setlists` | 2, 4, 7, 8, 9, 10 |
+| 12 | Split the run into stateless steps (Artist candidates, paged Setlist list, prepare, preview, create); CLI unchanged | `0012-run-steps` | — |
+| 13 | Design lock for the web app (`docs/design.md`) | `0013-design-lock` | — |
+| 14 | One Setlist Playlist per Setlist in the Host Account (`versionId`, update in place, Match cache) | `0014-host-playlists` | 12 |
+| 15 | Web API contract (routes, zod schemas, SSE events, error codes) | `0015-web-contract` | 12, 14 |
+| 16 | Visitor API server (search, Setlists, preview SSE, create/update, records, limits) | `0016-web-server` | 15 |
+| 17 | Admin server (Spotify login as the Host Account, Host token, usage) | `0017-web-admin-server` | 16 |
+| 18 | Visitor web app (search, Setlist list, preview, create, Terms) | `0018-web-client` | 13, 15 |
+| 19 | Admin page | `0019-web-admin-client` | 13, 15, 18 |
 
 ## Waves (history)
 
 - Phase 1: Wave 1 = Slices 1, 2, 3, 5 · Wave 2 = 4, 6 · Wave 3 = 7 · Wave 4 = 8 · Wave 5 = 9, 10 · Wave 6 = 11.
+- Phase 2 (planned): Wave 1 = 12, 13 · Wave 2 = 14 · Wave 3 = 15 · Wave 4 = 16, 18 · Wave 5 = 17, 19.
 - From now on Waves are computed by `node scripts/wave.mjs`, not written here.
 
 ## Rules for /implementing

@@ -59,6 +59,10 @@ _Avoid_: Mix, concert playlist
 The single Spotify account in which the web app creates every **Setlist Playlist**, publicly. Visitors never log in to Spotify; whoever logs in as the Host Account is the web app's admin.
 _Avoid_: Owner account, admin account, my account
 
+**Visitor**:
+A person using the web app. A Visitor never logs in to Spotify; every **Setlist Playlist** they ask for is made in the **Host Account**.
+_Avoid_: User (in the web app), guest
+
 **Match**:
 The Spotify track chosen to represent a **Performance**. The studio version is preferred, the **Artist**'s own recording is tried first, and for a **Cover** the **Original Artist**'s recording is tried next.
 
