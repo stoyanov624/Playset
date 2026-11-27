@@ -5,7 +5,7 @@ Turns a setlist.fm Setlist into a Spotify Setlist Playlist, through the `playset
 ## Commands
 - `npm test` — Vitest (no network; fixtures only)
 - `npm run typecheck` — tsc
-- `npm run lint` — oxlint (`.oxlintrc.json`: correctness + react-hooks + jsx-a11y + no `any` in src). Not ESLint: TypeScript 7 has no JS API, so typescript-eslint cannot run.
+- `npm run lint` — oxlint (`.oxlintrc.json`: correctness + react-hooks + jsx-a11y + no `any` in src). Not ESLint: TypeScript 7 has no JS API, so typescript-eslint cannot run. oxlint is pinned to an exact version because its rule sets change between releases.
 - `npm run build` — Vite bundles `src/cli/index.ts` → `dist/cli.js`
 - `npm run dev -- <args>` — run CLI via tsx
 

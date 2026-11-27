@@ -48,8 +48,14 @@ export const LIMITS = {
 
 /**
  * Human-readable labels of the required config, so the admin status never carries an env
- * name or a value. Settings with defaults (rate limits, port, data file) are not listed.
+ * name or a value: the env names behind these labels stay on the server, which maps each
+ * label to its own setting. Settings with defaults (rate limits, port, data file) are not listed.
  */
-export const CONFIG_ITEMS = ["setlist.fm API key", "Spotify client id", "Host Account id", "Cookie secret"] as const;
+export const CONFIG_ITEMS = [
+  "setlist.fm API key",
+  "Spotify client id",
+  "Host Account id",
+  "Cookie secret",
+] as const;
 
 export type ConfigItem = (typeof CONFIG_ITEMS)[number];
