@@ -252,6 +252,16 @@ describe("Setlist status answer", () => {
     expect(setlistResponseSchema.safeParse(answer).success).toBe(false);
   });
 
+  it("AC-11: a Show url with whitespace after the host is rejected", () => {
+    for (const url of ["https://setlist.fm/ <script>", "https://www.setlist.fm/setlist/a b.html"]) {
+      const answer = changed(portlandStatusAnswer(), (d) => { d.show.url = url; });
+      expect(setlistResponseSchema.safeParse(answer).success).toBe(false);
+    }
+    const de = "https://de.setlist.fm/setlist/pearl-jam/2026/moda-center-portland-or-2bf1c8e4.html";
+    const valid = changed(portlandStatusAnswer(), (d) => { d.show.url = de; });
+    expect(setlistResponseSchema.parse(valid)).toEqual(valid);
+  });
+
   it("AC-11: rejects a Show without its date or with a date that isn't YYYY-MM-DD", () => {
     expect(setlistResponseSchema.safeParse(changed(portlandStatusAnswer(), (d) => { delete d.show.date; })).success).toBe(false);
     expect(setlistResponseSchema.safeParse(changed(portlandStatusAnswer(), (d) => { d.show.date = "2026/11/22"; })).success).toBe(false);

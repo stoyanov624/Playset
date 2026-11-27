@@ -32,6 +32,11 @@ describe("admin callback query", () => {
   ])("AC-20: rejects a callback query with %s", (_why, query) => {
     expect(adminCallbackQuerySchema.safeParse(query).success).toBe(false);
   });
+
+  it("AC-20: a callback query with both code and error is rejected even when one of them is empty", () => {
+    expect(adminCallbackQuerySchema.safeParse({ code: "", error: "x", state: "s" }).success).toBe(false);
+    expect(adminCallbackQuerySchema.safeParse({ code: "c", error: "", state: "s" }).success).toBe(false);
+  });
 });
 
 describe("admin page query", () => {
