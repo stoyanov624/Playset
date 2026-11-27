@@ -262,6 +262,28 @@ describe("Setlist status answer", () => {
     expect(setlistResponseSchema.parse(valid)).toEqual(valid);
   });
 
+  it("AC-11: a Show url with quotes, angle brackets or invisible characters after the host is rejected", () => {
+    const unsafe = [
+      'https://setlist.fm/"onmouseover=1',
+      "https://setlist.fm/x'y",
+      "https://setlist.fm/a<b",
+      "https://setlist.fm/a>b",
+      "https://setlist.fm/x​y", // zero-width space
+      "https://setlist.fm/x﻿y", // byte-order mark / zero-width no-break space
+    ];
+    for (const url of unsafe) {
+      const answer = changed(portlandStatusAnswer(), (d) => { d.show.url = url; });
+      expect(setlistResponseSchema.safeParse(answer).success, url).toBe(false);
+    }
+    for (const url of [
+      "https://www.setlist.fm/setlist/pearl-jam/2026/moda-center-portland-or-2bf1c8e4.html",
+      "https://www.setlist.fm/setlist/a%20b.html?x=1#top",
+    ]) {
+      const valid = changed(portlandStatusAnswer(), (d) => { d.show.url = url; });
+      expect(setlistResponseSchema.parse(valid)).toEqual(valid);
+    }
+  });
+
   it("AC-11: rejects a Show without its date or with a date that isn't YYYY-MM-DD", () => {
     expect(setlistResponseSchema.safeParse(changed(portlandStatusAnswer(), (d) => { delete d.show.date; })).success).toBe(false);
     expect(setlistResponseSchema.safeParse(changed(portlandStatusAnswer(), (d) => { d.show.date = "2026/11/22"; })).success).toBe(false);
