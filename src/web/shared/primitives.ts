@@ -34,8 +34,11 @@ export const versionIdSchema = z
   .regex(/^\S+$/);
 export type VersionId = z.output<typeof versionIdSchema>;
 
-/** A Show's page on setlist.fm or one of its language subdomains. */
-export const setlistFmUrl = z.string().regex(/^https:\/\/(?:[a-z0-9-]+\.)*setlist\.fm\//i);
+/**
+ * A Show's page on setlist.fm or one of its language subdomains. No whitespace anywhere after the
+ * host: the link goes into an href on the page and into the playlist description.
+ */
+export const setlistFmUrl = z.string().regex(/^https:\/\/(?:[a-z0-9-]+\.)*setlist\.fm\/\S*$/i);
 
 /** The plain share link of a Setlist Playlist: no tracking query, no other Spotify page. */
 export const spotifyShareUrl = z.string().regex(/^https:\/\/open\.spotify\.com\/playlist\/[A-Za-z0-9]+$/);

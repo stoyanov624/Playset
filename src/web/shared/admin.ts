@@ -3,10 +3,13 @@ import { z } from "zod";
 import { CONFIG_ITEMS, ERROR_CODES, LIMITS } from "./constants.js";
 import { count, isoDate, nonEmptyString, ordinal } from "./primitives.js";
 
-/** Spotify answers with either a code or an error, never both; xor rejects a query matching both. */
+/**
+ * Spotify answers with either a code or an error, never both. Each branch refuses the other key
+ * (even empty), so a query carrying both is rejected rather than read as whichever branch fits.
+ */
 export const adminCallbackQuerySchema = z.xor([
-  z.object({ code: nonEmptyString, state: nonEmptyString }),
-  z.object({ error: nonEmptyString, state: nonEmptyString }),
+  z.object({ code: nonEmptyString, error: z.never().optional(), state: nonEmptyString }),
+  z.object({ error: nonEmptyString, code: z.never().optional(), state: nonEmptyString }),
 ]);
 export type AdminCallbackQuery = z.output<typeof adminCallbackQuerySchema>;
 
