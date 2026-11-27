@@ -35,7 +35,8 @@ import {
   pearlJamVancouver,
   portlandShow,
 } from "./fixtures/incomplete-setlists";
-import { FIXTURE_A_URL } from "./fixtures/setlists";
+import { FIXTURE_A_URL, setlistUrlOfLength, withFixtureAShow } from "./fixtures/setlists";
+import { DescriptionTooLongError } from "../../src/core/setlist-playlist";
 import { missingSetlistFmApiKeyError } from "./fixtures/typed-errors";
 import { NOW, SETLISTFM_API_KEY, json, makeFakeClock, makeRoutedFetch, type Route } from "./fixtures/real-service-fakes";
 import { readFileSync } from "node:fs";
@@ -352,6 +353,42 @@ describe("runPlayset on the steps", () => {
     );
     expect(err).toBe(ctrlC);
     expect(events).toEqual(["setlistfm:getSetlist:63a5e2b7", "show:show", "ask:tape:I Want It All"]);
+  });
+});
+
+describe("runPlayset on the steps — the description check comes before the no-Performances outcome", () => {
+  it("AC-19: a Setlist with no Performances whose playlist description would be too long fails with the description-too-long error, before the no-Performances outcome, and asks no Tape question", async () => {
+    // Only Unknown Songs and a snippet: nothing becomes a Performance. The 276-character
+    // setlist.fm URL makes the description 301 characters, one over Spotify's limit.
+    const noPerformancesTooLong = withFixtureAShow(
+      {
+        set: [
+          { song: [{ name: "" }, { name: "Fluorescent Adolescent", info: "snippet" }] },
+          { encore: 1, song: [{ name: "   " }] },
+        ],
+      },
+      { url: setlistUrlOfLength(276) },
+    );
+    const events: string[] = [];
+    const fake = makeFakeServices({ setlist: noPerformancesTooLong, duplicates: [] }, events);
+    const ui = makeFakeFrontEnd({ tapeAnswers: [], confirm: true }, events);
+
+    const err = await captureError(
+      runPlayset({
+        input: FIXTURE_A_URL,
+        options: { tapes: "ask", confirm: "ask", public: false, dryRun: false },
+        frontEnd: ui.frontEnd,
+        services: fake.services,
+      }),
+    );
+
+    expect((err as Error).constructor).toBe(DescriptionTooLongError);
+    expect(ui.record.tapeQuestions).toEqual([]);
+    expect(fake.calls.getAccessToken).toBe(0);
+    expect(fake.calls.findMatch).toEqual([]);
+    expect(fake.calls.findPlaylistsNamed).toEqual([]);
+    expect(fake.calls.create).toEqual([]);
+    expect(events.filter((e) => e.startsWith("spotify:") || e.startsWith("ask:"))).toEqual([]);
   });
 });
 
