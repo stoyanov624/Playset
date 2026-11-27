@@ -101,6 +101,27 @@ describe("in-memory records — cached previews (R1)", () => {
     expect(await records.findRecord("2bf1c8e4")).toEqual(r1Record);
     expect(await records.findPreview("2bf1c8e4", "g4bd1a2f6")).toEqual(previewV1);
   });
+
+  it("AC-5: changing a preview after saving it, or one returned by the store, leaves the cached preview unchanged", async () => {
+    const records = createMemorySetlistPlaylistRecords();
+    const savedPreview = await cachePreview(records, fixtureHv1(), hostOutcomes);
+    const asSaved = structuredClone(savedPreview);
+
+    // The caller keeps changing the preview it saved.
+    savedPreview.matches.push({ ...savedPreview.matches[0]! });
+    savedPreview.rows.pop();
+    savedPreview.misses.push({ kind: "miss", ...savedPreview.rows[0]!.performance, queries: ["Release"] });
+    savedPreview.playlistName = "Changed after saving";
+    expect(await records.findPreview("2bf1c8e4", "g4bd1a2f6")).toEqual(asSaved);
+
+    // The caller changes the preview the store handed back.
+    const lookedUp = (await records.findPreview("2bf1c8e4", "g4bd1a2f6"))!;
+    lookedUp.matches.length = 0;
+    lookedUp.rows.reverse();
+    lookedUp.misses.push({ kind: "miss", ...lookedUp.rows[0]!.performance, queries: ["Release"] });
+    lookedUp.playlistName = "Changed after lookup";
+    expect(await records.findPreview("2bf1c8e4", "g4bd1a2f6")).toEqual(asSaved);
+  });
 });
 
 // ---------------------------------------------------------------- AC-6, AC-7
