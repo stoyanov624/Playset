@@ -3,9 +3,11 @@ import type { IncompleteStatus, Performance, SetlistFmSetlist, Show } from "../p
 import type { CreatedSetlistPlaylist, ExistingPlaylist } from "../setlist-playlist/index.js";
 import type {
   ArtistCandidate,
+  ArtistCandidates,
   ArtistChooser,
   LatestSetlistLookup,
   LatestSetlistOptions,
+  SetlistPage,
 } from "../setlistfm/index.js";
 
 /** How one run behaves; the CLI fills this from its flags. */
@@ -45,8 +47,77 @@ export interface RunServices {
   createSetlistPlaylist(
     show: Show,
     matches: Match[],
-    options: { accessToken: string; public: boolean },
+    options: CreateSetlistPlaylistOptions,
   ): Promise<CreatedPlaylist>;
+}
+
+/** How the Setlist Playlist is created: in the logged-in account, private unless `public`. */
+export interface CreateSetlistPlaylistOptions {
+  accessToken: string;
+  public: boolean;
+}
+
+/**
+ * The setlist.fm services a front-end needs to let the user pick the Artist and the Show themselves.
+ * The whole run never uses them.
+ */
+export interface SetlistBrowsingServices {
+  /** The Artist search without a chooser: the candidates and the single exact match, if any. */
+  findArtistCandidates(name: string): Promise<ArtistCandidates>;
+  /** One page of the Artist's setlists; a page setlist.fm doesn't have is empty with no more. */
+  getSetlistPage(mbid: string, page: number): Promise<SetlistPage>;
+}
+
+/** A short description of one Setlist, enough to pick its Show from a list. */
+export interface SetlistSummary {
+  /** The setlist.fm setlist id. */
+  id: string;
+  /** The Show's date as YYYY-MM-DD. */
+  date: string;
+  venue: string;
+  city: string;
+  /** Number of Performances: medley parts and Tapes count; snippets and Unknown Songs don't. */
+  songCount: number;
+  incompleteStatus: IncompleteStatus;
+}
+
+/** One page of an Artist's Setlists, placeholders left out. */
+export interface SetlistSummaryPage {
+  setlists: SetlistSummary[];
+  /** Whether setlist.fm has a later page. */
+  hasMore: boolean;
+}
+
+/** A Setlist with the Tape decisions applied: what would go into the Setlist Playlist and what wouldn't. */
+export interface PreparedSetlist {
+  show: Show;
+  /** Every Performance in played order, except the Tapes that were left out. */
+  keptPerformances: Performance[];
+  /** In played order. */
+  notAdded: NotAdded[];
+  incompleteStatus: IncompleteStatus;
+}
+
+export interface PrepareSetlistOptions {
+  /** Whether to keep this Tape; asked once per Tape in played order, each answer awaited. */
+  keepTape(tape: Performance): Promise<boolean>;
+}
+
+/** The Match or Miss of every kept Performance, before anything is created. */
+export interface MatchPreview {
+  rows: PreviewRow[];
+  /** In played order, repeats included. */
+  matches: Match[];
+  /** In played order. */
+  misses: Miss[];
+  playlistName: string;
+}
+
+export interface PreviewMatchesOptions {
+  /** Told before each Match search. */
+  onProgress?: (progress: MatchProgress) => void;
+  /** Ends the preview with a RunCancelledError; no further search is made and a late answer is ignored. */
+  signal?: AbortSignal | undefined;
 }
 
 /** The Show and its counts, given to the front-end before any Tape question. */

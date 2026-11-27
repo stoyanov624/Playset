@@ -9,3 +9,10 @@ export class RunCancelledError extends PlaysetError {
     super(message);
   }
 }
+
+/** A page of an Artist's Setlists was asked for with a number setlist.fm cannot have. */
+export class InvalidSetlistPageError extends PlaysetError {
+  constructor(readonly page: number) {
+    super(`Setlist page ${page} is not valid: give a whole number of 1 or more.`);
+  }
+}

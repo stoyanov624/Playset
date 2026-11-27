@@ -4,11 +4,13 @@ export type { Env } from "./api-key.js";
 export { artistNamesMatch, createSetlistFmClient } from "./client.js";
 export type {
   ArtistCandidate,
+  ArtistCandidates,
   ArtistChooser,
   LatestSetlistLookup,
   LatestSetlistOptions,
   SetlistFmClient,
   SetlistFmClientDeps,
+  SetlistPage,
 } from "./client.js";
 export {
   ArtistChoiceCancelledError,
