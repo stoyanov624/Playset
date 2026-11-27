@@ -1,40 +1,42 @@
-import { defaultConfigDir, resolveClientId, resolveRedirectUri, type Env } from "./config";
+import { processEnv, type SettingsStore, type SpotifyTokens } from "../settings/index.js";
+import { resolveClientId, resolveRedirectUri, settingsStoreFor, type Env } from "./config";
 import { TokenError } from "./errors";
 import { runLogin, type LoginDeps } from "./login";
-import { readTokenCache, writeTokenCache, type TokenCache } from "./token-cache";
 import { requestToken, type TokenGrant } from "./token-endpoint";
 
 /** A cached access token is reused only while its expiry is more than this far away. */
 export const EXPIRY_MARGIN_MS = 60_000;
 
 export interface SpotifyAuthDeps extends LoginDeps {
-  /** Defaults to ~/.config/playset/. */
+  /** Defaults to ~/.config/playset/; used only when no `settings` store is given. */
   configDir?: string;
-  /** Defaults to process.env. */
+  /** Defaults to process.env. Gives PLAYSET_AUTH_PORT, and the settings when no `settings` store is given. */
   env?: Env;
+  /** Where the client id and the token cache live. Defaults to the file store built from `env` and `configDir`. */
+  settings?: SettingsStore;
 }
 
 /** A valid Spotify access token: cached, refreshed, or from a full PKCE login. */
 export async function getAccessToken(deps: SpotifyAuthDeps): Promise<string> {
-  const env = deps.env ?? process.env;
-  const configDir = deps.configDir ?? defaultConfigDir();
-  const clientId = await resolveClientId({ env, configDir });
+  const env = deps.env ?? processEnv();
+  const settings = settingsStoreFor({ ...deps, env });
+  const clientId = await resolveClientId({ env, settings });
   const redirectUri = resolveRedirectUri(env);
 
-  const cache = await readTokenCache(configDir);
-  if (cache && isFresh(cache, deps.now())) return cache.accessToken;
+  const cached = await settings.readSpotifyTokens();
+  if (cached && isFresh(cached, deps.now())) return cached.accessToken;
 
-  if (cache) {
-    const refreshed = await refresh(deps, clientId, cache.refreshToken);
-    if (refreshed) return store(configDir, refreshed, cache.refreshToken);
+  if (cached) {
+    const refreshed = await refresh(deps, clientId, cached.refreshToken);
+    if (refreshed) return keep(settings, refreshed, cached.refreshToken);
   }
 
   const grant = await runLogin(deps, clientId, redirectUri);
-  return store(configDir, grant);
+  return keep(settings, grant);
 }
 
-function isFresh(cache: TokenCache, now: number): cache is TokenCache & { accessToken: string } {
-  return cache.accessToken !== undefined && cache.expiresAt !== undefined && cache.expiresAt - now > EXPIRY_MARGIN_MS;
+function isFresh(tokens: SpotifyTokens, now: number): boolean {
+  return tokens.accessToken !== "" && tokens.expiresAt - now > EXPIRY_MARGIN_MS;
 }
 
 /** Returns null when Spotify rejected the refresh token (invalid_grant) so a full login should run. */
@@ -47,9 +49,10 @@ async function refresh(deps: SpotifyAuthDeps, clientId: string, refreshToken: st
   }
 }
 
-async function store(configDir: string, grant: TokenGrant, previousRefreshToken?: string): Promise<string> {
+/** Caches the grant's tokens, keeping the previous refresh token when Spotify sent no new one. */
+async function keep(settings: SettingsStore, grant: TokenGrant, previousRefreshToken?: string): Promise<string> {
   const refreshToken = grant.refreshToken ?? previousRefreshToken;
   if (!refreshToken) throw new TokenError("Spotify's token endpoint sent no refresh token.");
-  await writeTokenCache(configDir, { refreshToken, accessToken: grant.accessToken, expiresAt: grant.expiresAt });
+  await settings.writeSpotifyTokens({ refreshToken, accessToken: grant.accessToken, expiresAt: grant.expiresAt });
   return grant.accessToken;
 }

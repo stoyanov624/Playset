@@ -1,5 +1,6 @@
 import { toPerformances, type SetlistFmSetlist } from "../performances/index.js";
-import { resolveSetlistFmApiKey, type Env } from "./api-key.js";
+import type { SettingsStore } from "../settings/index.js";
+import { resolveSetlistFmApiKey, settingsStoreFor, type Env } from "./api-key.js";
 import { artistNamesMatch } from "./artist-name.js";
 import {
   ArtistChoiceCancelledError,
@@ -33,8 +34,12 @@ export interface SetlistFmClientDeps {
   fetch: (input: string, init?: RequestInit) => Promise<Response>;
   sleep: (ms: number) => Promise<void>;
   now: () => number;
-  env: Env;
+  /** Defaults to process.env; used only when no `settings` store is given. */
+  env?: Env;
+  /** Defaults to ~/.config/playset/; used only when no `settings` store is given. */
   configDir?: string;
+  /** Where the API key is read from. Defaults to the file store built from `env` and `configDir`. */
+  settings?: SettingsStore;
 }
 
 export interface SetlistFmClient {
@@ -93,6 +98,7 @@ type GetResult<T> = { found: true; body: T } | { found: false };
 
 export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClient {
   let lastRequestStart: number | undefined;
+  const settings = settingsStoreFor(deps);
 
   async function waitForTurn(): Promise<void> {
     if (lastRequestStart !== undefined) {
@@ -103,10 +109,7 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
   }
 
   async function apiKey(): Promise<string> {
-    return resolveSetlistFmApiKey({
-      env: deps.env,
-      ...(deps.configDir === undefined ? {} : { configDir: deps.configDir }),
-    });
+    return resolveSetlistFmApiKey({ settings });
   }
 
   async function get<T>(path: string, params: Record<string, string> = {}): Promise<GetResult<T>> {
