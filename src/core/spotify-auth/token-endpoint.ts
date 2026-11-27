@@ -1,14 +1,18 @@
+import { HttpError, createRequester, type FetchLike, type Sleep } from "../http/index.js";
 import { RateLimitError, TokenError } from "./errors";
+
+export type { FetchLike } from "../http/index.js";
 
 export const TOKEN_ENDPOINT = "https://accounts.spotify.com/api/token";
 export const MAX_TOKEN_ATTEMPTS = 3;
-const DEFAULT_RETRY_AFTER_SECONDS = 1;
-
-export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
+/** OAuth errors: Spotify explains them in the body's `error` and `error_description`. */
+const OAUTH_ERROR_STATUSES = [400, 401, 403];
+/** Form fields that must never appear in an error. */
+const SECRET_FIELDS = ["code", "code_verifier", "refresh_token"];
 
 export interface TokenEndpointDeps {
   fetch: FetchLike;
-  sleep: (ms: number) => Promise<void>;
+  sleep: Sleep;
   now: () => number;
 }
 
@@ -24,35 +28,38 @@ export interface TokenGrant {
  * Retries on 429 honouring Retry-After, at most MAX_TOKEN_ATTEMPTS in total.
  */
 export async function requestToken(deps: TokenEndpointDeps, form: Record<string, string>): Promise<TokenGrant> {
-  const body = new URLSearchParams(form).toString();
-  for (let attempt = 1; ; attempt++) {
-    let response: Response;
-    try {
-      response = await deps.fetch(TOKEN_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body,
-      });
-    } catch {
-      throw new TokenError("Could not reach Spotify's token endpoint (network error).");
-    }
-    const receivedAt = deps.now();
+  const request = createRequester(
+    {
+      name: "Spotify's token endpoint",
+      maxAttempts: MAX_TOKEN_ATTEMPTS,
+      secrets: () => SECRET_FIELDS.map((field) => form[field] ?? ""),
+      passThroughStatuses: OAUTH_ERROR_STATUSES,
+    },
+    deps,
+  );
 
-    if (response.status === 429) {
-      if (attempt >= MAX_TOKEN_ATTEMPTS) throw new RateLimitError(attempt);
-      await deps.sleep(retryAfterMs(response.headers.get("Retry-After")));
-      continue;
-    }
-
-    const payload = await readJson(response);
-    if (!response.ok) throw tokenErrorFrom(response.status, payload);
-    return toGrant(payload, receivedAt);
+  let response: Response;
+  try {
+    response = await request(TOKEN_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(form).toString(),
+    });
+  } catch (err) {
+    throw toTokenError(err);
   }
+  const receivedAt = deps.now();
+
+  const payload = await readJson(response);
+  if (!response.ok) throw tokenErrorFrom(response.status, payload);
+  return toGrant(payload, receivedAt);
 }
 
-function retryAfterMs(header: string | null): number {
-  const seconds = header === null ? NaN : Number(header);
-  return (Number.isFinite(seconds) && seconds >= 0 ? seconds : DEFAULT_RETRY_AFTER_SECONDS) * 1000;
+function toTokenError(err: unknown): unknown {
+  if (!(err instanceof HttpError)) return err;
+  if (err.kind === "rate-limited") return new RateLimitError(MAX_TOKEN_ATTEMPTS, { cause: err });
+  if (err.kind === "status" && err.status !== undefined) return tokenErrorFrom(err.status, null, err);
+  return new TokenError("Could not reach Spotify's token endpoint (network error).", undefined, { cause: err });
 }
 
 async function readJson(response: Response): Promise<Record<string, unknown> | null> {
@@ -64,11 +71,13 @@ async function readJson(response: Response): Promise<Record<string, unknown> | n
   }
 }
 
-function tokenErrorFrom(status: number, payload: Record<string, unknown> | null): TokenError {
+function tokenErrorFrom(status: number, payload: Record<string, unknown> | null, cause?: HttpError): TokenError {
   const error = typeof payload?.error === "string" ? payload.error : undefined;
   const description = typeof payload?.error_description === "string" ? payload.error_description : undefined;
   const detail = [error, description].filter(Boolean).join(": ");
-  return new TokenError(`Spotify's token endpoint answered HTTP ${status}${detail ? ` (${detail})` : ""}.`, error);
+  return new TokenError(`Spotify's token endpoint answered HTTP ${status}${detail ? ` (${detail})` : ""}.`, error, {
+    cause,
+  });
 }
 
 function toGrant(payload: Record<string, unknown> | null, receivedAt: number): TokenGrant {
