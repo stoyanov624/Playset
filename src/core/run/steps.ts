@@ -1,5 +1,7 @@
 // The run as stateless steps: each takes everything it needs as input, asks nothing of its own and
 // remembers nothing between calls, so a front-end without a run in flight can call them one at a time.
+// Some steps only pass through to a service; they exist so a front-end drives the whole flow through
+// steps alone and never reaches into the services itself.
 import type { Match, MatchOutcome, Miss } from "../matching/index.js";
 import {
   toPerformances,

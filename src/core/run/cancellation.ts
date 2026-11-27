@@ -1,6 +1,6 @@
-// Cancelling a run through an AbortSignal: until the create request is sent, an abort ends the run promptly
-// with a RunCancelledError and lets no further service or front-end call through; late answers are ignored.
-// Once the create request is sent, an abort changes nothing.
+// Cancelling a run, or a single step that takes a signal, through an AbortSignal: until the create request is
+// sent, an abort ends it promptly with a RunCancelledError and lets no further service or front-end call
+// through; late answers are ignored. Once the create request is sent, an abort changes nothing.
 import { RunCancelledError } from "./errors.js";
 import type { RunFrontEnd, RunServices } from "./types.js";
 

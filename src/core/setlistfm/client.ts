@@ -110,7 +110,8 @@ interface ArtistSearchPage {
   artist?: SearchArtist[];
 }
 
-interface SetlistsPage {
+/** The raw body of one setlists page, as setlist.fm sends it (parsed into a SetlistPage). */
+interface SetlistsResponse {
   page?: number;
   itemsPerPage?: number;
   total?: number;
@@ -197,21 +198,17 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
   }
 
   async function getSetlistPage(mbid: string, page: number): Promise<SetlistPage> {
-    const body = await fetchSetlistsPage(mbid, page);
-    if (body === null) return { setlists: [], hasMore: false };
-    return { setlists: body.setlist ?? [], hasMore: hasMorePages(body, page) };
+    const result = await get<SetlistsResponse>(`/artist/${encodeURIComponent(mbid)}/setlists`, {
+      p: String(page),
+    });
+    // HTTP 404 here means setlist.fm has no such page: the Artist's setlists ended before it.
+    if (!result.found) return { setlists: [], hasMore: false };
+    const setlists = result.body.setlist ?? [];
+    return { setlists, hasMore: !isLastPage(result.body, setlists, page) };
   }
 
   async function findLatestSetlist(artist: ArtistCandidate): Promise<SetlistFmSetlist> {
     return (await findSetlists(artist, false)).setlist;
-  }
-
-  /** One page of the Artist's setlists, newest first; null when setlist.fm has no such page (HTTP 404). */
-  async function fetchSetlistsPage(mbid: string, page: number): Promise<SetlistsPage | null> {
-    const result = await get<SetlistsPage>(`/artist/${encodeURIComponent(mbid)}/setlists`, {
-      p: String(page),
-    });
-    return result.found ? result.body : null;
   }
 
   /**
@@ -226,12 +223,10 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
     const seen: SetlistFmSetlist[] = [];
     let pick = pickSetlists(seen, wantCompleteAlternative);
     for (let page = 1; page <= MAX_SETLIST_PAGES && !pick.settled; page++) {
-      const body = await fetchSetlistsPage(artist.mbid, page);
-      if (body === null) break;
-      const setlists = body.setlist ?? [];
+      const { setlists, hasMore } = await getSetlistPage(artist.mbid, page);
       seen.push(...setlists);
       pick = pickSetlists(seen, wantCompleteAlternative);
-      if (setlists.length === 0 || isLastPage(body, page)) break;
+      if (setlists.length === 0 || !hasMore) break;
     }
     if (pick.latest === null) throw new NoSetlistError(artist.name);
     return { setlist: pick.latest, completeAlternative: pick.completeAlternative };
@@ -319,15 +314,13 @@ function toArtistCandidate(a: SearchArtist): ArtistCandidate {
   return candidate;
 }
 
-/** Without paging totals, a page with setlists may have a next one; an empty page is the end. */
-function hasMorePages(body: SetlistsPage, requestedPage: number): boolean {
-  if (body.itemsPerPage === undefined || body.total === undefined) return (body.setlist ?? []).length > 0;
-  return !isLastPage(body, requestedPage);
-}
-
-function isLastPage(body: SetlistsPage, requestedPage: number): boolean {
+/**
+ * True when no later page has setlists. setlist.fm's paging totals decide it; without them only an empty
+ * page is known to be the end, so a page with setlists may still have a next one.
+ */
+function isLastPage(body: SetlistsResponse, setlists: readonly SetlistFmSetlist[], requestedPage: number): boolean {
   const { itemsPerPage, total } = body;
-  if (itemsPerPage === undefined || total === undefined) return false;
+  if (itemsPerPage === undefined || total === undefined) return setlists.length === 0;
   return (body.page ?? requestedPage) * itemsPerPage >= total;
 }
 
