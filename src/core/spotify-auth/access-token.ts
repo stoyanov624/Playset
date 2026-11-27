@@ -1,11 +1,11 @@
-import { processEnv, type SettingsStore, type SpotifyTokens } from "../settings/index.js";
-import { resolveClientId, resolveRedirectUri, settingsStoreFor, type Env } from "./config";
-import { TokenError } from "./errors";
-import { runLogin, type LoginDeps } from "./login";
-import { requestToken, type TokenGrant } from "./token-endpoint";
+import { processEnv, settingsStoreFor, type SettingsStore, type SpotifyTokens } from "../settings/index.js";
+import { resolveClientId, resolveRedirectUri, type Env } from "./config.js";
+import { TokenError } from "./errors.js";
+import { runLogin, type LoginDeps } from "./login.js";
+import { requestToken, type TokenGrant } from "./token-endpoint.js";
 
 /** A cached access token is reused only while its expiry is more than this far away. */
-export const EXPIRY_MARGIN_MS = 60_000;
+const EXPIRY_MARGIN_MS = 60_000;
 
 export interface SpotifyAuthDeps extends LoginDeps {
   /** Defaults to ~/.config/playset/; used only when no `settings` store is given. */

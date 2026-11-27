@@ -1,6 +1,6 @@
-import { AccessDeniedError, AuthorizationError, StateMismatchError, TokenError } from "./errors";
-import { buildAuthorizeUrl, computeCodeChallenge, generateCodeVerifier, generateState } from "./pkce";
-import { requestToken, type TokenEndpointDeps, type TokenGrant } from "./token-endpoint";
+import { AccessDeniedError, AuthorizationError, StateMismatchError, TokenError } from "./errors.js";
+import { buildAuthorizeUrl, computeCodeChallenge, generateCodeVerifier, generateState } from "./pkce.js";
+import { requestToken, type TokenEndpointDeps, type TokenGrant } from "./token-endpoint.js";
 
 /** What the redirect URI received from Spotify. */
 export interface AuthorizationResult {
@@ -54,7 +54,10 @@ export async function runLogin(deps: LoginDeps, clientId: string, redirectUri: s
   return grant;
 }
 
-/** Error first, then state, then code (AC-13 to AC-15). Returns the authorization code. */
+/**
+ * Returns the authorization code. A reported error wins; then the state must be ours (else the callback
+ * may come from someone else's login); only then is a code looked for.
+ */
 function checkCallback(result: AuthorizationResult, expectedState: string): string {
   if (result.error !== undefined) {
     if (result.error === "access_denied") throw new AccessDeniedError();

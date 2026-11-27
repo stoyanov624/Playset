@@ -2,6 +2,7 @@
 export { HttpError, PlaysetError, type HttpErrorKind, type PlaysetErrorOptions } from "./errors.js";
 export {
   createRequester,
+  defaultSleep,
   type FetchLike,
   type RequestPolicy,
   type Requester,

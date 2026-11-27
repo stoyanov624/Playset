@@ -46,7 +46,7 @@ export function createTerminalFrontEnd(io: CliIo, out: WriteLine): RunFrontEnd {
       try {
         await io.openBrowser(url);
       } catch {
-        // The URL is printed below; a browser that can't be opened is not an error (AC-20).
+        // The URL is printed below, so a browser that can't be opened is not an error.
       }
       out();
       out("Log in to Spotify in your browser. If it did not open, open this link:");
@@ -130,7 +130,7 @@ export function incompleteWarning(status: IncompleteStatus): string {
   return `Warning: this Setlist looks incomplete: ${reasons.join("; ")}.`;
 }
 
-/** The summary's Note line for an Incomplete Setlist (PRD 0011 AC-16). */
+/** The summary's Note line for an Incomplete Setlist, saying why it counts as incomplete. */
 export const INCOMPLETE_NOTE = "Note: this Setlist is incomplete — the playlist may not be the full Show.";
 
 function markersOf(performance: Performance): string {

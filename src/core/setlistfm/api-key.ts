@@ -1,4 +1,4 @@
-import { createFileSettingsStore, type Env, type SettingsStore } from "../settings/index.js";
+import { settingsStoreFor, type Env, type SettingsStore } from "../settings/index.js";
 import { MissingSetlistFmApiKeyError } from "./errors.js";
 
 export type { Env };
@@ -13,17 +13,6 @@ export interface SetlistFmApiKeyOptions {
   configDir?: string;
   /** Where the key is read from. Defaults to the file store built from `env` and `configDir`. */
   settings?: SettingsStore;
-}
-
-/** The settings store for these options: the given one, or the file store over `env` and `configDir`. */
-export function settingsStoreFor(opts: SetlistFmApiKeyOptions): SettingsStore {
-  return (
-    opts.settings ??
-    createFileSettingsStore({
-      ...(opts.env === undefined ? {} : { env: opts.env }),
-      ...(opts.configDir === undefined ? {} : { configDir: opts.configDir }),
-    })
-  );
 }
 
 /**

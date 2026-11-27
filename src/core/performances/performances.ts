@@ -11,8 +11,8 @@ import type {
 } from "./types.js";
 
 /**
- * Joins the songs of a medley in a song's name: " / ", one space on each side. A "+" in any form
- * is part of a title, never a separator (PRD 0010).
+ * Joins the songs of a medley in a song's name: " / ", one space on each side. A "+" in any form is part
+ * of a title ("Florence + the Machine", "1+1"), never a separator.
  */
 const MEDLEY_SEPARATOR = " / ";
 

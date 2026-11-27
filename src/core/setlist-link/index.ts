@@ -1,4 +1,5 @@
-// Reads the setlist id out of a setlist.fm link to a Setlist page (PRD 0001).
+// Reads the setlist id out of a setlist.fm link to a Setlist page, with messages that say how to fix a
+// bad link, and tells a setlist.fm link from an Artist name.
 // Pure string handling: no network, no Node-only or terminal imports.
 import { PlaysetError } from "../http/index.js";
 
@@ -100,7 +101,6 @@ export function readSetlistId(input: string): string {
 
 /** Answers whether the input is a link on a setlist.fm host, whatever its path. Never throws. */
 export function looksLikeSetlistFmLink(input: string): boolean {
-  if (typeof input !== "string") return false;
   const trimmed = input.trim();
   return trimmed !== "" && parseSetlistFmLink(trimmed) !== undefined;
 }

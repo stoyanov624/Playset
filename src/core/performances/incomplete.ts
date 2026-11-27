@@ -1,8 +1,10 @@
+// Telling an Incomplete Setlist from a complete one, so the user can be warned that the Setlist Playlist
+// may miss songs (and offered an older complete Setlist instead).
 import type { IncompleteStatus } from "./types.js";
 
 /**
- * Phrases in a Setlist note that make it an Incomplete Setlist (PRD 0011 AC-4), in the order that
- * decides which one is reported as the matched phrase.
+ * Phrases in a Setlist note that make it an Incomplete Setlist, in the order that decides which one is
+ * reported as the matched phrase.
  */
 const INCOMPLETE_PHRASES = [
   "incomplete",
@@ -21,13 +23,13 @@ const PHRASE_PATTERNS = INCOMPLETE_PHRASES.map(
 );
 
 /** The first incomplete phrase the Setlist note contains, or undefined (a blank or missing note never matches). */
-export function matchIncompletePhrase(setlistNote: string | undefined): string | undefined {
+function matchIncompletePhrase(setlistNote: string | undefined): string | undefined {
   const normalised = (setlistNote ?? "").trim().replace(/\s+/g, " ");
   if (normalised === "") return undefined;
   return PHRASE_PATTERNS.find(([, pattern]) => pattern.test(normalised))?.[0];
 }
 
-/** The incomplete status of a Setlist from its Unknown Song count and its Setlist note (PRD 0011 AC-5). */
+/** The incomplete status of a Setlist from its Unknown Song count and its Setlist note. */
 export function incompleteStatusOf(unknownSongCount: number, setlistNote: string | undefined): IncompleteStatus {
   const matchedPhrase = matchIncompletePhrase(setlistNote);
   const status: IncompleteStatus = {

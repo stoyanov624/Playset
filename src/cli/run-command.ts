@@ -1,4 +1,4 @@
-// One run of `playset` for a set of arguments (PRD 0007), shared by the command line and the shell (PRD 0009).
+// One run of `playset` for a set of arguments, shared by the command line and the shell.
 import {
   ArtistChoiceCancelledError,
   PartlyCreatedPlaylistError,
@@ -24,7 +24,7 @@ export interface RunCommandHow {
   usageError(message: string): number;
 }
 
-/** Runs PRD 0007's flow for the words and options of one command line; resolves to its exit code. */
+/** Runs Playset for the words and options of one command line; resolves to its exit code. */
 export async function runCommand(words: string[], options: RunOptions, io: CliIo, how: RunCommandHow): Promise<number> {
   const out: WriteLine = (line = "") => io.stdout.write(`${line}\n`);
   const err: WriteLine = (line = "") => io.stderr.write(`${line}\n`);

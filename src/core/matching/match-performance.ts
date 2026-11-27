@@ -1,5 +1,5 @@
-import { countLiveWords, normaliseName, normaliseTitle } from "./normalise";
-import type { Match, MatchablePerformance, MatchOutcome, SpotifyTrack, TrackSearch } from "./types";
+import { countLiveWords, normaliseName, normaliseTitle } from "./normalise.js";
+import type { Match, MatchablePerformance, MatchOutcome, Miss, SpotifyTrack, TrackSearch } from "./types.js";
 
 const SEARCH_LIMIT = 10;
 
@@ -12,17 +12,14 @@ export async function matchPerformance(
   performance: MatchablePerformance,
   search: TrackSearch,
 ): Promise<MatchOutcome> {
-  const { title, artist } = performance;
+  const { title, artist, originalArtist } = performance;
   const queries: string[] = [];
-  const miss = (): MatchOutcome => ({
-    kind: "miss",
-    title,
-    artist,
-    ...(isBlank(performance.originalArtist) ? {} : { originalArtist: performance.originalArtist as string }),
-    queries,
-  });
+  const miss = (): Miss =>
+    hasText(originalArtist)
+      ? { kind: "miss", title, artist, originalArtist, queries }
+      : { kind: "miss", title, artist, queries };
 
-  if (isBlank(title)) return miss();
+  if (!hasText(title)) return miss();
 
   for (const targetArtist of targetArtists(performance)) {
     for (const query of queriesFor(title, targetArtist)) {
@@ -37,16 +34,14 @@ export async function matchPerformance(
 
 /** The Artist, then the Original Artist when the Performance is a real Cover. */
 function targetArtists({ artist, originalArtist }: MatchablePerformance): string[] {
-  const isCover =
-    originalArtist !== undefined &&
-    !isBlank(originalArtist) &&
-    normaliseName(originalArtist) !== normaliseName(artist);
+  const isCover = hasText(originalArtist) && normaliseName(originalArtist) !== normaliseName(artist);
   return isCover ? [artist, originalArtist] : [artist];
 }
 
 /**
- * The queries for one target artist, in order: filtered, plain-text retry, and — only for a title
- * with "+" — a filtered query with every "+" in the title replaced by "&" (PRD 0010 AC-13).
+ * The queries for one target artist, in order: filtered, plain-text retry, and — only for a title with
+ * "+" — a filtered query with every "+" replaced by "&", since Spotify's search often misses a title
+ * written with "+" that its catalogue spells with "&".
  */
 function queriesFor(title: string, targetArtist: string): string[] {
   const queries = [filteredQuery(title, targetArtist), plainTextQuery(title, targetArtist)];
@@ -66,8 +61,8 @@ function withoutDoubleQuotes(value: string): string {
   return value.replace(/["“”]/g, "");
 }
 
-function isBlank(value: string | undefined): boolean {
-  return value === undefined || value.trim() === "";
+function hasText(value: string | undefined): value is string {
+  return value !== undefined && value.trim() !== "";
 }
 
 /** The first verifying non-live result, else the first verifying live one, else none. */

@@ -51,9 +51,6 @@ export interface Performance {
   medley?: string;
 }
 
-/** Why a song was noted instead of becoming a Performance. */
-export type NotedReason = "snippet" | "unknown";
-
 /** A song that was played but does not become a Performance. */
 export type NotedSong = NotedSnippet | NotedUnknownSong;
 
@@ -65,12 +62,12 @@ interface NotedSongBase {
   afterPosition: number;
 }
 
-/** A snippet or teaser (PRD 0002 AC-9). */
+/** A snippet or teaser: only part of a song was played, so it is never added to the Setlist Playlist. */
 export interface NotedSnippet extends NotedSongBase {
   reason: "snippet";
 }
 
-/** An Unknown Song: a song with a missing, empty or whitespace-only name (PRD 0011 AC-1). */
+/** An Unknown Song: a song with a missing, empty or whitespace-only name, so it cannot be searched for. */
 export interface NotedUnknownSong extends NotedSongBase {
   reason: "unknown";
   /** The song's info text, trimmed; absent when missing or blank. */
@@ -78,8 +75,8 @@ export interface NotedUnknownSong extends NotedSongBase {
 }
 
 /**
- * Whether a Setlist is an Incomplete Setlist (PRD 0011 AC-5): it has an Unknown Song, or its Setlist
- * note contains one of the incomplete phrases. A complete Setlist is exactly
+ * Whether a Setlist is an Incomplete Setlist: it has an Unknown Song, or its Setlist note contains one of
+ * the incomplete phrases. A complete Setlist is exactly
  * `{ isIncomplete: false, unknownSongCount: 0 }`.
  */
 export interface IncompleteStatus {

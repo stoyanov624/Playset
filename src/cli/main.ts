@@ -6,7 +6,7 @@ import type { WriteLine } from "./terminal-front-end.js";
 
 export { EXIT_CANCELLED, EXIT_ERROR, EXIT_OK, EXIT_USAGE } from "./run-command.js";
 
-/** What one read of a Line at the shell prompt gives (PRD 0009). */
+/** What one read of a Line at the shell prompt gives. */
 export type LineEvent =
   | { kind: "line"; text: string }
   /** Ctrl-C at the prompt; `typed` is the text that was on the prompt line (discarded). */

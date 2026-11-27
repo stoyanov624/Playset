@@ -1,4 +1,5 @@
-// Typed errors for the Spotify login. Messages and hints never contain tokens, codes or verifiers (AC-28).
+// Typed errors for the Spotify login. Messages and hints never contain tokens, codes or verifiers, since
+// they are shown on screen and may end up in a bug report.
 import { PlaysetError } from "../http/index.js";
 
 export class MissingClientIdError extends PlaysetError {

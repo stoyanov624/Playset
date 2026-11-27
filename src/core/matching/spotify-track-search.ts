@@ -1,6 +1,6 @@
-import { HttpError, createRequester, type Sleep } from "../http/index.js";
-import { SpotifySearchError, SpotifySearchRateLimitError } from "./errors";
-import type { SpotifyTrack, TrackSearch } from "./types";
+import { HttpError, createRequester, type FetchLike, type Sleep } from "../http/index.js";
+import { SpotifySearchError, SpotifySearchRateLimitError } from "./errors.js";
+import type { SpotifyTrack, TrackSearch } from "./types.js";
 
 const SEARCH_ENDPOINT = "https://api.spotify.com/v1/search";
 /** The first request and up to 3 retries on HTTP 429. */
@@ -10,7 +10,7 @@ export interface SpotifyTrackSearchOptions {
   /** A Spotify access token supplied by the caller. */
   accessToken: string;
   /** Defaults to the global `fetch`. */
-  fetch?: typeof fetch;
+  fetch?: FetchLike;
   /** Defaults to a `setTimeout`-based wait. */
   sleep?: Sleep;
 }

@@ -1,15 +1,13 @@
+// The duplicate check: a warning, never a block, when the user already has a playlist with the Setlist
+// Playlist name (for example from an earlier run for the same Show).
 import { SpotifyPlaylistError } from "./errors.js";
-import { SPOTIFY_API, sendSpotifyRequest, type SpotifyPlaylistOptions } from "./spotify-request.js";
+import { MY_PLAYLISTS_URL, SPOTIFY_HOST, shareUrlFor, type SpotifyPlaylist } from "./spotify-playlist.js";
+import { sendSpotifyRequest, type SpotifyPlaylistOptions } from "./spotify-request.js";
 
-const FIRST_PAGE_URL = "https://api.spotify.com/v1/me/playlists?limit=50";
+const FIRST_PAGE_URL = `${MY_PLAYLISTS_URL}?limit=50`;
 
 /** A playlist in the user's list that already has the Setlist Playlist name. */
-export interface ExistingPlaylist {
-  id: string;
-  /** The name as Spotify gave it (not trimmed). */
-  name: string;
-  shareUrl: string;
-}
+export type ExistingPlaylist = SpotifyPlaylist;
 
 interface PlaylistPage {
   items?: Array<{ id?: string; name?: unknown; external_urls?: { spotify?: string } } | null>;
@@ -27,9 +25,9 @@ export async function findPlaylistsNamed(name: string, options: SpotifyPlaylistO
   const found: ExistingPlaylist[] = [];
   let url: string | null | undefined = FIRST_PAGE_URL;
   while (url) {
-    if (!url.startsWith(SPOTIFY_API)) {
+    if (!url.startsWith(SPOTIFY_HOST)) {
       throw new SpotifyPlaylistError(
-        `Spotify's next page link points outside ${SPOTIFY_API}; it was not followed, so the duplicate check stopped.`,
+        `Spotify's next page link points outside ${SPOTIFY_HOST}; it was not followed, so the duplicate check stopped.`,
       );
     }
     const page = ((await sendSpotifyRequest({ method: "GET", url, what: "list playlists" }, options)) ??
@@ -42,8 +40,4 @@ export async function findPlaylistsNamed(name: string, options: SpotifyPlaylistO
     url = page.next;
   }
   return found;
-}
-
-export function shareUrlFor(playlistId: string): string {
-  return `https://open.spotify.com/playlist/${playlistId}`;
 }

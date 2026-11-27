@@ -1,11 +1,10 @@
 import type { Match } from "../matching/index.js";
 import type { Show } from "../performances/index.js";
-import { shareUrlFor } from "./duplicate-check.js";
 import { NothingToAddError, PartlyCreatedPlaylistError, SpotifyPlaylistError } from "./errors.js";
 import { setlistPlaylistDescription, setlistPlaylistName } from "./name.js";
+import { MY_PLAYLISTS_URL, playlistItemsUrl, shareUrlFor, type SpotifyPlaylist } from "./spotify-playlist.js";
 import { sendSpotifyRequest, type SpotifyPlaylistOptions } from "./spotify-request.js";
 
-const CREATE_URL = "https://api.spotify.com/v1/me/playlists";
 /** Spotify accepts at most 100 URIs per add-items request. */
 const BATCH_SIZE = 100;
 
@@ -14,10 +13,7 @@ export interface CreateSetlistPlaylistOptions extends SpotifyPlaylistOptions {
   public?: boolean;
 }
 
-export interface CreatedSetlistPlaylist {
-  id: string;
-  shareUrl: string;
-  name: string;
+export interface CreatedSetlistPlaylist extends SpotifyPlaylist {
   /** Number of Matches added, repeats included. */
   trackCount: number;
 }
@@ -38,7 +34,7 @@ export async function createSetlistPlaylist(
   let created: { id?: unknown; external_urls?: { spotify?: unknown } } | undefined;
   try {
     created = (await sendSpotifyRequest(
-      { method: "POST", url: CREATE_URL, body: { name, description, public: options.public === true }, what: "create playlist" },
+      { method: "POST", url: MY_PLAYLISTS_URL, body: { name, description, public: options.public === true }, what: "create playlist" },
       options,
     )) as typeof created;
   } catch (err) {
@@ -56,7 +52,7 @@ export async function createSetlistPlaylist(
     const batch = uris.slice(tracksAdded, tracksAdded + BATCH_SIZE);
     try {
       await sendSpotifyRequest(
-        { method: "POST", url: `https://api.spotify.com/v1/playlists/${encodeURIComponent(id)}/items`, body: { uris: batch }, what: "add tracks" },
+        { method: "POST", url: playlistItemsUrl(id), body: { uris: batch }, what: "add tracks" },
         options,
       );
     } catch (cause) {

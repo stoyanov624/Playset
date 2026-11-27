@@ -24,7 +24,7 @@ Both return the **Setlist** in the same setlist.fm Setlist shape that PRD 0002 a
 - **No Tape prompting.** Which **Tapes** to keep is decided later; this module only uses PRD 0002 to count **Performances**.
 - **No CLI output or prompting.** Choosing an **Artist** is done through the injected chooser; how it is shown belongs to the front-end. Nothing is printed.
 - **No caching.** Every run asks setlist.fm again; no search results, **Artist** ids or **Setlists** are stored.
-- **No fuzzy matching.** Beyond the normalisation in AC-12 (letter case, accents, whitespace, `&`/`and`), names are not compared loosely. "Arctic Monkey" does not auto-choose "Arctic Monkeys"; the chooser is asked.
+- **No fuzzy matching.** Beyond the normalisation in AC-12 (letter case, accents, whitespace, `&`/`+`/`and`), names are not compared loosely. "Arctic Monkey" does not auto-choose "Arctic Monkeys"; the chooser is asked.
 - **No re-sorting by date.** The **Artist**'s setlists are used in the order setlist.fm returns them (newest first). A future-dated **Setlist** that already has songs is not skipped.
 - **No search beyond 3 pages** of an **Artist**'s setlists, and no paging of **Artist** search results beyond the first page.
 - **No reading of setlist links.** Getting the id out of a setlist.fm link is PRD 0001.
@@ -63,7 +63,7 @@ All requests below are made through the injected fetch. "Requests" counts every 
 
 ### Finding the Artist
 
-- **AC-12** — Given two **Artist** names, when they are compared, then they count as an exact match if they are equal after this normalisation: letter case folded; accents removed (é→e, ö→o, ñ→n); each `&` replaced by ` and `; leading and trailing whitespace removed and every run of whitespace collapsed to one space. Nothing else is changed (punctuation such as `.`, `'`, `!` and a leading "The" are kept).
+- **AC-12** — Given two **Artist** names, when they are compared, then they count as an exact match if they are equal after this normalisation: letter case folded; accents removed (é→e, ö→o, ñ→n); each `&` and `+` replaced by ` and ` (`+` added with PRD 0010's rule that "&", "+" and "and" are the same word); leading and trailing whitespace removed and every run of whitespace collapsed to one space. Nothing else is changed (punctuation such as `.`, `'`, `!` and a leading "The" are kept).
 - **AC-13** — Given an **Artist** name, when the **Artist** is looked up, then the name is trimmed and exactly one `GET /search/artists` is sent with the query parameters `artistName=<name>` (URL-encoded), `sort=relevance` and `p=1`. Only the first page of results is used.
 - **AC-14** — Given search results in which exactly one result's name is an exact match (AC-12) for the typed name, when the **Artist** is looked up, then that result is chosen and the chooser is not called, even if other results have similar names.
 - **AC-15** — Given a search that returns no **Artists** (HTTP 404, or HTTP 200 with an empty or missing `artist` list), or an **Artist** name that is empty or only whitespace, when the **Artist** is looked up, then a typed "Artist not found" error naming the typed name is raised and the chooser is not called. For an empty or whitespace-only name, no request is made.

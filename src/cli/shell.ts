@@ -1,5 +1,6 @@
-// The interactive shell (PRD 0009): `playset` with no arguments in a terminal reads one Line after another.
-// Each Line is a built-in command or a run with PRD 0007's arguments; a run's errors and Ctrl-C end only that run.
+// The interactive shell: `playset` with no arguments in a terminal reads one Line after another.
+// Each Line is a built-in command or a run with the command line's arguments; a run's errors and Ctrl-C
+// end only that run, so the user can try another Artist without restarting.
 import { OPTIONS_HELP, VERSION, parseArgs } from "./args.js";
 import type { CliIo } from "./main.js";
 import { EXIT_OK, runCommand } from "./run-command.js";
@@ -37,7 +38,7 @@ export async function runShell(io: CliIo): Promise<number> {
     const event = await io.readLine({ prompt: SHELL_PROMPT, history: [...history] });
     if (event.kind === "end") return EXIT_OK;
     if (event.kind === "interrupt") {
-      // Ctrl-C with text typed only discards that text (AC-18).
+      // Ctrl-C with text typed only discards that text, as in a usual shell.
       if (event.typed !== "") continue;
       if (leaveHintShown) return EXIT_OK;
       out(LEAVE_HINT);
@@ -58,7 +59,10 @@ export async function runShell(io: CliIo): Promise<number> {
   }
 }
 
-/** A built-in only when the whole Line, trimmed, is one of the command words in any case (AC-12). */
+/**
+ * A built-in only when the whole Line, trimmed, is one of the command words in any case, so an Artist
+ * name that merely contains one is still a run.
+ */
 function builtInOf(line: string): BuiltIn | undefined {
   const word = line.trim().toLowerCase();
   if (word === "help" || word === "clear") return word;
@@ -66,7 +70,7 @@ function builtInOf(line: string): BuiltIn | undefined {
   return undefined;
 }
 
-/** A run Line: its words handled as PRD 0007's command-line arguments (AC-5 to AC-8). */
+/** A run Line: its words handled exactly like the command line's arguments. */
 async function runLine(line: string, io: CliIo): Promise<void> {
   const err: WriteLine = (text = "") => io.stderr.write(`${text}\n`);
   const usageError = (message: string) => {
