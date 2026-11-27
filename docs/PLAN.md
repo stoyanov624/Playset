@@ -22,6 +22,7 @@ Later (not planned in Slices yet): a web or mobile front-end on the same core, w
 | 8 | Split medleys into Performances (' / ') | 2, 7 |
 | 9 | Interactive shell: `playset` with no arguments opens its own prompt session | 7, 8 |
 | 10 | '+' is part of a title, not a medley separator; match '+' like '&' | 3, 8 |
+| 11 | Note Unknown Songs and Incomplete Setlists; offer an older complete one | 2, 4, 7, 8, 9, 10 |
 
 ## Waves (derived from the table)
 
@@ -30,6 +31,7 @@ Later (not planned in Slices yet): a web or mobile front-end on the same core, w
 - **Wave 3:** Slice 7
 - **Wave 4:** Slice 8
 - **Wave 5:** Slices 9, 10
+- **Wave 6:** Slice 11
 
 ## Rules for /featuring
 
