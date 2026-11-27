@@ -31,6 +31,10 @@ export interface CreateOrUpdateResult {
   playlist: CreatedPlaylist;
 }
 
+/**
+ * Everything the Host steps call: the run's Match search and create, plus the update only the Host Account
+ * needs (HostPlaylistServices), so a front-end without a Host Account never has to provide it.
+ */
 export type HostServices = Pick<RunServices, "findMatch" | "createSetlistPlaylist"> & HostPlaylistServices;
 
 /**

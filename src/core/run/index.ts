@@ -30,6 +30,7 @@ export {
   RunInputError,
   SetlistChangedError,
 } from "./errors.js";
+// Raised through the Host create-or-update step, so it is offered next to that step's own errors.
 export { PartlyUpdatedPlaylistError } from "../setlist-playlist/index.js";
 export { createRunServices, type RunServicesDeps } from "./run-services.js";
 export type {

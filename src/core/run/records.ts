@@ -44,9 +44,13 @@ export function createMemorySetlistPlaylistRecords(): SetlistPlaylistRecords {
     saveRecord: async (record) => {
       records.set(record.setlistId, { ...record });
     },
-    findPreview: async (setlistId, versionId) => previews.get(previewKey(setlistId, versionId)),
+    // Copies in and out, like a database would, so a caller changing a preview never changes the cache.
+    findPreview: async (setlistId, versionId) => {
+      const preview = previews.get(previewKey(setlistId, versionId));
+      return preview === undefined ? undefined : structuredClone(preview);
+    },
     savePreview: async (setlistId, versionId, preview) => {
-      previews.set(previewKey(setlistId, versionId), preview);
+      previews.set(previewKey(setlistId, versionId), structuredClone(preview));
     },
   };
 }

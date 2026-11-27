@@ -35,7 +35,9 @@ export async function updateSetlistPlaylist(
   const name = setlistPlaylistName(show);
   const description = setlistPlaylistDescription(show);
   // An update with nothing would empty a playlist people may already follow.
-  if (matches.length === 0) throw new NothingToAddError();
+  if (matches.length === 0) {
+    throw new NothingToAddError("There are no Matches to add, so the Setlist Playlist was not changed.");
+  }
 
   const uris = matches.map((match) => match.uri);
   const firstBatch = uris.slice(0, BATCH_SIZE);

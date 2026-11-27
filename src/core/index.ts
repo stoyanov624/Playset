@@ -5,7 +5,6 @@
 export {
   InvalidSetlistPageError,
   MissingSetlistVersionError,
-  PartlyUpdatedPlaylistError,
   RunCancelledError,
   RunInputError,
   SetlistChangedError,
@@ -84,6 +83,7 @@ export {
   DescriptionTooLongError,
   NothingToAddError,
   PartlyCreatedPlaylistError,
+  PartlyUpdatedPlaylistError,
   PlaylistRateLimitError,
   SpotifyPlaylistError,
   type CreatedSetlistPlaylist,

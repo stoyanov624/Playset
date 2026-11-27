@@ -15,10 +15,10 @@ export class DescriptionTooLongError extends PlaysetError {
   }
 }
 
-/** There are no Matches, so no (empty) Setlist Playlist is created. */
+/** There are no Matches, so no (empty) Setlist Playlist is created, nor an existing one emptied. */
 export class NothingToAddError extends PlaysetError {
-  constructor() {
-    super("There are no Matches to add, so no Setlist Playlist was created.");
+  constructor(message = "There are no Matches to add, so no Setlist Playlist was created.") {
+    super(message);
   }
 }
 
