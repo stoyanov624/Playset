@@ -11,6 +11,7 @@ import {
   createOrUpdateSetlistPlaylist,
   findSetlistPlaylist,
   type SetlistPlaylistRecord,
+  type SetlistPlaylistRecords,
 } from "../../src/core/run/index.js";
 import {
   DescriptionTooLongError,
@@ -289,6 +290,21 @@ describe("createOrUpdateSetlistPlaylist — create, no record (H1)", () => {
     expect(err).toBeInstanceOf(DescriptionTooLongError);
     expect(t.spotify.http.requests).toEqual([]);
     expect(saves(t.spy.calls)).toEqual([]);
+  });
+
+  it("AC-12: with no cached preview, a too-long description fails before any request", async () => {
+    const t = await setup();
+    const longSetlist = variant(fixtureHv1(), { url: setlistUrlOfLength(276) });
+    const err = await captureError(t.run(longSetlist, H_V1));
+    expect(err).toBeInstanceOf(DescriptionTooLongError);
+    expect((err as Error).constructor).toBe(DescriptionTooLongError);
+    // No Match search and no Spotify playlist request: nothing reached Spotify at all.
+    expect(t.spotify.searchRequests()).toEqual([]);
+    expect(t.spotify.playlistRequests()).toEqual([]);
+    expect(t.spotify.http.requests).toEqual([]);
+    expect(saves(t.spy.calls)).toEqual([]);
+    expect(await t.store.findRecord(H_SETLIST_ID)).toBeUndefined();
+    expect(await t.store.findPreview(H_SETLIST_ID, H_V1)).toBeUndefined();
   });
 
   it("AC-15: H4 create with no record → POST create, then POST 1–100, 101–200 (position 50 is T007), 201–230; 230 tracks", async () => {
@@ -747,6 +763,37 @@ describe("createOrUpdateSetlistPlaylist — a create fails (H5)", () => {
       versionId: BIG_VERSION,
       createdAt: NOW_ISO,
     });
+  });
+});
+
+describe("createOrUpdateSetlistPlaylist — saving the record fails after a partly created playlist (H5)", () => {
+  it("AC-20: when saving the record fails after a partly created playlist, the partly-created error still reaches the caller", async () => {
+    const store = createMemorySetlistPlaylistRecords();
+    await cachePreview(store, bigSetlist(), bigOutcomes());
+    const diskFull = new Error("disk full");
+    const failingRecords: SetlistPlaylistRecords = {
+      findRecord: (setlistId) => store.findRecord(setlistId),
+      saveRecord: () => Promise.reject(diskFull),
+      findPreview: (setlistId, versionId) => store.findPreview(setlistId, versionId),
+      savePreview: (setlistId, versionId, preview) => store.savePreview(setlistId, versionId, preview),
+    };
+    const spotify = makeHostSpotify({
+      createdIds: [PARTLY_ID],
+      answers: { 2: answer(400, { error: { status: 400, message: "Invalid base62 id" } }) },
+    });
+    const err = await captureError(
+      createOrUpdateSetlistPlaylist(spotify.services, bigSetlist(), BIG_VERSION, {
+        accessToken: HOST_TOKEN,
+        records: failingRecords,
+        now: clockAt(NOW_ISO),
+      }),
+    );
+    expect(err).not.toBe(diskFull);
+    expect(err).toBeInstanceOf(PartlyCreatedPlaylistError);
+    const partly = err as PartlyCreatedPlaylistError;
+    expect([partly.playlistId, partly.shareUrl, partly.tracksAdded, partly.totalMatches]).toEqual([PARTLY_ID, PARTLY_SHARE_URL, 100, 230]);
+    expect(spotify.playlistCalls()).toEqual([`POST ${CREATE}`, `POST ${items(PARTLY_ID)}`, `POST ${items(PARTLY_ID)}`]);
+    expect(await store.findRecord(BIG_SETLIST_ID)).toBeUndefined();
   });
 });
 

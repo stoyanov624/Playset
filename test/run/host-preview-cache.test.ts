@@ -246,6 +246,21 @@ describe("previewMatches with records — nothing cached (P1)", () => {
     expect(spy.calls).toEqual([]);
   });
 
+  it("AC-3: a Setlist with an empty id gives no setlistId, and the preview is neither read from nor written to the cache", async () => {
+    const spy = spyRecords(createMemorySetlistPlaylistRecords());
+    const search = fakeMatchSearch(hostOutcomes);
+    const prepared = await prepareSetlist(variant(fixtureHv1(), { id: "" }), leaveOutTapes);
+    expect("setlistId" in prepared).toBe(false);
+    expect(prepared.versionId).toBe(H_V1);
+    const preview = await previewMatches(search.services, prepared, HOST_TOKEN, { records: spy.records });
+    const expected = await previewMatches(fakeMatchSearch(hostOutcomes).services, prepared, HOST_TOKEN, {});
+    expect(search.searched.map((s) => s.title)).toEqual(["Release", "Even Flow", "Alive"]);
+    expect(preview.matches.map((m: Match) => m.uri)).toEqual(H_V1_URIS);
+    expect(preview.playlistName).toBe(H_V1_NAME);
+    expect(preview).toEqual(expected);
+    expect(spy.calls).toEqual([]);
+  });
+
   it("AC-10: H v2 with the Tape kept (Master/Slave) → 6 searches; a cached v2 preview is neither read nor replaced", async () => {
     const store = createMemorySetlistPlaylistRecords();
     const cachedV2 = await cachePreview(store, fixtureHv2(), hostOutcomes);
