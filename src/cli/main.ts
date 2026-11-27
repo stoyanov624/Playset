@@ -62,5 +62,5 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
   const parsed = parseArgs(argv, (text) => io.stdout.write(text));
   if (parsed.kind === "done") return EXIT_OK;
   if (parsed.kind === "usage-error") return usageError(parsed.message);
-  return runCommand(parsed.words, parsed.options, io, { usageError, stopOnCancel: false });
+  return runCommand(parsed.words, parsed.options, io, { usageError });
 }

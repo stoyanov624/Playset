@@ -2,17 +2,7 @@
 import { spawn } from "node:child_process";
 import { clearScreenDown, createInterface, cursorTo } from "node:readline";
 import { confirm, select } from "@inquirer/prompts";
-import {
-  createSetlistFmClient,
-  createSetlistPlaylist,
-  createSpotifyTrackSearch,
-  findPlaylistsNamed,
-  getAccessToken,
-  matchPerformance,
-  startLoopbackReceiver,
-  type CallbackReceiver,
-} from "../core/index.js";
-import type { RunServices } from "../core/run/index.js";
+import { createRunServices, startLoopbackReceiver } from "../core/index.js";
 import { EXIT_CANCELLED, browserCommandFor, main, opensSession, type CliIo, type LineEvent } from "./main.js";
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -33,50 +23,11 @@ function openBrowser(url: string): Promise<void> {
   return Promise.resolve();
 }
 
-/** Login callback receivers that are still listening (a login cancelled with Ctrl-C never closes its own). */
-const openReceivers = new Set<CallbackReceiver>();
-
-async function startTrackedReceiver(redirectUri: string): Promise<CallbackReceiver> {
-  const receiver = await startLoopbackReceiver(redirectUri);
-  openReceivers.add(receiver);
-  return {
-    waitForCallback: () => receiver.waitForCallback(),
-    close: () => {
-      openReceivers.delete(receiver);
-      return receiver.close();
-    },
-  };
-}
-
-/** Frees the login port so the next run's login can listen on it again (PRD 0009 AC-21). */
-async function closeOpenReceivers(): Promise<void> {
-  const receivers = [...openReceivers];
-  openReceivers.clear();
-  await Promise.all(receivers.map((receiver) => receiver.close().catch(() => {})));
-}
-
 /**
  * Built once per process, so every run of a shell session shares the setlist.fm request spacing and the
  * Spotify token. Settings (API key, client id) are read on each use until found, so one added mid-session works.
  */
-function realServices(): RunServices {
-  let setlistFm: ReturnType<typeof createSetlistFmClient> | undefined;
-  // Created on first use, so a missing API key is reported only when setlist.fm is needed.
-  const setlistFmClient = () => (setlistFm ??= createSetlistFmClient({ fetch, sleep, now, env }));
-
-  return {
-    getSetlist: (setlistId) => setlistFmClient().getSetlist(setlistId),
-    findLatestSetlistByArtistName: (name, chooser, options) =>
-      setlistFmClient().findLatestSetlistByArtistName(name, chooser, options),
-    async getAccessToken({ openAuthorizeUrl }) {
-      await closeOpenReceivers();
-      return getAccessToken({ fetch, sleep, now, env, openAuthorizeUrl, startCallbackReceiver: startTrackedReceiver });
-    },
-    findMatch: (performance, accessToken) => matchPerformance(performance, createSpotifyTrackSearch({ accessToken })),
-    findPlaylistsNamed: (name, accessToken) => findPlaylistsNamed(name, { accessToken }),
-    createSetlistPlaylist: (show, matches, options) => createSetlistPlaylist(show, matches, options),
-  };
-}
+const services = createRunServices({ fetch, sleep, now, env, startCallbackReceiver: startLoopbackReceiver });
 
 /** One Line at the prompt, with in-memory history; Ctrl-C and end of input are reported as events. */
 function readLine({ prompt, history }: { prompt: string; history: readonly string[] }): Promise<LineEvent> {
@@ -122,14 +73,10 @@ const io: CliIo = {
     confirm: (question) => confirm(question),
   },
   openBrowser,
-  services: realServices(),
+  services,
   onInterrupt(handler) {
-    const onSigint = () => {
-      void closeOpenReceivers();
-      handler();
-    };
-    process.on("SIGINT", onSigint);
-    return () => process.off("SIGINT", onSigint);
+    process.on("SIGINT", handler);
+    return () => process.off("SIGINT", handler);
   },
   readLine,
   clearScreen() {

@@ -93,7 +93,11 @@ export {
   type SetlistFmClientDeps,
 } from "./setlistfm/index.js";
 export {
+  RunCancelledError,
+  RunInputError,
+  createRunServices,
   runPlayset,
+  type RunServicesDeps,
   type CreatedPlaylist,
   type MatchProgress,
   type NotAdded,

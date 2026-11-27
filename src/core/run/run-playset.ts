@@ -8,6 +8,8 @@ import {
 } from "../performances/index.js";
 import { looksLikeSetlistFmLink, readSetlistId } from "../setlist-link/index.js";
 import { setlistPlaylistDescription, setlistPlaylistName } from "../setlist-playlist/index.js";
+import { guardRun } from "./cancellation.js";
+import { RunCancelledError, RunInputError } from "./errors.js";
 import type {
   NotAdded,
   Preview,
@@ -16,14 +18,44 @@ import type {
   RunOptions,
   RunOutcome,
   RunRequest,
+  RunServices,
   ShowSummary,
 } from "./types.js";
 
 /**
  * One whole run: Setlist → Show → (offer of an older complete Setlist) → Tape decisions → Spotify login →
- * Matches → preview → confirmation → Setlist Playlist. Every question and service comes from the caller. Errors are passed on unchanged.
+ * Matches → preview → confirmation → Setlist Playlist. Every question and service comes from the caller.
+ * Errors are passed on unchanged; a blank or mixed input is a RunInputError, a cancelled run a RunCancelledError.
  */
-export async function runPlayset({ input, options, frontEnd, services }: RunRequest): Promise<RunOutcome> {
+export async function runPlayset({ input, options, frontEnd, services, signal }: RunRequest): Promise<RunOutcome> {
+  if (signal?.aborted) throw new RunCancelledError();
+  checkInput(input);
+  if (signal === undefined) return run(input.trim(), options, frontEnd, services, undefined);
+
+  const guard = guardRun(signal, frontEnd, services);
+  try {
+    return await run(input.trim(), options, guard.frontEnd, guard.services, signal);
+  } finally {
+    guard.release();
+  }
+}
+
+/** A blank input, or a setlist.fm link together with other words, cannot be used. */
+function checkInput(input: string): void {
+  const words = input.trim().split(/\s+/);
+  if (words[0] === "") throw new RunInputError("Please give a setlist.fm link or an Artist name.");
+  if (words.length > 1 && words.some(looksLikeSetlistFmLink)) {
+    throw new RunInputError("Give either one setlist.fm link or an Artist name, not both.");
+  }
+}
+
+async function run(
+  input: string,
+  options: RunOptions,
+  frontEnd: RunFrontEnd,
+  services: RunServices,
+  signal: AbortSignal | undefined,
+): Promise<RunOutcome> {
   const chooseArtist = frontEnd.chooseArtist.bind(frontEnd);
   const { setlist, completeAlternative } = await fetchSetlist(input, options, services, chooseArtist);
   const latest = toPerformances(setlist);
@@ -48,6 +80,7 @@ export async function runPlayset({ input, options, frontEnd, services }: RunRequ
 
   const accessToken = await services.getAccessToken({
     openAuthorizeUrl: (url) => frontEnd.showAuthorizeUrl(url),
+    signal,
   });
 
   const rows: PreviewRow[] = [];
@@ -117,14 +150,13 @@ async function setlistInUse(
 async function fetchSetlist(
   input: string,
   options: RunOptions,
-  services: RunRequest["services"],
+  services: RunServices,
   chooseArtist: RunFrontEnd["chooseArtist"],
 ): Promise<{ setlist: SetlistFmSetlist; completeAlternative: SetlistFmSetlist | null }> {
-  const trimmed = input.trim();
-  if (trimmed === "" || looksLikeSetlistFmLink(trimmed)) {
-    return { setlist: await services.getSetlist(readSetlistId(trimmed)), completeAlternative: null };
+  if (looksLikeSetlistFmLink(input)) {
+    return { setlist: await services.getSetlist(readSetlistId(input)), completeAlternative: null };
   }
-  const { setlist, completeAlternative } = await services.findLatestSetlistByArtistName(trimmed, chooseArtist, {
+  const { setlist, completeAlternative } = await services.findLatestSetlistByArtistName(input, chooseArtist, {
     wantCompleteAlternative: options.confirm !== "skip",
   });
   return { setlist, completeAlternative: completeAlternative ?? null };
@@ -133,7 +165,7 @@ async function fetchSetlist(
 async function keepTape(
   tape: Performance,
   options: RunOptions,
-  askTape: RunRequest["frontEnd"]["askTape"],
+  askTape: RunFrontEnd["askTape"],
 ): Promise<boolean> {
   if (options.tapes === "all") return true;
   if (options.tapes === "none") return false;

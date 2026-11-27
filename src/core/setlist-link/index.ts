@@ -1,15 +1,15 @@
 // Reads the setlist id out of a setlist.fm link to a Setlist page (PRD 0001).
 // Pure string handling: no network, no Node-only or terminal imports.
+import { PlaysetError } from "../http/index.js";
 
 export type SetlistLinkErrorReason = "empty" | "not-setlist-fm" | "not-a-setlist-page" | "missing-id";
 
 /** Why a link cannot be used to find a Setlist; `message` is written for the concert-goer. */
-export class SetlistLinkError extends Error {
+export class SetlistLinkError extends PlaysetError {
   readonly reason: SetlistLinkErrorReason;
 
   constructor(reason: SetlistLinkErrorReason, message: string) {
     super(message);
-    this.name = "SetlistLinkError";
     this.reason = reason;
   }
 }

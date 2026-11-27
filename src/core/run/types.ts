@@ -40,7 +40,11 @@ export interface RunServices {
     chooser: ArtistChooser,
     options?: LatestSetlistOptions,
   ): Promise<LatestSetlistLookup>;
-  getAccessToken(hooks: { openAuthorizeUrl(url: string): Promise<void> }): Promise<string>;
+  /** `signal` aborts with the run's signal; a login in progress then stops and frees its callback receiver. */
+  getAccessToken(hooks: {
+    openAuthorizeUrl(url: string): Promise<void>;
+    signal?: AbortSignal | undefined;
+  }): Promise<string>;
   findMatch(performance: Performance, accessToken: string): Promise<MatchOutcome>;
   findPlaylistsNamed(name: string, accessToken: string): Promise<PlaylistLink[]>;
   createSetlistPlaylist(
@@ -144,4 +148,9 @@ export interface RunRequest {
   options: RunOptions;
   frontEnd: RunFrontEnd;
   services: RunServices;
+  /**
+   * Cancels the run: until the create request is sent, an abort ends it with a RunCancelledError and no
+   * further service or front-end call is made. After that, an abort changes nothing.
+   */
+  signal?: AbortSignal | undefined;
 }
