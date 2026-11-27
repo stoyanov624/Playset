@@ -1,42 +1,38 @@
-import { readFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { createFileSettingsStore, type Env, type SettingsStore } from "../settings/index.js";
 import { MissingSetlistFmApiKeyError } from "./errors.js";
 
-export type Env = Record<string, string | undefined>;
+export type { Env };
 
-export const SETLISTFM_API_KEY_ENV = "SETLISTFM_API_KEY";
-const CONFIG_FILE = "config.json";
-const CONFIG_KEY = "setlistfmApiKey";
+/** Where to put the key when the settings do not come from a config file. */
+const NO_CONFIG_FILE_HINT = "your Playset settings";
 
-/** `~/.config/playset`, computed at call time. */
-export function defaultConfigDir(): string {
-  return join(homedir(), ".config", "playset");
+export interface SetlistFmApiKeyOptions {
+  /** Defaults to process.env; used only when no `settings` store is given. */
+  env?: Env;
+  /** Defaults to ~/.config/playset/; used only when no `settings` store is given. */
+  configDir?: string;
+  /** Where the key is read from. Defaults to the file store built from `env` and `configDir`. */
+  settings?: SettingsStore;
+}
+
+/** The settings store for these options: the given one, or the file store over `env` and `configDir`. */
+export function settingsStoreFor(opts: SetlistFmApiKeyOptions): SettingsStore {
+  return (
+    opts.settings ??
+    createFileSettingsStore({
+      ...(opts.env === undefined ? {} : { env: opts.env }),
+      ...(opts.configDir === undefined ? {} : { configDir: opts.configDir }),
+    })
+  );
 }
 
 /**
- * The setlist.fm API key: `SETLISTFM_API_KEY` first, then `setlistfmApiKey`
- * in `<configDir>/config.json`. Read-only; never writes the config file.
+ * The setlist.fm API key: `SETLISTFM_API_KEY` first, then `setlistfmApiKey` in `<configDir>/config.json`
+ * (or whatever the given SettingsStore holds). Read-only; never writes the config file.
  */
-export async function resolveSetlistFmApiKey(opts: { env: Env; configDir?: string }): Promise<string> {
-  const fromEnv = opts.env[SETLISTFM_API_KEY_ENV];
-  if (fromEnv) return fromEnv;
-
-  const configFile = join(opts.configDir ?? defaultConfigDir(), CONFIG_FILE);
-  const fromFile = await readKeyFromConfig(configFile);
-  if (fromFile) return fromFile;
-
-  throw new MissingSetlistFmApiKeyError(configFile);
-}
-
-async function readKeyFromConfig(configFile: string): Promise<string | undefined> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(await readFile(configFile, "utf8"));
-  } catch {
-    return undefined;
-  }
-  if (typeof parsed !== "object" || parsed === null) return undefined;
-  const value = (parsed as Record<string, unknown>)[CONFIG_KEY];
-  return typeof value === "string" && value !== "" ? value : undefined;
+export async function resolveSetlistFmApiKey(opts: SetlistFmApiKeyOptions): Promise<string> {
+  const settings = settingsStoreFor(opts);
+  const { setlistfmApiKey } = await settings.readSettings();
+  if (setlistfmApiKey) return setlistfmApiKey;
+  throw new MissingSetlistFmApiKeyError(settings.configFilePath ?? NO_CONFIG_FILE_HINT);
 }
