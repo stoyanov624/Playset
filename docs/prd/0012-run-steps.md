@@ -1,6 +1,6 @@
 # PRD 0012 — Split the run into stateless steps
 
-Status: Approved
+Status: Implemented
 Slice: 12
 Depends on: none
 Module: src/core/run (also src/core/setlistfm for the Artist list and the Setlist page)
