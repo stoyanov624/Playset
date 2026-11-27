@@ -123,7 +123,8 @@ export async function prepareSetlist(
     keptPerformances,
     notAdded: notAddedInPlayedOrder(noted, keptPerformances, leftOutTapes),
     incompleteStatus,
-    ...(setlist.id === undefined ? {} : { setlistId: setlist.id }),
+    // An empty id names no Setlist, so it gets no setlistId (and so no preview cache key), like an empty versionId.
+    ...(setlist.id === undefined || setlist.id === "" ? {} : { setlistId: setlist.id }),
     ...withVersion(setlist),
   };
 }

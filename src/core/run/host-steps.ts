@@ -109,7 +109,11 @@ async function create(
   } catch (err) {
     // Recorded without a version, so the next call fills this playlist in place instead of making another.
     if (err instanceof PartlyCreatedPlaylistError) {
-      await records.saveRecord({ setlistId, playlistId: err.playlistId, shareUrl: err.shareUrl, versionId: null, createdAt });
+      // The partly created playlist is what the caller must hear about (its share link and how far it got);
+      // a failed record save only means the next call makes a new playlist, so it must not hide that.
+      await records
+        .saveRecord({ setlistId, playlistId: err.playlistId, shareUrl: err.shareUrl, versionId: null, createdAt })
+        .catch(() => undefined);
     }
     throw err;
   }
