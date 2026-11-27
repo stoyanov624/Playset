@@ -143,7 +143,7 @@ describe("previewMatches — M1 (Pearl Jam, Portland)", () => {
     expect(preview.rows.map((r: { number: number; performance: Performance }) => [r.number, r.performance.title])).toEqual(
       NIRVANA_KEPT_TITLES.map((t, i) => [i + 1, t]),
     );
-    expect(preview.rows[5].outcome.kind).toBe("miss");
+    expect(preview.rows[5]!.outcome.kind).toBe("miss");
     expect(preview.matches.map((m: Match) => m.uri)).toEqual(NIRVANA_URIS);
     expect(preview.misses.map((m: { title: string; artist: string }) => [m.title, m.artist])).toEqual([
       ["Spank Thru", "Nirvana"],

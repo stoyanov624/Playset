@@ -30,7 +30,7 @@ const readSetlistFm = (file: string) => JSON.parse(readFileSync(join(setlistFmFi
 
 const PEARL_JAM_MBID = "83b9cbe7-9857-49e2-ab8e-b57b01038103";
 
-function realServices(route: Route, apiKey: string | undefined = SETLISTFM_API_KEY) {
+function realServices(route: Route, apiKey: string | null = SETLISTFM_API_KEY) {
   const clock = makeFakeClock();
   const http = makeRoutedFetch(route, clock);
   const services = createRunServices({
@@ -38,7 +38,7 @@ function realServices(route: Route, apiKey: string | undefined = SETLISTFM_API_K
     sleep: clock.sleep,
     now: clock.now,
     env: {},
-    settings: createMemorySettingsStore(apiKey === undefined ? undefined : { settings: { setlistfmApiKey: apiKey } }),
+    settings: createMemorySettingsStore(apiKey === null ? undefined : { settings: { setlistfmApiKey: apiKey } }),
     startCallbackReceiver: async () => {
       throw new Error("no login expected");
     },
@@ -86,7 +86,7 @@ describe("the real services the core builds — the new setlist.fm services", ()
 
   it("AC-3, AC-6: without an API key the new services raise the missing-API-key error on first use, with no request", async () => {
     const expected = await missingSetlistFmApiKeyError();
-    const { services, http } = realServices(pearlJamRoute, undefined);
+    const { services, http } = realServices(pearlJamRoute, null);
     const findErr = await captureError(findArtists(services, "Pearl Jam"));
     expect((findErr as Error).constructor).toBe(expected.constructor);
     const listErr = await captureError(listSetlists(services, PEARL_JAM_MBID, 1));
