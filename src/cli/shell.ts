@@ -92,7 +92,7 @@ async function runLine(line: string, io: CliIo): Promise<void> {
   const parsed = parseArgs(words, () => {});
   if (parsed.kind === "usage-error") usageError(parsed.message);
   if (parsed.kind !== "run") return;
-  await runCommand(parsed.words, parsed.options, io, { usageError, stopOnCancel: true });
+  await runCommand(parsed.words, parsed.options, io, { usageError });
 }
 
 /**
