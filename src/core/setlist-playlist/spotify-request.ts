@@ -17,7 +17,7 @@ export interface SpotifyPlaylistOptions {
 }
 
 export interface SpotifyRequest {
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "PUT";
   url: string;
   body?: unknown;
   /** Plain words for error messages, e.g. "create playlist". */

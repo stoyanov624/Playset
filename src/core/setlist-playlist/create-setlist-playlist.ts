@@ -5,8 +5,8 @@ import { setlistPlaylistDescription, setlistPlaylistName } from "./name.js";
 import { MY_PLAYLISTS_URL, playlistItemsUrl, shareUrlFor, type SpotifyPlaylist } from "./spotify-playlist.js";
 import { sendSpotifyRequest, type SpotifyPlaylistOptions } from "./spotify-request.js";
 
-/** Spotify accepts at most 100 URIs per add-items request. */
-const BATCH_SIZE = 100;
+/** Spotify accepts at most 100 URIs per add-items (or replace-items) request. */
+export const BATCH_SIZE = 100;
 
 export interface CreateSetlistPlaylistOptions extends SpotifyPlaylistOptions {
   /** Private unless set to true. */
@@ -47,21 +47,37 @@ export async function createSetlistPlaylist(
   const shareUrl = typeof created.external_urls?.spotify === "string" ? created.external_urls.spotify : shareUrlFor(id);
 
   const uris = matches.map((match) => match.uri);
-  let tracksAdded = 0;
-  while (tracksAdded < uris.length) {
-    const batch = uris.slice(tracksAdded, tracksAdded + BATCH_SIZE);
+  await addInBatches(id, uris, 0, options, (tracksAdded, cause) =>
+    new PartlyCreatedPlaylistError({ playlistId: id, shareUrl, tracksAdded, totalMatches: uris.length, cause }),
+  );
+
+  return { id, shareUrl, name, trackCount: uris.length };
+}
+
+/**
+ * Adds `uris` from `from` on, in played order, 100 per request, one request after another. When a request
+ * fails, nothing more is sent and the error from `partly` (given the tracks written so far) is raised.
+ */
+export async function addInBatches(
+  playlistId: string,
+  uris: readonly string[],
+  from: number,
+  options: SpotifyPlaylistOptions,
+  partly: (tracksWritten: number, cause: unknown) => Error,
+): Promise<void> {
+  let tracksWritten = from;
+  while (tracksWritten < uris.length) {
+    const batch = uris.slice(tracksWritten, tracksWritten + BATCH_SIZE);
     try {
       await sendSpotifyRequest(
-        { method: "POST", url: playlistItemsUrl(id), body: { uris: batch }, what: "add tracks" },
+        { method: "POST", url: playlistItemsUrl(playlistId), body: { uris: batch }, what: "add tracks" },
         options,
       );
     } catch (cause) {
-      throw new PartlyCreatedPlaylistError({ playlistId: id, shareUrl, tracksAdded, totalMatches: uris.length, cause });
+      throw partly(tracksWritten, cause);
     }
-    tracksAdded += batch.length;
+    tracksWritten += batch.length;
   }
-
-  return { id, shareUrl, name, trackCount: uris.length };
 }
 
 function notCreated(cause: unknown): SpotifyPlaylistError {

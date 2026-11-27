@@ -66,8 +66,24 @@ function summaryOf(setlist: SetlistFmSetlist): SetlistSummary[] {
       city: show.city,
       songCount: performances.length,
       incompleteStatus,
+      ...withVersion(setlist),
     },
   ];
+}
+
+/**
+ * setlist.fm's version of the Setlist, when it has a usable one: setlist.fm's data is not checked against
+ * its type, so an empty or non-string `versionId` counts as none.
+ */
+export function versionOf(setlist: SetlistFmSetlist): string | undefined {
+  const versionId: unknown = setlist.versionId;
+  return typeof versionId === "string" && versionId !== "" ? versionId : undefined;
+}
+
+/** `versionId` as a key only when there is a version, so a Setlist without one looks exactly as before. */
+function withVersion(setlist: SetlistFmSetlist): { versionId?: string } {
+  const versionId = versionOf(setlist);
+  return versionId === undefined ? {} : { versionId };
 }
 
 /** One Setlist by its setlist.fm id, unchanged. */
@@ -107,15 +123,51 @@ export async function prepareSetlist(
     keptPerformances,
     notAdded: notAddedInPlayedOrder(noted, keptPerformances, leftOutTapes),
     incompleteStatus,
+    ...(setlist.id === undefined ? {} : { setlistId: setlist.id }),
+    ...withVersion(setlist),
   };
 }
 
-/** One Match search per kept Performance, in played order; nothing is checked or created. */
+/**
+ * One Match search per kept Performance, in played order; nothing is checked or created. With records, a
+ * preview already cached for the same setlist id and version is given back instead, and a new one is cached.
+ */
 export async function previewMatches(
   services: Pick<RunServices, "findMatch">,
   prepared: PreparedSetlist,
   accessToken: string,
-  { onProgress, signal }: PreviewMatchesOptions,
+  { onProgress, signal, records }: PreviewMatchesOptions,
+): Promise<MatchPreview> {
+  const cacheKey = records === undefined ? undefined : previewCacheKey(prepared);
+  if (records === undefined || cacheKey === undefined) {
+    return searchMatches(services, prepared, accessToken, onProgress, signal);
+  }
+  throwIfCancelled(signal);
+  const cached = await records.findPreview(cacheKey.setlistId, cacheKey.versionId);
+  throwIfCancelled(signal);
+  if (cached !== undefined) return cached;
+  const preview = await searchMatches(services, prepared, accessToken, onProgress, signal);
+  await records.savePreview(cacheKey.setlistId, cacheKey.versionId, preview);
+  return preview;
+}
+
+/**
+ * Only a Setlist with an id and a version that keeps no Tape is cached: the version tells when the cache is
+ * stale, and the Host Account always leaves Tapes out, so a front-end's Tape choice never reaches it.
+ */
+function previewCacheKey(prepared: PreparedSetlist): { setlistId: string; versionId: string } | undefined {
+  const { setlistId, versionId, keptPerformances } = prepared;
+  if (setlistId === undefined || versionId === undefined) return undefined;
+  if (keptPerformances.some((performance) => performance.isTape)) return undefined;
+  return { setlistId, versionId };
+}
+
+async function searchMatches(
+  services: Pick<RunServices, "findMatch">,
+  prepared: PreparedSetlist,
+  accessToken: string,
+  onProgress: PreviewMatchesOptions["onProgress"],
+  signal: AbortSignal | undefined,
 ): Promise<MatchPreview> {
   const { keptPerformances } = prepared;
   const rows: PreviewRow[] = [];

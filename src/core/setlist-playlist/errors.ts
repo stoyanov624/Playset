@@ -61,3 +61,29 @@ export class PartlyCreatedPlaylistError extends PlaysetError {
     this.cause = details.cause;
   }
 }
+
+/**
+ * The Setlist Playlist's tracks were replaced, but a later request of the update failed. Trying again is
+ * safe, because an update replaces every track rather than adding to them.
+ */
+export class PartlyUpdatedPlaylistError extends PlaysetError {
+  readonly playlistId: string;
+  readonly shareUrl: string;
+  readonly tracksWritten: number;
+  readonly totalMatches: number;
+  override readonly cause: unknown;
+
+  constructor(details: { playlistId: string; shareUrl: string; tracksWritten: number; totalMatches: number; cause: unknown }) {
+    const reason = details.cause instanceof Error ? details.cause.message : String(details.cause);
+    super(
+      `The Setlist Playlist was partly updated: ${details.tracksWritten} of ${details.totalMatches} tracks were written ` +
+        `before Spotify failed (${reason}). It was left as it is: ${details.shareUrl}`,
+      { hint: "Try the update again: it replaces every track, so nothing is added twice.", cause: details.cause },
+    );
+    this.playlistId = details.playlistId;
+    this.shareUrl = details.shareUrl;
+    this.tracksWritten = details.tracksWritten;
+    this.totalMatches = details.totalMatches;
+    this.cause = details.cause;
+  }
+}
