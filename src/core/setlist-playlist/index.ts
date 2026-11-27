@@ -1,4 +1,4 @@
-// Slice 6: create the Setlist Playlist (PRD 0006).
+// The Setlist Playlist on Spotify: its name and description, the duplicate check, and creating it.
 export { setlistPlaylistDescription, setlistPlaylistName } from "./name.js";
 export { findPlaylistsNamed, type ExistingPlaylist } from "./duplicate-check.js";
 export {

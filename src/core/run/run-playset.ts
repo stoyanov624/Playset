@@ -70,7 +70,7 @@ async function run(
   const kept: Performance[] = [];
   const leftOutTapes: Performance[] = [];
   for (const performance of performances) {
-    if (!performance.isTape || (await keepTape(performance, options, frontEnd.askTape.bind(frontEnd)))) {
+    if (!performance.isTape || (await keepTape(performance, options, frontEnd))) {
       kept.push(performance);
     } else {
       leftOutTapes.push(performance);
@@ -156,38 +156,42 @@ async function fetchSetlist(
   if (looksLikeSetlistFmLink(input)) {
     return { setlist: await services.getSetlist(readSetlistId(input)), completeAlternative: null };
   }
-  const { setlist, completeAlternative } = await services.findLatestSetlistByArtistName(input, chooseArtist, {
+  return services.findLatestSetlistByArtistName(input, chooseArtist, {
     wantCompleteAlternative: options.confirm !== "skip",
   });
-  return { setlist, completeAlternative: completeAlternative ?? null };
 }
 
-async function keepTape(
-  tape: Performance,
-  options: RunOptions,
-  askTape: RunFrontEnd["askTape"],
-): Promise<boolean> {
+/** `--tapes` keeps every Tape and `--no-tapes` none; otherwise the user is asked about each one. */
+async function keepTape(tape: Performance, options: RunOptions, frontEnd: RunFrontEnd): Promise<boolean> {
   if (options.tapes === "all") return true;
   if (options.tapes === "none") return false;
-  return askTape(tape);
+  return frontEnd.askTape(tape);
 }
 
 /**
- * Noted songs and left-out Tapes merged in played order (a noted song follows the Performance before it).
- * An Unknown Song is placed after the preview number of the last kept Performance played before it.
+ * Noted songs and left-out Tapes merged in played order. A left-out Tape sits at its own position; a noted
+ * song was played right after the Performance at its `afterPosition`, so it comes after a Tape at that
+ * position and before the next one. Noted songs at the same place keep their played order.
  */
 function notAddedInPlayedOrder(
   noted: readonly NotedSong[],
   kept: readonly Performance[],
   leftOutTapes: readonly Performance[],
 ): NotAdded[] {
-  const entries: { order: number; item: NotAdded }[] = [
-    ...leftOutTapes.map((tape) => ({ order: tape.position, item: { name: tape.title, reason: "tape" as const } })),
-    ...noted.map((song) => ({ order: song.afterPosition + 0.5, item: notAddedOf(song, kept) })),
+  const entries: { position: number; playedAfterPosition: boolean; item: NotAdded }[] = [
+    ...leftOutTapes.map((tape) => ({
+      position: tape.position,
+      playedAfterPosition: false,
+      item: { name: tape.title, reason: "tape" as const },
+    })),
+    ...noted.map((song) => ({ position: song.afterPosition, playedAfterPosition: true, item: notAddedOf(song, kept) })),
   ];
-  return entries.sort((a, b) => a.order - b.order).map((entry) => entry.item);
+  const inPlayedOrder = (a: (typeof entries)[number], b: (typeof entries)[number]) =>
+    a.position - b.position || Number(a.playedAfterPosition) - Number(b.playedAfterPosition);
+  return entries.sort(inPlayedOrder).map((entry) => entry.item);
 }
 
+/** An Unknown Song is shown after the preview number of the last kept Performance played before it. */
 function notAddedOf(song: NotedSong, kept: readonly Performance[]): NotAdded {
   if (song.reason === "snippet") return { name: song.rawName, reason: "snippet" };
   const after = kept.filter((performance) => performance.position <= song.afterPosition).length;

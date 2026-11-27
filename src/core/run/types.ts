@@ -1,5 +1,6 @@
 import type { Match, MatchOutcome, Miss } from "../matching/index.js";
 import type { IncompleteStatus, Performance, SetlistFmSetlist, Show } from "../performances/index.js";
+import type { CreatedSetlistPlaylist, ExistingPlaylist } from "../setlist-playlist/index.js";
 import type {
   ArtistCandidate,
   ArtistChooser,
@@ -19,17 +20,11 @@ export interface RunOptions {
   dryRun: boolean;
 }
 
-/** A playlist on Spotify: an existing one with the same name, or the new Setlist Playlist. */
-export interface PlaylistLink {
-  id: string;
-  name: string;
-  shareUrl: string;
-}
+/** A playlist the user already has with the Setlist Playlist name. */
+export type PlaylistLink = ExistingPlaylist;
 
-export interface CreatedPlaylist extends PlaylistLink {
-  /** Number of Matches added, repeats included. */
-  trackCount: number;
-}
+/** The new Setlist Playlist, with its share link and the number of Matches added. */
+export type CreatedPlaylist = CreatedSetlistPlaylist;
 
 /** Everything the run needs from setlist.fm and Spotify. Fakes in tests, real adapters in a front-end. */
 export interface RunServices {
@@ -63,7 +58,10 @@ export interface ShowSummary {
   incompleteStatus: IncompleteStatus;
 }
 
-/** The offer of the newest complete Setlist after an incomplete Latest Setlist (PRD 0011 AC-11). */
+/**
+ * The offer of the newest complete Setlist after an incomplete Latest Setlist: the user decides whether a
+ * Setlist Playlist without gaps is worth an older Show.
+ */
 export interface CompleteSetlistOffer {
   latest: Show;
   complete: Show;

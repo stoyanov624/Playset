@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
 
 export const CODE_CHALLENGE_METHOD = "S256" as const;
-export const AUTHORIZE_ENDPOINT = "https://accounts.spotify.com/authorize";
-export const SCOPES = ["playlist-modify-private", "playlist-modify-public", "playlist-read-private"] as const;
+const AUTHORIZE_ENDPOINT = "https://accounts.spotify.com/authorize";
+const SCOPES = ["playlist-modify-private", "playlist-modify-public", "playlist-read-private"] as const;
 
 /** 86 base64url characters (a subset of RFC 7636's unreserved characters). */
 export function generateCodeVerifier(): string {

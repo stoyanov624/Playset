@@ -1,6 +1,6 @@
 // The real RunServices: the setlist.fm client, the Spotify login, the Match search, the duplicate check and
 // the creation, wired from injected fetch / sleep / clock / settings / callback receiver for any front-end.
-import type { Sleep } from "../http/index.js";
+import { defaultSleep, type FetchLike, type Sleep } from "../http/index.js";
 import { createSpotifyTrackSearch, matchPerformance } from "../matching/index.js";
 import type { Env, SettingsStore } from "../settings/index.js";
 import { createSetlistPlaylist, findPlaylistsNamed } from "../setlist-playlist/index.js";
@@ -11,7 +11,7 @@ import type { RunServices } from "./types.js";
 
 export interface RunServicesDeps {
   /** Defaults to the global `fetch`. */
-  fetch?: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+  fetch?: FetchLike;
   /** Defaults to a `setTimeout`-based wait. */
   sleep?: Sleep;
   /** Defaults to `Date.now`. */
@@ -23,8 +23,6 @@ export interface RunServicesDeps {
   /** Starts listening for the Spotify login callback on the redirect URI. */
   startCallbackReceiver(redirectUri: string): Promise<CallbackReceiver>;
 }
-
-const defaultSleep: Sleep = (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
  * Build once per process (or session): every run then shares the setlist.fm request spacing and the Spotify

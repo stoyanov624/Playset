@@ -2,7 +2,7 @@ import type { Show } from "../performances/index.js";
 import { DescriptionTooLongError } from "./errors.js";
 
 /** Spotify's limit on a playlist description. */
-export const DESCRIPTION_LIMIT = 300;
+const DESCRIPTION_LIMIT = 300;
 const DESCRIPTION_PREFIX = "Setlist from setlist.fm: ";
 
 /** `Artist – YYYY-MM-DD – City`, with en dashes; no network request. */

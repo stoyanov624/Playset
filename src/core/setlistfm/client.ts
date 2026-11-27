@@ -1,8 +1,9 @@
+// The setlist.fm side of Playset: finding an Artist, a Setlist by its id, and an Artist's Latest Setlist.
+// setlist.fm is a free, non-commercial API, so every client spaces its requests (~2 per second).
 import { HttpError, createRequester, type FetchLike, type Sleep } from "../http/index.js";
 import { toPerformances, type SetlistFmSetlist } from "../performances/index.js";
-import type { SettingsStore } from "../settings/index.js";
-import { resolveSetlistFmApiKey, settingsStoreFor, type Env } from "./api-key.js";
-import { artistNamesMatch } from "./artist-name.js";
+import { settingsStoreFor, type SettingsStore } from "../settings/index.js";
+import { resolveSetlistFmApiKey, type Env } from "./api-key.js";
 import {
   ArtistChoiceCancelledError,
   ArtistNotFoundError,
@@ -17,7 +18,9 @@ const API_BASE = "https://api.setlist.fm/rest/1.0";
 const MIN_REQUEST_GAP_MS = 500;
 /** The first request and up to 3 retries on HTTP 429. */
 const MAX_ATTEMPTS = 4;
+/** The user is asked to choose from at most this many Artists. */
 const MAX_CHOOSER_CANDIDATES = 10;
+/** The Latest Setlist is looked for on this many pages of the Artist's setlists at most (20 per page). */
 const MAX_SETLIST_PAGES = 3;
 
 /** An Artist as found by the setlist.fm Artist search. */
@@ -51,8 +54,9 @@ export interface SetlistFmClient {
   /** The Artist's Latest Setlist: the newest one with at least one Performance. */
   findLatestSetlist(artist: ArtistCandidate): Promise<SetlistFmSetlist>;
   /**
-   * Artist lookup, then Latest Setlist search. With `wantCompleteAlternative`, an incomplete Latest Setlist
-   * also leads to a search for the newest complete Setlist after it (PRD 0011 AC-7 to AC-9).
+   * Artist lookup, then Latest Setlist search. With `wantCompleteAlternative`, an Incomplete Setlist as
+   * the Latest Setlist also leads to a search for the newest complete Setlist after it, so the user can be
+   * offered a Setlist Playlist without gaps.
    */
   findLatestSetlistByArtistName(
     name: string,
@@ -106,7 +110,6 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
       maxAttempts: MAX_ATTEMPTS,
       minIntervalMs: MIN_REQUEST_GAP_MS,
       secrets: () => knownApiKeys,
-      // A 404 means "not found"; what that means depends on the caller.
       passThroughStatuses: [404],
     },
     { fetch: deps.fetch, sleep: deps.sleep, now: deps.now },
@@ -165,43 +168,38 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
   }
 
   async function findLatestSetlist(artist: ArtistCandidate): Promise<SetlistFmSetlist> {
-    return (await scanSetlists(artist, false)).setlist;
+    return (await findSetlists(artist, false)).setlist;
+  }
+
+  /** One page of the Artist's setlists, newest first; null when setlist.fm has no such page (HTTP 404). */
+  async function fetchSetlistsPage(artist: ArtistCandidate, page: number): Promise<SetlistsPage | null> {
+    const result = await get<SetlistsPage>(`/artist/${encodeURIComponent(artist.mbid)}/setlists`, {
+      p: String(page),
+    });
+    return result.found ? result.body : null;
   }
 
   /**
-   * Walks the Artist's setlists in setlist.fm's order, page by page (PRD 0005 AC-19: a next page only when
-   * the previous one had setlists and was not the last, never past page 3). The first setlist with a
-   * Performance is the Latest Setlist. When an alternative is wanted and the Latest Setlist is incomplete,
-   * the walk goes on to the first complete Setlist. A 404 page ends the walk like an empty page.
+   * Reads the Artist's setlists page by page until the pick is settled. A next page is read only when the
+   * previous one had setlists and was not the last, and never past MAX_SETLIST_PAGES: an Artist whose
+   * recent setlists are all empty placeholders has no Latest Setlist.
    */
-  async function scanSetlists(
+  async function findSetlists(
     artist: ArtistCandidate,
     wantCompleteAlternative: boolean,
-  ): Promise<{ setlist: SetlistFmSetlist; completeAlternative: SetlistFmSetlist | null }> {
-    let latest: SetlistFmSetlist | undefined;
-    for (let page = 1; page <= MAX_SETLIST_PAGES; page++) {
-      const result = await get<SetlistsPage>(`/artist/${encodeURIComponent(artist.mbid)}/setlists`, {
-        p: String(page),
-      });
-      if (!result.found) break;
-
-      const setlists = result.body.setlist ?? [];
-      for (const setlist of setlists) {
-        const { performances, incompleteStatus } = toPerformances(setlist);
-        if (performances.length === 0) continue;
-        if (latest === undefined) {
-          latest = setlist;
-          if (!wantCompleteAlternative || !incompleteStatus.isIncomplete) {
-            return { setlist: latest, completeAlternative: null };
-          }
-        } else if (!incompleteStatus.isIncomplete) {
-          return { setlist: latest, completeAlternative: setlist };
-        }
-      }
-      if (setlists.length === 0 || isLastPage(result.body, page)) break;
+  ): Promise<Omit<LatestSetlistLookup, "artist">> {
+    const seen: SetlistFmSetlist[] = [];
+    let pick = pickSetlists(seen, wantCompleteAlternative);
+    for (let page = 1; page <= MAX_SETLIST_PAGES && !pick.settled; page++) {
+      const body = await fetchSetlistsPage(artist, page);
+      if (body === null) break;
+      const setlists = body.setlist ?? [];
+      seen.push(...setlists);
+      pick = pickSetlists(seen, wantCompleteAlternative);
+      if (setlists.length === 0 || isLastPage(body, page)) break;
     }
-    if (latest === undefined) throw new NoSetlistError(artist.name);
-    return { setlist: latest, completeAlternative: null };
+    if (pick.latest === null) throw new NoSetlistError(artist.name);
+    return { setlist: pick.latest, completeAlternative: pick.completeAlternative };
   }
 
   async function findLatestSetlistByArtistName(
@@ -210,11 +208,61 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
     options: LatestSetlistOptions = {},
   ): Promise<LatestSetlistLookup> {
     const artist = await findArtist(name, chooser);
-    const found = await scanSetlists(artist, options.wantCompleteAlternative === true);
+    const found = await findSetlists(artist, options.wantCompleteAlternative === true);
     return { artist, ...found };
   }
 
   return { getSetlist, findArtist, findLatestSetlist, findLatestSetlistByArtistName };
+}
+
+/** What the setlists seen so far, newest first, say about the Artist's Latest Setlist. */
+interface SetlistPick {
+  /** The first setlist with at least one Performance; null when there is none yet. */
+  latest: SetlistFmSetlist | null;
+  /** The first complete Setlist after an incomplete Latest Setlist, when one is wanted and seen. */
+  completeAlternative: SetlistFmSetlist | null;
+  /** True when no later setlist can change the pick. */
+  settled: boolean;
+}
+
+/**
+ * Picks the Latest Setlist (skipping empty placeholders) and, when wanted and the Latest Setlist is an
+ * Incomplete Setlist, the newest complete Setlist after it, from the setlists seen so far.
+ */
+function pickSetlists(seen: readonly SetlistFmSetlist[], wantCompleteAlternative: boolean): SetlistPick {
+  let latest: SetlistFmSetlist | null = null;
+  for (const setlist of seen) {
+    const { performances, incompleteStatus } = toPerformances(setlist);
+    if (performances.length === 0) continue;
+    if (latest === null) {
+      latest = setlist;
+      if (!wantCompleteAlternative || !incompleteStatus.isIncomplete) {
+        return { latest, completeAlternative: null, settled: true };
+      }
+    } else if (!incompleteStatus.isIncomplete) {
+      return { latest, completeAlternative: setlist, settled: true };
+    }
+  }
+  return { latest, completeAlternative: null, settled: false };
+}
+
+/**
+ * True when two Artist names are an exact match after normalisation: case folded, accents removed,
+ * `&` and `+` read as ` and `, whitespace trimmed and collapsed. Other punctuation still counts, so a
+ * typed name only skips the Artist choice when it really names that Artist.
+ */
+export function artistNamesMatch(a: string, b: string): boolean {
+  return normaliseArtistName(a) === normaliseArtistName(b);
+}
+
+function normaliseArtistName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[&+]/g, " and ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function toSetlistFmError(err: unknown, path: string): unknown {

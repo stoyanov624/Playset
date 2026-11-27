@@ -1,7 +1,7 @@
+// setlist.fm: the API key, the Artist lookup, and finding a Setlist by id or an Artist's Latest Setlist.
 export { resolveSetlistFmApiKey } from "./api-key.js";
 export type { Env } from "./api-key.js";
-export { artistNamesMatch } from "./artist-name.js";
-export { createSetlistFmClient } from "./client.js";
+export { artistNamesMatch, createSetlistFmClient } from "./client.js";
 export type {
   ArtistCandidate,
   ArtistChooser,

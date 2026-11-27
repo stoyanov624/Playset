@@ -4,7 +4,7 @@ import type { RunOptions } from "../core/run/index.js";
 export const VERSION = "0.1.0";
 export const USAGE_LINE = "Usage: playset [options] <setlist.fm link | Artist name...>";
 
-/** The options with their one-line descriptions, shared by `--help` and the shell's help (PRD 0009 AC-9). */
+/** The options with their one-line descriptions, shared by `--help` and the shell's help so they never differ. */
 export const OPTIONS_HELP = `Options:
   --tapes      add every Tape without asking
   --no-tapes   leave out every Tape without asking

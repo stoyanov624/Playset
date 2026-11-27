@@ -14,13 +14,18 @@ const SOURCES: Record<keyof Settings, { envVar: string; configKey: string }> = {
 };
 
 /** `~/.config/playset`, computed at call time. */
-export function defaultConfigDir(): string {
+function defaultConfigDir(): string {
   return join(homedir(), ".config", "playset");
 }
 
 /** The process environment; the default wherever no Env is supplied. */
 export function processEnv(): Env {
   return process.env;
+}
+
+/** The given store, or the file store over `env` and `configDir`. */
+export function settingsStoreFor(options: { env?: Env; configDir?: string; settings?: SettingsStore }): SettingsStore {
+  return options.settings ?? createFileSettingsStore(options);
 }
 
 /**

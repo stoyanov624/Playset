@@ -1,7 +1,14 @@
+// One request path for every Playset HTTP client, so throttling, retries on rate limits and keeping
+// secrets out of errors are done once for setlist.fm and Spotify alike.
 import { HttpError } from "./errors.js";
 
+/** The part of `fetch` Playset uses; tests pass fakes. */
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
+/** Waits the given number of milliseconds; tests pass fakes so no real time passes. */
 export type Sleep = (ms: number) => Promise<void>;
+
+/** The real wait, used wherever no Sleep is given. */
+export const defaultSleep: Sleep = (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** How one client talks to one service. */
 export interface RequestPolicy {
@@ -28,17 +35,18 @@ export interface RequesterDeps {
   now?: () => number;
 }
 
-export type Requester = (url: string, init?: RequestInit) => Promise<Response>;
+/** A fetch that follows one RequestPolicy. */
+export type Requester = FetchLike;
 
 const DEFAULT_RETRY_AFTER_MS = 1000;
 
 /**
- * One request path for every Playset HTTP client: throttling, retries on HTTP 429 honouring Retry-After,
- * typed HttpErrors for every failure, and secrets kept out of every error.
+ * A request function for one service: throttling, retries on HTTP 429 honouring Retry-After, typed
+ * HttpErrors for every failure, and secrets kept out of every error.
  */
 export function createRequester(policy: RequestPolicy, deps: RequesterDeps = {}): Requester {
   const doFetch: FetchLike = deps.fetch ?? ((input, init) => globalThis.fetch(input, init));
-  const sleep: Sleep = deps.sleep ?? ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const sleep = deps.sleep ?? defaultSleep;
   const now = deps.now ?? Date.now;
   let lastStart: number | undefined;
 
@@ -92,7 +100,7 @@ export function createRequester(policy: RequestPolicy, deps: RequesterDeps = {})
 }
 
 /** Retry-After in seconds (decimals allowed) → ms; missing, empty or unparseable → 1 s. */
-export function retryAfterMs(header: string | null): number {
+function retryAfterMs(header: string | null): number {
   const value = header?.trim() ?? "";
   return /^\d+(\.\d+)?$/.test(value) ? Math.round(Number(value) * 1000) : DEFAULT_RETRY_AFTER_MS;
 }

@@ -1,9 +1,9 @@
-import { createFileSettingsStore, type Env, type SettingsStore } from "../settings/index.js";
-import { InvalidPortError, MissingClientIdError } from "./errors";
+import { settingsStoreFor, type Env, type SettingsStore } from "../settings/index.js";
+import { InvalidPortError, MissingClientIdError } from "./errors.js";
 
 export type { Env };
 
-export const DEFAULT_AUTH_PORT = 8888;
+const DEFAULT_AUTH_PORT = 8888;
 
 /** Where to put the client id when the settings do not come from a config file. */
 const NO_CONFIG_FILE_HINT = "your Playset settings";
@@ -27,14 +27,6 @@ export interface ClientIdOptions {
   configDir?: string;
   /** Where the client id is read from. Defaults to the file store built from `env` and `configDir`. */
   settings?: SettingsStore;
-}
-
-/** The settings store for these options: the given one, or the file store over `env` and `configDir`. */
-export function settingsStoreFor(opts: ClientIdOptions): SettingsStore {
-  return (
-    opts.settings ??
-    createFileSettingsStore({ env: opts.env, ...(opts.configDir === undefined ? {} : { configDir: opts.configDir }) })
-  );
 }
 
 /** SPOTIFY_CLIENT_ID first, then `spotifyClientId` in `<configDir>/config.json` (or the given SettingsStore). */

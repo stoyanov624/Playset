@@ -1,16 +1,16 @@
-// Spotify login (PRD 0004): client id + redirect URI config, PKCE, token cache, and the loopback callback receiver.
-export { resolveClientId, resolveRedirectUri, type Env } from "./config";
+// Spotify login with Authorization Code + PKCE (no client secret): the client id and redirect URI, the
+// cached and refreshed access token, and the callback receiver on 127.0.0.1.
+export { resolveClientId, resolveRedirectUri, type Env } from "./config.js";
 export {
   CODE_CHALLENGE_METHOD,
   buildAuthorizeUrl,
   computeCodeChallenge,
   generateCodeVerifier,
   generateState,
-} from "./pkce";
-export type { FetchLike } from "./token-endpoint";
-export type { AuthorizationResult, CallbackReceiver } from "./login";
-export { getAccessToken, type SpotifyAuthDeps } from "./access-token";
-export { startLoopbackReceiver } from "./loopback-receiver";
+} from "./pkce.js";
+export type { AuthorizationResult, CallbackReceiver } from "./login.js";
+export { getAccessToken, type SpotifyAuthDeps } from "./access-token.js";
+export { startLoopbackReceiver } from "./loopback-receiver.js";
 export {
   AccessDeniedError,
   AuthorizationError,
@@ -20,4 +20,4 @@ export {
   RateLimitError,
   StateMismatchError,
   TokenError,
-} from "./errors";
+} from "./errors.js";

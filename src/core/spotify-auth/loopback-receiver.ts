@@ -1,6 +1,6 @@
 import { createServer, type ServerResponse } from "node:http";
-import { PortInUseError } from "./errors";
-import type { AuthorizationResult, CallbackReceiver } from "./login";
+import { PortInUseError } from "./errors.js";
+import type { AuthorizationResult, CallbackReceiver } from "./login.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
 

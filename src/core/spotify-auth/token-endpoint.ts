@@ -1,10 +1,8 @@
 import { HttpError, createRequester, type FetchLike, type Sleep } from "../http/index.js";
-import { RateLimitError, TokenError } from "./errors";
+import { RateLimitError, TokenError } from "./errors.js";
 
-export type { FetchLike } from "../http/index.js";
-
-export const TOKEN_ENDPOINT = "https://accounts.spotify.com/api/token";
-export const MAX_TOKEN_ATTEMPTS = 3;
+const TOKEN_ENDPOINT = "https://accounts.spotify.com/api/token";
+const MAX_TOKEN_ATTEMPTS = 3;
 /** OAuth errors: Spotify explains them in the body's `error` and `error_description`. */
 const OAUTH_ERROR_STATUSES = [400, 401, 403];
 /** Form fields that must never appear in an error. */

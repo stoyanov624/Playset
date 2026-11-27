@@ -1,5 +1,6 @@
-// Normalising names and titles so that a search result can be strictly verified
-// against a Performance (PRD 0003 AC-3, AC-4, AC-8; PRD 0010 AC-7).
+// Normalising names and titles so a Spotify search result is only taken as a Match when its artist and
+// title really are the Performance's: spelling noise (case, accents, punctuation, "&"/"+"/"and",
+// remaster or live suffixes) is ignored, everything else must agree.
 
 /**
  * Case-folds, removes accents and diacritics, turns every `&` and `+` into ` and `, deletes apostrophes,
@@ -40,7 +41,7 @@ const VERSION_SUFFIXES: RegExp[] = [
 ];
 
 /** Removes recognised version suffixes (remaster, version, guest, live) from the end, repeatedly. */
-export function stripVersionSuffixes(title: string): string {
+function stripVersionSuffixes(title: string): string {
   let current = title.trimEnd();
   for (;;) {
     const suffix = VERSION_SUFFIXES.find((pattern) => pattern.test(current));

@@ -1,7 +1,7 @@
-import { HttpError, createRequester, type Sleep } from "../http/index.js";
+import { HttpError, createRequester, type FetchLike, type Sleep } from "../http/index.js";
 import { PlaylistRateLimitError, SpotifyPlaylistError } from "./errors.js";
+import { SPOTIFY_HOST } from "./spotify-playlist.js";
 
-export const SPOTIFY_API = "https://api.spotify.com/";
 /** The first request and up to 3 retries on HTTP 429. */
 const MAX_ATTEMPTS = 4;
 /** Spotify's documented error statuses: their body carries `error.message`, which the error repeats. */
@@ -11,7 +11,7 @@ export interface SpotifyPlaylistOptions {
   /** A Spotify access token supplied by the caller. Never included in errors. */
   accessToken: string;
   /** Defaults to the global `fetch`. */
-  fetch?: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+  fetch?: FetchLike;
   /** Defaults to a `setTimeout`-based wait. */
   sleep?: Sleep;
 }
@@ -35,7 +35,7 @@ export async function sendSpotifyRequest(request: SpotifyRequest, options: Spoti
       name: "Spotify",
       maxAttempts: MAX_ATTEMPTS,
       secrets: () => [options.accessToken],
-      allowedUrlPrefixes: [SPOTIFY_API],
+      allowedUrlPrefixes: [SPOTIFY_HOST],
       passThroughStatuses: STATUSES_WITH_SPOTIFY_MESSAGE,
     },
     {
@@ -81,7 +81,7 @@ function toPlaylistError(err: unknown, what: string): unknown {
         cause: err,
       });
     case "refused-url":
-      return new SpotifyPlaylistError(`Refused to send the ${what} request to a host other than ${SPOTIFY_API}`, {
+      return new SpotifyPlaylistError(`Refused to send the ${what} request to a host other than ${SPOTIFY_HOST}`, {
         cause: err,
       });
     case "network":
