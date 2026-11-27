@@ -1,3 +1,4 @@
+import { HttpError, createRequester, type FetchLike, type Sleep } from "../http/index.js";
 import { toPerformances, type SetlistFmSetlist } from "../performances/index.js";
 import type { SettingsStore } from "../settings/index.js";
 import { resolveSetlistFmApiKey, settingsStoreFor, type Env } from "./api-key.js";
@@ -14,8 +15,8 @@ import {
 const API_BASE = "https://api.setlist.fm/rest/1.0";
 /** Minimum gap between the starts of two requests of one client (~2 req/s). */
 const MIN_REQUEST_GAP_MS = 500;
-const MAX_RETRIES_ON_429 = 3;
-const DEFAULT_RETRY_AFTER_MS = 1000;
+/** The first request and up to 3 retries on HTTP 429. */
+const MAX_ATTEMPTS = 4;
 const MAX_CHOOSER_CANDIDATES = 10;
 const MAX_SETLIST_PAGES = 3;
 
@@ -31,8 +32,8 @@ export interface ArtistCandidate {
 export type ArtistChooser = (candidates: ArtistCandidate[]) => Promise<ArtistCandidate | null>;
 
 export interface SetlistFmClientDeps {
-  fetch: (input: string, init?: RequestInit) => Promise<Response>;
-  sleep: (ms: number) => Promise<void>;
+  fetch: FetchLike;
+  sleep: Sleep;
   now: () => number;
   /** Defaults to process.env; used only when no `settings` store is given. */
   env?: Env;
@@ -97,53 +98,46 @@ interface SetlistsPage {
 type GetResult<T> = { found: true; body: T } | { found: false };
 
 export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClient {
-  let lastRequestStart: number | undefined;
   const settings = settingsStoreFor(deps);
-
-  async function waitForTurn(): Promise<void> {
-    if (lastRequestStart !== undefined) {
-      const wait = Math.max(0, lastRequestStart + MIN_REQUEST_GAP_MS - deps.now());
-      if (wait > 0) await deps.sleep(wait);
-    }
-    lastRequestStart = deps.now();
-  }
+  const knownApiKeys: string[] = [];
+  const request = createRequester(
+    {
+      name: "setlist.fm",
+      maxAttempts: MAX_ATTEMPTS,
+      minIntervalMs: MIN_REQUEST_GAP_MS,
+      secrets: () => knownApiKeys,
+      // A 404 means "not found"; what that means depends on the caller.
+      passThroughStatuses: [404],
+    },
+    { fetch: deps.fetch, sleep: deps.sleep, now: deps.now },
+  );
 
   async function apiKey(): Promise<string> {
-    return resolveSetlistFmApiKey({ settings });
+    const key = await resolveSetlistFmApiKey({ settings });
+    if (!knownApiKeys.includes(key)) knownApiKeys.push(key);
+    return key;
   }
 
   async function get<T>(path: string, params: Record<string, string> = {}): Promise<GetResult<T>> {
     const key = await apiKey();
     const query = new URLSearchParams(params).toString();
     const url = `${API_BASE}${path}${query ? `?${query}` : ""}`;
-    const init: RequestInit = {
-      method: "GET",
-      headers: { "x-api-key": key, Accept: "application/json", "Accept-Language": "en" },
-    };
 
-    for (let attempt = 0; ; attempt++) {
-      await waitForTurn();
-      let response: Response;
-      try {
-        response = await deps.fetch(url, init);
-      } catch {
-        throw new SetlistFmRequestError(path);
-      }
+    let response: Response;
+    try {
+      response = await request(url, {
+        method: "GET",
+        headers: { "x-api-key": key, Accept: "application/json", "Accept-Language": "en" },
+      });
+    } catch (err) {
+      throw toSetlistFmError(err, path);
+    }
+    if (response.status === 404) return { found: false };
 
-      if (response.status === 429) {
-        if (attempt >= MAX_RETRIES_ON_429) throw new SetlistFmRateLimitError(attempt + 1);
-        const delay = retryAfterMs(response.headers.get("Retry-After"));
-        if (delay > 0) await deps.sleep(delay);
-        continue;
-      }
-      if (response.status === 404) return { found: false };
-      if (!response.ok) throw new SetlistFmRequestError(path, response.status);
-
-      try {
-        return { found: true, body: (await response.json()) as T };
-      } catch {
-        throw new SetlistFmRequestError(path, response.status);
-      }
+    try {
+      return { found: true, body: (await response.json()) as T };
+    } catch {
+      throw new SetlistFmRequestError(path, response.status);
     }
   }
 
@@ -223,10 +217,10 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
   return { getSetlist, findArtist, findLatestSetlist, findLatestSetlistByArtistName };
 }
 
-/** Retry-After in whole seconds → ms; anything else → 1 s. */
-function retryAfterMs(header: string | null): number {
-  const value = header?.trim() ?? "";
-  return /^\d+$/.test(value) ? Number(value) * 1000 : DEFAULT_RETRY_AFTER_MS;
+function toSetlistFmError(err: unknown, path: string): unknown {
+  if (!(err instanceof HttpError)) return err;
+  if (err.kind === "rate-limited") return new SetlistFmRateLimitError(MAX_ATTEMPTS, { cause: err });
+  return new SetlistFmRequestError(path, err.status, { cause: err });
 }
 
 function toArtistCandidate(a: SearchArtist): ArtistCandidate {

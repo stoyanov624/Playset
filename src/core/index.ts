@@ -24,6 +24,8 @@ export {
 } from "./performances/index.js";
 export {
   createSpotifyTrackSearch,
+  SpotifySearchError,
+  SpotifySearchRateLimitError,
   matchPerformance,
   type Match,
   type MatchablePerformance,
@@ -115,3 +117,12 @@ export {
   type SettingsStore,
   type SpotifyTokens,
 } from "./settings/index.js";
+export {
+  HttpError,
+  PlaysetError,
+  createRequester,
+  type HttpErrorKind,
+  type RequestPolicy,
+  type Requester,
+  type Sleep,
+} from "./http/index.js";

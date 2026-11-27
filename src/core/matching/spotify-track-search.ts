@@ -1,8 +1,10 @@
+import { HttpError, createRequester, type Sleep } from "../http/index.js";
+import { SpotifySearchError, SpotifySearchRateLimitError } from "./errors";
 import type { SpotifyTrack, TrackSearch } from "./types";
 
 const SEARCH_ENDPOINT = "https://api.spotify.com/v1/search";
-const MAX_RATE_LIMIT_RETRIES = 3;
-const DEFAULT_RETRY_AFTER_SECONDS = 1;
+/** The first request and up to 3 retries on HTTP 429. */
+const MAX_ATTEMPTS = 4;
 
 export interface SpotifyTrackSearchOptions {
   /** A Spotify access token supplied by the caller. */
@@ -10,7 +12,7 @@ export interface SpotifyTrackSearchOptions {
   /** Defaults to the global `fetch`. */
   fetch?: typeof fetch;
   /** Defaults to a `setTimeout`-based wait. */
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: Sleep;
 }
 
 interface SpotifySearchResponse {
@@ -19,8 +21,13 @@ interface SpotifySearchResponse {
 
 /** A TrackSearch backed by Spotify's `GET /v1/search?type=track`, honouring `Retry-After` on 429. */
 export function createSpotifyTrackSearch(options: SpotifyTrackSearchOptions): TrackSearch {
-  const doFetch = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
-  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const request = createRequester(
+    { name: "Spotify search", maxAttempts: MAX_ATTEMPTS, secrets: () => [options.accessToken] },
+    {
+      ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+      ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
+    },
+  );
 
   return {
     async searchTracks(query: string, limit: number): Promise<SpotifyTrack[]> {
@@ -33,28 +40,28 @@ export function createSpotifyTrackSearch(options: SpotifyTrackSearchOptions): Tr
         headers: { Authorization: `Bearer ${options.accessToken}`, Accept: "application/json" },
       };
 
-      for (let retries = 0; ; retries++) {
-        const response = await doFetch(url.toString(), init);
-        if (response.status === 429) {
-          if (retries >= MAX_RATE_LIMIT_RETRIES) {
-            throw new Error(`Spotify rate-limited the search after ${MAX_RATE_LIMIT_RETRIES} retries: ${query}`);
-          }
-          await sleep(retryAfterSeconds(response.headers.get("Retry-After")) * 1000);
-          continue;
-        }
-        if (!response.ok) {
-          throw new Error(`Spotify search failed with HTTP ${response.status}: ${query}`);
-        }
-        const body = (await response.json()) as SpotifySearchResponse;
-        return (body.tracks?.items ?? []).map(toSpotifyTrack);
+      let response: Response;
+      try {
+        response = await request(url.toString(), init);
+      } catch (err) {
+        throw toSearchError(err, query);
       }
+      const body = (await response.json()) as SpotifySearchResponse;
+      return (body.tracks?.items ?? []).map(toSpotifyTrack);
     },
   };
 }
 
-function retryAfterSeconds(header: string | null): number {
-  const value = header?.trim() ?? "";
-  return /^\d+(\.\d+)?$/.test(value) ? Number(value) : DEFAULT_RETRY_AFTER_SECONDS;
+function toSearchError(err: unknown, query: string): unknown {
+  if (!(err instanceof HttpError)) return err;
+  if (err.kind === "rate-limited") return new SpotifySearchRateLimitError(query, MAX_ATTEMPTS - 1, { cause: err });
+  if (err.kind === "status") {
+    return new SpotifySearchError(`Spotify search failed with HTTP ${err.status}: ${query}`, {
+      status: err.status,
+      cause: err,
+    });
+  }
+  return new SpotifySearchError(`Could not reach Spotify for the search: ${query}`, { cause: err });
 }
 
 function toSpotifyTrack(item: SpotifyTrack): SpotifyTrack {

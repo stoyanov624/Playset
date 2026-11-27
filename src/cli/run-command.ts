@@ -22,6 +22,7 @@ import {
   looksLikeSetlistFmLink,
   type Miss,
 } from "../core/index.js";
+import { PlaysetError } from "../core/index.js";
 import { runPlayset, type RunFrontEnd, type RunOptions, type RunOutcome, type RunServices } from "../core/run/index.js";
 import type { CliIo } from "./main.js";
 import { INCOMPLETE_NOTE, createTerminalFrontEnd, missLine, plural, type WriteLine } from "./terminal-front-end.js";
@@ -31,7 +32,7 @@ export const EXIT_ERROR = 1;
 export const EXIT_USAGE = 2;
 export const EXIT_CANCELLED = 130;
 
-/** The errors from PRDs 0001–0006 whose message is written for the concert-goer. */
+/** The errors from PRDs 0001–0006 whose message is written for the concert-goer (besides any PlaysetError). */
 const TYPED_ERRORS = [
   SetlistLinkError,
   MissingSetlistFmApiKeyError,
@@ -204,7 +205,7 @@ function reportError(error: unknown, debug: boolean, out: WriteLine, err: WriteL
     return EXIT_ERROR;
   }
 
-  if (TYPED_ERRORS.some((type) => error instanceof type)) {
+  if (error instanceof PlaysetError || TYPED_ERRORS.some((type) => error instanceof type)) {
     const typed = error as Error & { hint?: unknown };
     err(typed.message);
     if (typeof typed.hint === "string") err(typed.hint);
