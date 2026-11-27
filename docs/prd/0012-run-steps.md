@@ -241,9 +241,9 @@ PRD 0002 Fixture A (Arctic Monkeys, `63a5e2b7`) with PRD 0008's P2 data:
 
 | keep-Tape decision | Asked about | Kept Performances | Not-added list |
 |---|---|---|---|
-| keep every Tape | "I Want It All", then "Mr. Blue Sky" | all Performances, Tapes included | `Hey Jude (snippet)`, `(Unknown song) after #9`, `Mr. Blue Sky (Tape, left out)`, as in PRD 0011 T2 |
+| keep every Tape | "I Want It All", then "Mr. Blue Sky" | all Performances, Tapes included | `Hey Jude (snippet)`, `(Unknown song) after #9` |
 | leave out every Tape | same two, in played order | all but the two Tapes | `I Want It All (Tape, left out)`, `Hey Jude (snippet)`, `(Unknown song) after #8`, `Mr. Blue Sky (Tape, left out)` |
-| keep "I Want It All", leave out "Mr. Blue Sky" | same two | all but Mr. Blue Sky | as the first row |
+| keep "I Want It All", leave out "Mr. Blue Sky" | same two | all but Mr. Blue Sky | `Hey Jude (snippet)`, `(Unknown song) after #9`, `Mr. Blue Sky (Tape, left out)`, as in PRD 0011 T2 |
 | fails on the first Tape with the cancelled error | "I Want It All" only | — | the cancelled error, unchanged |
 
 In every row the Show is Arctic Monkeys, the Show date, Fixture A's venue and city and URL. The incomplete status is incomplete, with 1 Unknown Song.
