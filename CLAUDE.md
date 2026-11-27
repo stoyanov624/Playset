@@ -1,6 +1,6 @@
 # Playset
 
-Turns a setlist.fm Setlist into a Spotify Setlist Playlist. Phase 1 (done): the `playset` CLI. Phase 2 (next): a web UI on the same core. Domain vocabulary lives in `GLOSSARY.md` — use those terms everywhere (code, tests, PRDs, commits).
+Turns a setlist.fm Setlist into a Spotify Setlist Playlist, through the `playset` CLI today and other front-ends on the same core later. Domain vocabulary lives in `GLOSSARY.md` — use those terms everywhere (code, tests, PRDs, commits).
 
 ## Commands
 - `npm test` — Vitest (no network; fixtures only)
@@ -34,15 +34,6 @@ Turns a setlist.fm Setlist into a Spotify Setlist Playlist. Phase 1 (done): the 
 - setlist.fm: header `x-api-key`, `Accept: application/json`; non-commercial key; throttle ≤2 req/s; 429 + `Retry-After`. An Unknown Song is a song with `"name": ""` (site shows "(Unknown)"; checked on setlist `53d60349`). There is no incomplete flag — only the free-text setlist `info`. Artist search `GET /search/artists?artistName=…&sort=relevance` (404 = no results); setlists `GET /artist/{mbid}/setlists?p=N` (newest first; announced future Shows are empty placeholders).
 - Spotify (Development Mode, 2026): owner needs Premium; only accounts added under the app's User Management can log in, max 5; extended quota is not available to personal projects. Search `limit` ≤ 10; create playlist `POST /v1/me/playlists`; add `POST /v1/playlists/{id}/items` (≤100 URIs); old `/tracks` and `/users/{id}/playlists` are gone. Access token lasts 1 h; refresh tokens may rotate (keep the old one if none returned); `invalid_grant` on refresh → full login. Playlists are created in the account of whoever logged in.
 
-## Next phase: web UI (direction agreed, not yet planned in Slices)
-Why: the CLI's prompts and flags confuse users and make mistakes easy; the web UI should guide them.
-- **Fuzzy Artist search**: search-as-you-type over setlist.fm Artist search, showing candidates (name + disambiguation) to pick from — no auto-pick guessing.
-- **Pick a Setlist**: show the Artist's recent Setlists (date, venue, city, song count, Incomplete Setlist marker) and let the user choose which to transfer, instead of only the Latest Setlist.
-- **Spotify login on the server, token in an httpOnly cookie**: the backend does the Authorization Code (+PKCE) exchange and refresh; tokens never reach browser JavaScript (httpOnly, Secure, SameSite cookie). This replaces the earlier idea of client-side PKCE. The redirect URI must be registered in the Spotify app.
-- **Backend proxy** holds the setlist.fm key and applies its throttle for all users.
-- Reuse core server-side: `createRunServices` with a per-user `SettingsStore` adapter; the Node-only parts of `spotify-auth` (loopback receiver) are CLI-only. Open question for planning: `runPlayset` asks its questions mid-run through `RunFrontEnd`, which doesn't map directly to stateless HTTP — the web flow probably needs the run split into steps (choose Setlist → Tapes → preview → create).
-- The Spotify 5-user Development Mode limit applies to the web app too.
-
 ## Workflow (mandatory)
 Features are built with `/featuring` (`.claude/skills/featuring/SKILL.md`), in parallel **Waves** using git worktrees:
 plan Wave → one worktree per Slice (`.claude/worktrees/NNNN-slug`, branch `feat/NNNN-slug`) → `prd-writer`s → **user approves each PRD** → per Slice: `test-writer` (red, never reads `src/`) → coverage check → `implementer` (green, never edits `test/`) → PR with Feature Report → **user approves each merge**, one at a time → the remaining branches are rebased and retested → `conflict-resolver` on a conflict.
@@ -57,4 +48,4 @@ plan Wave → one worktree per Slice (`.claude/worktrees/NNNN-slug`, branch `fea
 - Process words (Slice, Wave, Worktree, Feature Report, mechanical/real conflict) are defined in the featuring skill, not in `GLOSSARY.md`.
 
 ## Plan
-Slices 1–11 (the CLI) are built; status and Waves live in `docs/PLAN.md`, which `/featuring` reads. The web UI still needs planning into Slices there.
+Slices, dependencies and Waves live in `docs/PLAN.md`, which `/featuring` reads. The current phase's direction and open questions live in `docs/phases/` (now: `web-ui.md`); read it only when planning or building that phase.
