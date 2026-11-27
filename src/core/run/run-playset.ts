@@ -9,7 +9,6 @@ import { guardRun } from "./cancellation.js";
 import { RunCancelledError, RunInputError } from "./errors.js";
 import { createSetlistPlaylist, findLatestSetlist, getSetlist, prepareSetlist, previewMatches } from "./steps.js";
 import type {
-  PreparedSetlist,
   Preview,
   RunFrontEnd,
   RunOptions,
@@ -54,9 +53,10 @@ async function run(
   const latest = toPerformances(setlist);
   frontEnd.showShow(showSummaryOf(latest));
 
-  const inUse = await setlistInUse(setlist, latest, completeAlternative, frontEnd);
-  const prepared = await prepareSetlist(inUse, { keepTape: (tape) => keepTape(tape, options, frontEnd) });
-  if (!hasPerformances(prepared)) return { kind: "no-performances" };
+  const inUse = await setlistInUse({ setlist, performances: latest }, completeAlternative, frontEnd);
+  // Prepared even without Performances, so a description that is too long still fails first.
+  const prepared = await prepareSetlist(inUse.setlist, { keepTape: (tape) => keepTape(tape, options, frontEnd) });
+  if (inUse.performances.performances.length === 0) return { kind: "no-performances" };
   const { show, keptPerformances, notAdded, incompleteStatus } = prepared;
   if (keptPerformances.length === 0) return { kind: "nothing-to-add" };
 
@@ -102,26 +102,27 @@ function showSummaryOf({ show, performances, incompleteStatus }: PerformancesRes
   };
 }
 
+/** A Setlist together with the Performances the run already read from it for its Show line. */
+interface ReadSetlist {
+  setlist: SetlistFmSetlist;
+  performances: PerformancesResult;
+}
+
 /**
  * The Setlist the run builds its Setlist Playlist from: the newest complete Setlist when the Latest Setlist
  * is incomplete and the user accepts the offer (its Show is then reported too), otherwise the fetched one.
  */
 async function setlistInUse(
-  setlist: SetlistFmSetlist,
-  latest: PerformancesResult,
+  latest: ReadSetlist,
   completeAlternative: SetlistFmSetlist | null,
   frontEnd: RunFrontEnd,
-): Promise<SetlistFmSetlist> {
-  if (completeAlternative === null || !latest.incompleteStatus.isIncomplete) return setlist;
+): Promise<ReadSetlist> {
+  if (completeAlternative === null || !latest.performances.incompleteStatus.isIncomplete) return latest;
   const complete = toPerformances(completeAlternative);
-  if (!(await frontEnd.askUseCompleteSetlist({ latest: latest.show, complete: complete.show }))) return setlist;
+  const shows = { latest: latest.performances.show, complete: complete.show };
+  if (!(await frontEnd.askUseCompleteSetlist(shows))) return latest;
   frontEnd.showShow(showSummaryOf(complete));
-  return completeAlternative;
-}
-
-/** Every Performance is either kept or a left-out Tape; with neither, the Setlist had none. */
-function hasPerformances({ keptPerformances, notAdded }: PreparedSetlist): boolean {
-  return keptPerformances.length > 0 || notAdded.some((item) => item.reason === "tape");
+  return { setlist: completeAlternative, performances: complete };
 }
 
 /**
