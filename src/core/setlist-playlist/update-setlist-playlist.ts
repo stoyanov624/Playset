@@ -2,9 +2,10 @@
 // tracks, add the rest, then set its name and description again (the date, venue or city may have changed).
 import type { Match } from "../matching/index.js";
 import type { Show } from "../performances/index.js";
-import { addInBatches, BATCH_SIZE, type CreatedSetlistPlaylist } from "./create-setlist-playlist.js";
+import type { CreatedSetlistPlaylist } from "./create-setlist-playlist.js";
 import { NothingToAddError, PartlyUpdatedPlaylistError, playlistRequestFailed, SpotifyPlaylistError } from "./errors.js";
 import { setlistPlaylistDescription, setlistPlaylistName } from "./name.js";
+import { addInBatches, BATCH_SIZE } from "./playlist-items.js";
 import { playlistItemsUrl, playlistUrl } from "./spotify-playlist.js";
 import { sendSpotifyRequest, type SpotifyPlaylistOptions } from "./spotify-request.js";
 

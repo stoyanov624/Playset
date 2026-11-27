@@ -6,7 +6,7 @@ import type { SetlistFmSetlist } from "../performances/index.js";
 import { NothingToAddError, PartlyCreatedPlaylistError } from "../setlist-playlist/index.js";
 import { MissingSetlistVersionError, SetlistChangedError } from "./errors.js";
 import type { SetlistPlaylistRecords } from "./records.js";
-import { prepareSetlist, previewMatches, versionOf } from "./steps.js";
+import { idOf, prepareSetlist, previewMatches, versionOf } from "./steps.js";
 import type { CreatedPlaylist, HostPlaylistServices, PreparedSetlist, RunServices } from "./types.js";
 
 /**
@@ -67,9 +67,9 @@ export async function createOrUpdateSetlistPlaylist(
   previewedVersionId: string,
   { accessToken, records, now = Date.now }: CreateOrUpdateSetlistPlaylistOptions,
 ): Promise<CreateOrUpdateResult> {
-  const setlistId = setlist.id;
+  const setlistId = idOf(setlist);
   const versionId = versionOf(setlist);
-  if (!setlistId || versionId === undefined) throw new MissingSetlistVersionError(setlistId || "unknown");
+  if (setlistId === undefined || versionId === undefined) throw new MissingSetlistVersionError(setlistId ?? "unknown");
   if (previewedVersionId !== versionId) throw new SetlistChangedError(previewedVersionId, versionId);
 
   const prepared = await prepareSetlist(setlist, { keepTape: async () => false });
@@ -91,7 +91,7 @@ export async function createOrUpdateSetlistPlaylist(
       return { status: "updated", playlist: update.playlist };
     }
   }
-  return create(services, prepared, matches, { setlistId, versionId, accessToken, records, now });
+  return createAndRecord(services, prepared, matches, { setlistId, versionId, accessToken, records, now });
 }
 
 /** What creating a Host Setlist Playlist needs besides the Show and its Matches: where to record it, and when. */
@@ -100,7 +100,8 @@ interface NewSetlistPlaylistDetails extends Required<CreateOrUpdateSetlistPlayli
   versionId: string;
 }
 
-async function create(
+/** Creates a public Setlist Playlist and records it for this version (or, if partly filled, for no version). */
+async function createAndRecord(
   services: HostServices,
   prepared: PreparedSetlist,
   matches: Match[],

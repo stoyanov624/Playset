@@ -80,6 +80,21 @@ export function versionOf(setlist: SetlistFmSetlist): string | undefined {
   return typeof versionId === "string" && versionId !== "" ? versionId : undefined;
 }
 
+/**
+ * The Setlist's setlist.fm id under the same rule as its version: an empty or non-string id names no
+ * Setlist, so it is never used as a record or preview cache key.
+ */
+export function idOf(setlist: SetlistFmSetlist): string | undefined {
+  const id: unknown = setlist.id;
+  return typeof id === "string" && id !== "" ? id : undefined;
+}
+
+/** `setlistId` as a key only when the Setlist has a usable id, so no empty id becomes a cache key. */
+function withId(setlist: SetlistFmSetlist): { setlistId?: string } {
+  const setlistId = idOf(setlist);
+  return setlistId === undefined ? {} : { setlistId };
+}
+
 /** `versionId` as a key only when there is a version, so a Setlist without one looks exactly as before. */
 function withVersion(setlist: SetlistFmSetlist): { versionId?: string } {
   const versionId = versionOf(setlist);
@@ -123,8 +138,7 @@ export async function prepareSetlist(
     keptPerformances,
     notAdded: notAddedInPlayedOrder(noted, keptPerformances, leftOutTapes),
     incompleteStatus,
-    // An empty id names no Setlist, so it gets no setlistId (and so no preview cache key), like an empty versionId.
-    ...(setlist.id === undefined || setlist.id === "" ? {} : { setlistId: setlist.id }),
+    ...withId(setlist),
     ...withVersion(setlist),
   };
 }

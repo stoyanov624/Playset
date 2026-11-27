@@ -22,6 +22,11 @@ export class NothingToAddError extends PlaysetError {
   }
 }
 
+/** Why a playlist request failed, in words: the cause's own message when it is an Error. */
+function reasonOf(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
+}
+
 /** Spotify answered a playlist request with a non-success status, or could not be reached. */
 export class SpotifyPlaylistError extends PlaysetError {
   readonly status?: number;
@@ -37,9 +42,8 @@ export class SpotifyPlaylistError extends PlaysetError {
  * cause's message says why, and Spotify's status is kept so callers can tell a missing playlist apart.
  */
 export function playlistRequestFailed(summary: string, cause: unknown): SpotifyPlaylistError {
-  const reason = cause instanceof Error ? cause.message : String(cause);
-  const status = cause instanceof SpotifyPlaylistError ? cause.status : undefined;
-  return new SpotifyPlaylistError(`${summary} ${reason}`, { status, cause });
+    const status = cause instanceof SpotifyPlaylistError ? cause.status : undefined;
+  return new SpotifyPlaylistError(`${summary} ${reasonOf(cause)}`, { status, cause });
 }
 
 /** Spotify kept answering HTTP 429 after every retry was used. */
@@ -58,10 +62,9 @@ export class PartlyCreatedPlaylistError extends PlaysetError {
   override readonly cause: unknown;
 
   constructor(details: { playlistId: string; shareUrl: string; tracksAdded: number; totalMatches: number; cause: unknown }) {
-    const reason = details.cause instanceof Error ? details.cause.message : String(details.cause);
     super(
       `The Setlist Playlist was partly created: ${details.tracksAdded} of ${details.totalMatches} tracks were added ` +
-        `before Spotify failed (${reason}). It was left as it is: ${details.shareUrl}`,
+        `before Spotify failed (${reasonOf(details.cause)}). It was left as it is: ${details.shareUrl}`,
       { cause: details.cause },
     );
     this.playlistId = details.playlistId;
@@ -84,10 +87,9 @@ export class PartlyUpdatedPlaylistError extends PlaysetError {
   override readonly cause: unknown;
 
   constructor(details: { playlistId: string; shareUrl: string; tracksWritten: number; totalMatches: number; cause: unknown }) {
-    const reason = details.cause instanceof Error ? details.cause.message : String(details.cause);
     super(
       `The Setlist Playlist was partly updated: ${details.tracksWritten} of ${details.totalMatches} tracks were written ` +
-        `before Spotify failed (${reason}). It was left as it is: ${details.shareUrl}`,
+        `before Spotify failed (${reasonOf(details.cause)}). It was left as it is: ${details.shareUrl}`,
       { hint: "Try the update again: it replaces every track, so nothing is added twice.", cause: details.cause },
     );
     this.playlistId = details.playlistId;
