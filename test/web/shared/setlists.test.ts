@@ -284,6 +284,36 @@ describe("Setlist status answer", () => {
     }
   });
 
+  it("AC-11: a Show url whose host uses a look-alike letter is rejected", () => {
+    // U+017F (long s) case-folds to "s", so a fold-then-compare check would accept these as setlist.fm.
+    for (const url of ["https://ſetlist.fm/x", "https://www.ſetlist.fm/x", "https://setliſt.fm/x"]) {
+      const answer = changed(portlandStatusAnswer(), (d) => { d.show.url = url; });
+      expect(setlistResponseSchema.safeParse(answer).success, url).toBe(false);
+    }
+  });
+
+  it("AC-11: a Show url with a backtick, control or private-use character after the host is rejected", () => {
+    const unsafe = [
+      "https://setlist.fm/a`b",
+      "https://setlist.fm/a\u0000b", // NUL
+      "https://setlist.fm/a\u0007b", // bell
+      "https://setlist.fm/ab", // private-use
+      "https://setlist.fm/aéb", // raw non-ASCII; real setlist.fm links percent-encode it
+    ];
+    for (const url of unsafe) {
+      const answer = changed(portlandStatusAnswer(), (d) => { d.show.url = url; });
+      expect(setlistResponseSchema.safeParse(answer).success, JSON.stringify(url)).toBe(false);
+    }
+    for (const url of [
+      "https://www.setlist.fm/setlist/pearl-jam/2026/moda-center-portland-or-2bf1c8e4.html",
+      "https://www.setlist.fm/setlist/a%C3%A9b.html?x=1&y=2#top",
+      "https://de.setlist.fm/setlist/sigur-ros/2026/x-1a2b3c4d.html",
+    ]) {
+      const valid = changed(portlandStatusAnswer(), (d) => { d.show.url = url; });
+      expect(setlistResponseSchema.parse(valid)).toEqual(valid);
+    }
+  });
+
   it("AC-11: rejects a Show without its date or with a date that isn't YYYY-MM-DD", () => {
     expect(setlistResponseSchema.safeParse(changed(portlandStatusAnswer(), (d) => { delete d.show.date; })).success).toBe(false);
     expect(setlistResponseSchema.safeParse(changed(portlandStatusAnswer(), (d) => { d.show.date = "2026/11/22"; })).success).toBe(false);
