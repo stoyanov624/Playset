@@ -121,6 +121,15 @@ describe("findArtists — the Artist search (F1)", () => {
     expect(fakes.requests).toHaveLength(1);
     expect(paths(fakes.requests)).toEqual([SEARCH_PATH]);
   });
+
+  it("AC-1: an Artist name with a lone surrogate is still searched, with the character replaced (U+FFFD), not a crash", async () => {
+    const fakes = makeFakes([ok(loadFixture("search-arctic-monkeys.json"))]);
+    const result = await findArtists(servicesFrom(fakes), "Bj\uD800rk");
+    expect(fakes.requests).toHaveLength(1);
+    expect(paths(fakes.requests)).toEqual([SEARCH_PATH]);
+    expect(new URL(fakes.requests[0]!.url).searchParams.get("artistName")).toBe("Bj�rk");
+    expect(result.candidates).toStrictEqual(ARCTIC_MONKEYS_CANDIDATES);
+  });
 });
 
 // ---------------------------------------------------------------- AC-2

@@ -324,6 +324,18 @@ describe("listSetlists — the summary of a Setlist (P2)", () => {
     expect(byId(r1, "73a1b2c5")).toMatchObject({ songCount: 6 });
   });
 
+  it("AC-8: a Setlist on the page without an id is left out (it could not be fetched again)", async () => {
+    const withoutId = playedSetlist("ffff0000") as unknown as Record<string, unknown>;
+    delete withoutId.id;
+    const withId = playedSetlist("ab12cd34");
+    // total 200 on page 1: 1 × 20 < 200, so hasMore stays true whatever is left out.
+    const fakes = makeFakes([ok(setlistsPage(1, 200, [withoutId as unknown as SetlistFmSetlist, withId]))]);
+    const result = await listSetlists(servicesFrom(fakes), PEARL_JAM_MBID, 1);
+    expect(result.setlists.map((s: { id: string }) => s.id)).toEqual(["ab12cd34"]);
+    expect(result.setlists).toHaveLength(1);
+    expect(result.hasMore).toBe(true);
+  });
+
   it("AC-8: a summary has no setlist.fm URL and no Artist name", async () => {
     const fakes = makeFakes([ok(setlistsPage(1, 1, [madridSetlist()]))]);
     const result = await listSetlists(servicesFrom(fakes), "ada7a83c-e3e1-40f1-93f9-3e73dbfd2c7c", 1);
