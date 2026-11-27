@@ -36,6 +36,7 @@ export const PREVIEW_EVENTS = {
 
 export type PreviewEventName = (typeof PREVIEW_EVENTS)[keyof typeof PREVIEW_EVENTS];
 
+/** Bounds on what a visitor can send or ask for, chosen by Playset; not setlist.fm or Spotify limits. */
 export const LIMITS = {
   artistNameMaxLength: 200,
   setlistLinkMaxLength: 2048,

@@ -70,6 +70,7 @@ export const previewResultSchema = z.strictObject({
   misses: z.array(previewMissSchema),
   notAdded: z.array(notAddedSchema),
   playlistName: nonEmptyString,
+  /** Always present: the server supplies one even where the core leaves it out. */
   versionId: versionIdSchema,
 });
 export type PreviewResult = z.output<typeof previewResultSchema>;

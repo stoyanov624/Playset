@@ -35,13 +35,22 @@ export const versionIdSchema = z
 export type VersionId = z.output<typeof versionIdSchema>;
 
 /**
- * A Show's page on setlist.fm or one of its language subdomains. No whitespace anywhere after the
- * host: the link goes into an href on the page and into the playlist description.
+ * A Show's page on setlist.fm or one of its language subdomains. The link goes into an href on the
+ * page and into the playlist description, so after the host only characters that are safe there
+ * pass: no whitespace, quotes, angle brackets or invisible format characters (zero-width space,
+ * byte-order mark). Percent-escapes, a query and a fragment stay allowed.
  */
-export const setlistFmUrl = z.string().regex(/^https:\/\/(?:[a-z0-9-]+\.)*setlist\.fm\/\S*$/i);
+export const setlistFmUrl = z
+  .string()
+  .regex(/^https:\/\/(?:[a-z0-9-]+\.)*setlist\.fm\/\S*$/i)
+  // A separate Unicode check: with the `u` flag, case-insensitive matching would let look-alike
+  // letters such as "ſ" through in the host.
+  .regex(/^[^"'<>\p{Cf}]*$/u);
 
 /** The plain share link of a Setlist Playlist: no tracking query, no other Spotify page. */
-export const spotifyShareUrl = z.string().regex(/^https:\/\/open\.spotify\.com\/playlist\/[A-Za-z0-9]+$/);
+export const spotifyShareUrl = z
+  .string()
+  .regex(/^https:\/\/open\.spotify\.com\/playlist\/[A-Za-z0-9]+$/);
 
 /** A query value given once; Express turns a repeated key into a list, which this rejects. */
 export function trimmedQueryValue(maxLength: number) {
