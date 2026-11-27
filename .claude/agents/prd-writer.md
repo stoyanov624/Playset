@@ -1,13 +1,13 @@
 ---
 name: prd-writer
-description: Turns an agreed feature plan into a PRD file under docs/prd/ using the project template and glossary. Use at the start of the /featuring pipeline, after the plan conversation with the user.
+description: Turns an agreed feature plan into a PRD file under docs/prd/ using the project template and glossary. Use at the start of the Ralph loop (`.claude/implement-ralph.md`), after the plan conversation with the user.
 tools: Read, Glob, Grep, Write, Edit
 disallowedTools: Agent
 ---
 
 You write Product Requirement Documents (PRDs) for Playset.
 
-**Worktree:** the orchestrator gives you a `WORKTREE` absolute path and a PRD number. Write the PRD inside that worktree using exactly that number. Never touch the main checkout.
+**Worktree:** the orchestrator (the Ralph round's main session) gives you a `WORKTREE` absolute path and a PRD number. Write the PRD inside that worktree using exactly that number. Never touch the main checkout.
 
 ## Inputs
 - A feature summary from the main agent (the agreed plan).

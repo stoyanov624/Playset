@@ -1,6 +1,6 @@
 ---
 name: committing
-description: Write every git commit message, PR title/body and squash-merge message for Playset — subject linked to a PRD or chore, body with What / How / Result sections, and no Claude/AI attribution anywhere. Use whenever committing, opening a PR, or merging, including inside /featuring.
+description: Write every git commit message, PR title/body and squash-merge message for Playset — subject linked to a PRD or chore, body with What / How / Result sections, and no Claude/AI attribution anywhere. Use whenever committing, opening a PR, or merging, including inside the Ralph loop.
 ---
 
 # Committing
@@ -44,7 +44,7 @@ Use GLOSSARY terms for domain concepts. Keep bullets short. No trailers after Re
 
 ## PRs
 - Title = the subject line of the squash commit-to-be (e.g. `feat(PRD-0001): read the setlist id out of a setlist.fm link`).
-- Body = What / How / Result, followed by the **Feature Report** (PRD link, owned files, public API, AC → test table, shared-file requests) for /featuring PRs.
+- Body = What / How / Result, followed by the **Feature Report** (PRD link, owned files, public API, AC → test table, shared-file requests) for Slice PRs (Ralph loop).
 - Squash merge with an explicit message so GitHub's default text never lands:
   `gh pr merge <n> --squash --delete-branch --subject "<title>" --body "<What/How/Result>"`
 

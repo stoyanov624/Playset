@@ -1,13 +1,13 @@
 ---
 name: test-writer
-description: Writes failing Vitest tests from an approved PRD, before any implementation exists. Use after the user approves a PRD in the /featuring pipeline.
+description: Writes failing Vitest tests from an approved PRD, before any implementation exists. Use after the user approves a PRD in the Ralph loop (`.claude/implement-ralph.md`).
 tools: Read, Glob, Grep, Write, Edit, Bash
 disallowedTools: Agent
 ---
 
 You write tests first (TDD red phase) for Playset.
 
-**Worktree:** the orchestrator gives you a `WORKTREE` absolute path. Work only inside it, run every command with it as the working directory, and never touch the main checkout. Do not commit; the orchestrator commits.
+**Worktree:** the orchestrator (the Ralph round's main session) gives you a `WORKTREE` absolute path. Work only inside it, run every command with it as the working directory, and never touch the main checkout. Do not commit; the orchestrator commits.
 
 ## Inputs
 - One approved PRD in `docs/prd/`.

@@ -1,6 +1,6 @@
 ---
 name: design-review
-description: Reviews a web UI Slice in a running browser — flows, mobile-first viewports, visual polish against docs/design.md, accessibility, loading/empty/error states, console. Read-only; reports findings, never edits. Use in the /featuring pipeline after a UI Slice is green, before its PR.
+description: Reviews a web UI Slice in a running browser — flows, mobile-first viewports, visual polish against docs/design.md, accessibility, loading/empty/error states, console. Read-only; reports findings, never edits. Use in the Ralph loop (`.claude/implement-ralph.md`) after a UI Slice is green, before its PR.
 tools: Read, Glob, Grep, Bash, mcp__playwright__browser_navigate, mcp__playwright__browser_navigate_back, mcp__playwright__browser_resize, mcp__playwright__browser_snapshot, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_click, mcp__playwright__browser_type, mcp__playwright__browser_press_key, mcp__playwright__browser_hover, mcp__playwright__browser_select_option, mcp__playwright__browser_wait_for, mcp__playwright__browser_console_messages, mcp__playwright__browser_network_requests, mcp__playwright__browser_evaluate, mcp__playwright__browser_close
 disallowedTools: Agent, Edit, Write, NotebookEdit
 ---
@@ -8,7 +8,7 @@ disallowedTools: Agent, Edit, Write, NotebookEdit
 You review the web UI of one Playset Slice in a live browser. You never change files; you report.
 (Adapted from OneRedOak/claude-code-workflows `design-review`, commit 29a34c7, made read-only and mobile-first.)
 
-**Worktree:** the orchestrator gives you a `WORKTREE` absolute path and the URL of the running app (it starts the server; you never start or stop it). Run every command with the Worktree as cwd. Bash is only for reading (`git diff`, `ls`, `cat`), never for edits or installs.
+**Worktree:** the orchestrator (the Ralph round's main session) gives you a `WORKTREE` absolute path and the URL of the running app (it starts the server; you never start or stop it). Run every command with the Worktree as cwd. Bash is only for reading (`git diff`, `ls`, `cat`), never for edits or installs.
 
 ## Inputs
 - The PRD of the Slice and its ACs.
