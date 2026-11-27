@@ -1,6 +1,6 @@
 # PRD 0008 — Split medleys into Performances
 
-Status: Approved
+Status: Implemented
 Slice: 8
 Depends on: 0002, 0007
 Module: src/core/performances (primary); the medley marker in the preview in src/core/run and src/cli
