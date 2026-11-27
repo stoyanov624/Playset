@@ -144,7 +144,7 @@ export function createSetlistFmClient(deps: SetlistFmClientDeps): SetlistFmClien
     const key = await apiKey();
     // A space in an Artist name is sent as %20, the way setlist.fm's own documentation writes queries.
     const query = Object.entries(params)
-      .map(([name, value]) => `${encodeURIComponent(name)}=${encodeURIComponent(value)}`)
+      .map(([name, value]) => `${encodeQueryPart(name)}=${encodeQueryPart(value)}`)
       .join("&");
     const url = `${API_BASE}${path}${query ? `?${query}` : ""}`;
 
@@ -329,4 +329,12 @@ function isLastPage(body: SetlistsPage, requestedPage: number): boolean {
   const { itemsPerPage, total } = body;
   if (itemsPerPage === undefined || total === undefined) return false;
   return (body.page ?? requestedPage) * itemsPerPage >= total;
+}
+
+// A typed Artist name can hold a broken character (a lone surrogate); it is still searched, with that
+// character sent as U+FFFD (as URLSearchParams would), instead of crashing the query building.
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+function encodeQueryPart(part: string): string {
+  return encodeURIComponent(part.replace(LONE_SURROGATE, "\uFFFD"));
 }
