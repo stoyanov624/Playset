@@ -18,6 +18,8 @@ export interface SetlistFmSet {
 /** A Setlist, as returned by the setlist.fm "get setlist" API (only the fields Playset reads). */
 export interface SetlistFmSetlist {
   readonly id?: string;
+  /** setlist.fm's version of the Setlist: the id stays the same across edits, each edit gives a new version. */
+  readonly versionId?: string;
   /** Date of the Show in setlist.fm's "dd-MM-yyyy" format. */
   readonly eventDate: string;
   readonly artist: { readonly name: string; readonly mbid?: string };

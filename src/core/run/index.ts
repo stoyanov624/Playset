@@ -10,12 +10,34 @@ export {
   prepareSetlist,
   previewMatches,
 } from "./steps.js";
-export { InvalidSetlistPageError, RunCancelledError, RunInputError } from "./errors.js";
+export {
+  createOrUpdateSetlistPlaylist,
+  findSetlistPlaylist,
+  type CreateOrUpdateResult,
+  type CreateOrUpdateSetlistPlaylistOptions,
+  type HostServices,
+  type SetlistPlaylistLookup,
+} from "./host-steps.js";
+export {
+  createMemorySetlistPlaylistRecords,
+  type SetlistPlaylistRecord,
+  type SetlistPlaylistRecords,
+} from "./records.js";
+export {
+  InvalidSetlistPageError,
+  MissingSetlistVersionError,
+  RunCancelledError,
+  RunInputError,
+  SetlistChangedError,
+} from "./errors.js";
+// Raised through the Host create-or-update step, so it is offered next to that step's own errors.
+export { PartlyUpdatedPlaylistError } from "../setlist-playlist/index.js";
 export { createRunServices, type RunServicesDeps } from "./run-services.js";
 export type {
   CompleteSetlistOffer,
   CreateSetlistPlaylistOptions,
   CreatedPlaylist,
+  HostPlaylistServices,
   MatchPreview,
   MatchProgress,
   NotAdded,

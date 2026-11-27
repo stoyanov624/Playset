@@ -1,6 +1,12 @@
 import type { Match, MatchOutcome, Miss } from "../matching/index.js";
 import type { IncompleteStatus, Performance, SetlistFmSetlist, Show } from "../performances/index.js";
-import type { CreatedSetlistPlaylist, ExistingPlaylist } from "../setlist-playlist/index.js";
+import type {
+  CreatedSetlistPlaylist,
+  ExistingPlaylist,
+  PlaylistToUpdate,
+  SetlistPlaylistUpdate,
+} from "../setlist-playlist/index.js";
+import type { SetlistPlaylistRecords } from "./records.js";
 import type {
   ArtistCandidate,
   ArtistCandidates,
@@ -51,6 +57,17 @@ export interface RunServices {
   ): Promise<CreatedPlaylist>;
 }
 
+/** The Spotify requests the Host Account needs beyond the run's own: updating a Setlist Playlist in place. */
+export interface HostPlaylistServices {
+  /** Replaces the playlist's tracks with the Matches, then sets its name and description again. */
+  updateSetlistPlaylist(
+    playlist: PlaylistToUpdate,
+    show: Show,
+    matches: Match[],
+    options: { accessToken: string },
+  ): Promise<SetlistPlaylistUpdate>;
+}
+
 /** How the Setlist Playlist is created: in the logged-in account, private unless `public`. */
 export interface CreateSetlistPlaylistOptions {
   accessToken: string;
@@ -79,6 +96,8 @@ export interface SetlistSummary {
   /** Number of Performances: medley parts and Tapes count; snippets and Unknown Songs don't. */
   songCount: number;
   incompleteStatus: IncompleteStatus;
+  /** setlist.fm's version of the Setlist; no key when it has none. */
+  versionId?: string;
 }
 
 /** One page of an Artist's Setlists, placeholders left out. */
@@ -96,6 +115,10 @@ export interface PreparedSetlist {
   /** In played order. */
   notAdded: NotAdded[];
   incompleteStatus: IncompleteStatus;
+  /** The setlist.fm setlist id; no key when the Setlist has none. */
+  setlistId?: string;
+  /** setlist.fm's version of the Setlist; no key when it has none. */
+  versionId?: string;
 }
 
 export interface PrepareSetlistOptions {
@@ -118,6 +141,12 @@ export interface PreviewMatchesOptions {
   onProgress?: (progress: MatchProgress) => void;
   /** Ends the preview with a RunCancelledError; no further search is made and a late answer is ignored. */
   signal?: AbortSignal | undefined;
+  /**
+   * Where a preview is cached per setlist id and version. A cached preview is reused (no search, no
+   * progress) and a finished preview is saved, but only for a Setlist with an id and a version that keeps
+   * no Tape, so a Tape choice never ends up in a preview someone else reuses.
+   */
+  records?: SetlistPlaylistRecords | undefined;
 }
 
 /** The Show and its counts, given to the front-end before any Tape question. */

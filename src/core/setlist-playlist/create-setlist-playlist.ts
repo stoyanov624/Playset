@@ -1,12 +1,10 @@
 import type { Match } from "../matching/index.js";
 import type { Show } from "../performances/index.js";
-import { NothingToAddError, PartlyCreatedPlaylistError, SpotifyPlaylistError } from "./errors.js";
+import { NothingToAddError, PartlyCreatedPlaylistError, playlistRequestFailed, SpotifyPlaylistError } from "./errors.js";
 import { setlistPlaylistDescription, setlistPlaylistName } from "./name.js";
-import { MY_PLAYLISTS_URL, playlistItemsUrl, shareUrlFor, type SpotifyPlaylist } from "./spotify-playlist.js";
+import { addInBatches } from "./playlist-items.js";
+import { MY_PLAYLISTS_URL, shareUrlFor, type SpotifyPlaylist } from "./spotify-playlist.js";
 import { sendSpotifyRequest, type SpotifyPlaylistOptions } from "./spotify-request.js";
-
-/** Spotify accepts at most 100 URIs per add-items request. */
-const BATCH_SIZE = 100;
 
 export interface CreateSetlistPlaylistOptions extends SpotifyPlaylistOptions {
   /** Private unless set to true. */
@@ -38,7 +36,7 @@ export async function createSetlistPlaylist(
       options,
     )) as typeof created;
   } catch (err) {
-    throw notCreated(err);
+    throw playlistRequestFailed("Could not create the Setlist Playlist, so no playlist was created.", err);
   }
   if (typeof created?.id !== "string" || !created.id) {
     throw new SpotifyPlaylistError("Spotify's create playlist response had no playlist id, so no playlist was created.");
@@ -47,28 +45,9 @@ export async function createSetlistPlaylist(
   const shareUrl = typeof created.external_urls?.spotify === "string" ? created.external_urls.spotify : shareUrlFor(id);
 
   const uris = matches.map((match) => match.uri);
-  let tracksAdded = 0;
-  while (tracksAdded < uris.length) {
-    const batch = uris.slice(tracksAdded, tracksAdded + BATCH_SIZE);
-    try {
-      await sendSpotifyRequest(
-        { method: "POST", url: playlistItemsUrl(id), body: { uris: batch }, what: "add tracks" },
-        options,
-      );
-    } catch (cause) {
-      throw new PartlyCreatedPlaylistError({ playlistId: id, shareUrl, tracksAdded, totalMatches: uris.length, cause });
-    }
-    tracksAdded += batch.length;
-  }
+  await addInBatches(id, uris, 0, options, (tracksAdded, cause) =>
+    new PartlyCreatedPlaylistError({ playlistId: id, shareUrl, tracksAdded, totalMatches: uris.length, cause }),
+  );
 
   return { id, shareUrl, name, trackCount: uris.length };
-}
-
-function notCreated(cause: unknown): SpotifyPlaylistError {
-  const reason = cause instanceof Error ? cause.message : String(cause);
-  const status = cause instanceof SpotifyPlaylistError ? cause.status : undefined;
-  return new SpotifyPlaylistError(`Could not create the Setlist Playlist, so no playlist was created. ${reason}`, {
-    status,
-    cause,
-  });
 }

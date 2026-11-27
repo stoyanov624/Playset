@@ -8,9 +8,14 @@ const SPOTIFY_API = `${SPOTIFY_HOST}v1`;
 /** The current user's playlists: listed for the duplicate check, and where a new playlist is created. */
 export const MY_PLAYLISTS_URL = `${SPOTIFY_API}/me/playlists`;
 
-/** Where the Matches are added to a playlist (at most 100 per request). */
+/** A playlist's own address, where its name and description are changed. */
+export function playlistUrl(playlistId: string): string {
+  return `${SPOTIFY_API}/playlists/${encodeURIComponent(playlistId)}`;
+}
+
+/** Where the Matches are added to a playlist, or replace its tracks (at most 100 per request). */
 export function playlistItemsUrl(playlistId: string): string {
-  return `${SPOTIFY_API}/playlists/${encodeURIComponent(playlistId)}/items`;
+  return `${playlistUrl(playlistId)}/items`;
 }
 
 /** The link to share when Spotify did not give one. */
