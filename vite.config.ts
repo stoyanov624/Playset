@@ -2,8 +2,8 @@
 import { builtinModules } from "node:module";
 import { defineConfig } from "vite";
 
-// Vite builds the CLI as a single Node ESM bundle (dist/cli.js).
-// The same toolchain will be reused by a future web front-end on top of src/core.
+// Vite builds the CLI as a single Node ESM bundle (dist/cli.js). The web client has its own
+// build config (vite.client.config.ts); this file also holds the test setup for both.
 export default defineConfig({
   build: {
     ssr: "src/cli/index.ts",
@@ -20,7 +20,26 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    include: ["src/**/*.test.ts", "test/**/*.test.ts"],
     passWithNoTests: true,
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "node",
+          include: ["src/**/*.test.ts", "test/**/*.test.ts"],
+          exclude: ["test/web/client/**"],
+          environment: "node",
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "client",
+          include: ["test/web/client/**/*.test.{ts,tsx}"],
+          environment: "jsdom",
+          setupFiles: ["test/web/client/setup.ts"],
+        },
+      },
+    ],
   },
 });

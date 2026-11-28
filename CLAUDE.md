@@ -8,6 +8,8 @@ Turns a setlist.fm Setlist into a Spotify Setlist Playlist, through the `playset
 - `npm run lint` — oxlint (`.oxlintrc.json`: correctness + react-hooks + jsx-a11y + no `any` in src). Not ESLint: TypeScript 7 has no JS API, so typescript-eslint cannot run. oxlint is pinned to an exact version because its rule sets change between releases.
 - `npm run build` — Vite bundles `src/cli/index.ts` → `dist/cli.js`
 - `npm run dev -- <args>` — run CLI via tsx
+- `npm run web` — build the web client (`vite.client.config.ts` → `dist/web`) and start the server; `npm run web:dev` — Vite dev server for the client, forwarding `/api` and `/admin` to the server (`PLAYSET_WEB_PORT`, default 3000)
+- Tests run as two Vitest projects: `node` (everything) and `client` (`test/web/client/**`, jsdom, axe matchers from `test/web/client/setup.ts`)
 
 ## Architecture
 - `src/core/` — all domain logic, front-end agnostic. Every question to the user and every setlist.fm/Spotify service is injected, so tests and any front-end plug in their own. Modules:
