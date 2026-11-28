@@ -40,30 +40,61 @@ function banner(): HTMLElement {
   return screen.getByRole("banner");
 }
 
+/** What a person hears for the focused control: its text (links and buttons here are named by it). */
+function focusedName(): string {
+  const active = document.activeElement;
+  if (!active || active === document.body) return "(page)";
+  return normalise(active.textContent);
+}
+
+/** Presses Tab (or Shift+Tab) `count` times and lists the names focus lands on. */
+async function tabSequence(user: UserEvent, count: number, shift = false): Promise<string[]> {
+  const names: string[] = [];
+  for (let press = 0; press < count; press++) {
+    await user.tab(shift ? { shift: true } : {});
+    names.push(focusedName());
+  }
+  return names;
+}
+
 // ---------------------------------------------------------------- keyboard
+
+/** Every control on the E2 dashboard in Tab order: the header, the Host Account block, the footer. */
+const DASHBOARD_TAB_ORDER = ["Skip to content", "Playset", "Log out", "Reconnect", "setlist.fm", "Terms and Privacy"];
 
 describe("keyboard only", () => {
   it("AC-20: on the dashboard Tab reaches every link, Reconnect and Log out; Enter on Log out ends on the logged-out view", async () => {
     const { user, api } = await openDashboard(connectedStatus(), { logOut: async () => undefined });
     await expectFocusOn(() => screen.getByRole("heading", { level: 1, name: "Admin" }));
 
-    const links = screen.getAllByRole("link");
-    for (const link of links) await tabTo(user, () => link);
-    await tabTo(user, () => screen.getByRole("link", { name: "Reconnect" }));
-    await tabTo(user, () => within(banner()).getByRole("button", { name: "Log out" }));
-    await tabTo(user, () => within(banner()).getByRole("button", { name: "Log out" }), { shift: true });
+    // From the h1, Tab goes through the rest of the page in reading order, wraps once to the
+    // top and comes back round: no control is skipped, none is a trap, and the order is the page's.
+    const order = DASHBOARD_TAB_ORDER;
+    const reachable = screen.getAllByRole("link").map((link) => normalise(link.textContent));
+    reachable.push("Log out");
+    expect([...order].sort()).toEqual([...reachable].sort());
+    const fromH1 = order.slice(order.indexOf("Reconnect"));
+    const forward = await tabSequence(user, order.length + 1);
+    expect(forward).toEqual([...fromH1, "(page)", ...order.slice(0, order.indexOf("Reconnect"))]);
+    // Shift+Tab walks the same order backwards.
+    const backward = await tabSequence(user, 2, true);
+    expect(backward).toEqual([order[order.indexOf("Log out") - 1], order[order.indexOf("Log out") - 2]]);
+    await tabTo(user, () => within(banner()).getByRole("button", { name: "Log out" }), { max: 2 });
 
     await user.keyboard("{Enter}");
     await screen.findByRole("link", { name: "Log in with Spotify" });
     expect(api.logOut).toHaveBeenCalledTimes(1);
     await expectFocusOn(() => screen.getByRole("heading", { level: 1, name: "Admin" }));
     await tabTo(user, () => screen.getByRole("link", { name: "Log in with Spotify" }), { max: 2 });
+    expect(api.logOut).toHaveBeenCalledTimes(1);
+    expect(api.getAdminStatus).toHaveBeenCalledTimes(1);
   });
 
   it("AC-20: on the logged-out view the next Tab after the h1 reaches Log in with Spotify", async () => {
-    const { user } = await openLoggedOut();
+    const { user, api } = await openLoggedOut();
     await expectFocusOn(() => screen.getByRole("heading", { level: 1, name: "Admin" }));
     await tabTo(user, () => screen.getByRole("link", { name: "Log in with Spotify" }), { max: 2 });
+    expect(api.getAdminStatus).toHaveBeenCalledTimes(1);
   });
 
   it("AC-20: on a status error Tab reaches Try again and Enter activates it", async () => {
@@ -88,16 +119,17 @@ describe("keyboard only", () => {
 // ---------------------------------------------------------------- every admin state
 
 interface AdminState {
-  /** lucide icon names expected on the page in this state, at least once each. */
-  icons?: string[];
+  /** Every lucide icon on the page in this state (each name once), and no other. */
+  icons: string[];
 }
 
-const STATES: Array<[string, () => Promise<AdminState | void>]> = [
+const STATES: Array<[string, () => Promise<AdminState>]> = [
   ["loading", async () => {
     const status = pendingStatus();
     openAdmin({ getAdminStatus: status.getAdminStatus });
     await screen.findByRole("heading", { level: 1, name: "Admin" });
     getByLine("Loading the status…");
+    return { icons: ["loader-circle"] };
   }],
   ["logged out", async () => {
     await openLoggedOut();
@@ -114,6 +146,11 @@ const STATES: Array<[string, () => Promise<AdminState | void>]> = [
     await openDashboard();
     return { icons: ["circle-check", "circle-x"] };
   }],
+  ["dashboard with login=UPSTREAM_UNAVAILABLE above it", async () => {
+    await openDashboard(connectedStatus(), {}, "/admin?login=UPSTREAM_UNAVAILABLE");
+    await screen.findByRole("heading", { level: 2, name: "Spotify isn't answering right now." });
+    return { icons: ["circle-check", "circle-x", "triangle-alert"] };
+  }],
   ["dashboard not connected", async () => {
     await openDashboard(freshInstallStatus());
     return { icons: ["circle-check", "triangle-alert"] };
@@ -121,6 +158,7 @@ const STATES: Array<[string, () => Promise<AdminState | void>]> = [
   ["dashboard with empty usage", async () => {
     await openDashboard(freshInstallStatus());
     getByLine("Nothing in the last 30 days.");
+    return { icons: ["circle-check", "triangle-alert"] };
   }],
   ["status error UPSTREAM_UNAVAILABLE", async () => {
     openAdmin({ getAdminStatus: inTurn<AdminStatusResponse>([recordsUnreadable()]) });
@@ -131,24 +169,25 @@ const STATES: Array<[string, () => Promise<AdminState | void>]> = [
     vi.useFakeTimers({ shouldAdvanceTime: true });
     openAdmin({ getAdminStatus: inTurn<AdminStatusResponse>([tooManyRequests(42)]) }, "/admin", { fakeTimers: true });
     await waitFor(() => getByLine("You can try again in 0:42"));
-    return { icons: ["triangle-alert"] };
+    return { icons: ["triangle-alert", "rotate-cw"] };
   }],
   ["logout error", async () => {
     const { user } = await openDashboard(connectedStatus(), { logOut: inTurn<void>([playsetUnreachable()]) });
     await user.click(within(banner()).getByRole("button", { name: "Log out" }));
     await findAlert("Playset isn't answering right now.");
-    return { icons: ["triangle-alert"] };
+    return { icons: ["circle-check", "circle-x", "triangle-alert"] };
   }],
   ["logging out", async () => {
     const logout = deferred<void>();
     const { user } = await openDashboard(connectedStatus(), { logOut: () => logout.promise });
     await user.click(within(banner()).getByRole("button", { name: "Log out" }));
     await within(banner()).findByRole("button", { name: "Logging out…" });
+    return { icons: ["circle-check", "circle-x", "loader-circle"] };
   }],
 ];
 
-async function open(state: () => Promise<AdminState | void>): Promise<AdminState> {
-  const shown = (await state()) ?? {};
+async function open(state: () => Promise<AdminState>): Promise<AdminState> {
+  const shown = await state();
   await act(async () => {
     await Promise.resolve();
   });
@@ -176,6 +215,22 @@ function iconProblems(): string[] {
   return problems;
 }
 
+/**
+ * Compares the page's icons with `expected` both ways: every icon is one of the expected lucide
+ * icons (a lucide icon can carry an alias name too), and every expected icon is on the page.
+ */
+function iconMismatches(expected: string[]): string[] {
+  const svgs = Array.from(document.querySelectorAll("svg"));
+  const problems: string[] = [];
+  for (const svg of svgs) {
+    if (!expected.some((name) => lucideIcon(svg, name))) problems.push(`unexpected icon ${svg.getAttribute("class") ?? ""}`);
+  }
+  for (const name of expected) {
+    if (!svgs.some((svg) => lucideIcon(svg, name))) problems.push(`no ${name} icon`);
+  }
+  return problems;
+}
+
 function lucideIcon(svg: Element, name: string): boolean {
   return new RegExp(`\\blucide-${name}(-icon)?\\b`).test(svg.getAttribute("class") ?? "") &&
     !new RegExp(`\\blucide-${name}-(?!icon\\b)`).test(svg.getAttribute("class") ?? "");
@@ -198,12 +253,9 @@ describe("every admin screen state", () => {
   });
 
   it.each(STATES)("AC-21: %s shows icons only as hidden lucide icons beside text, and no glyph icons", async (_name, state) => {
-    const { icons = [] } = await open(state);
+    const { icons } = await open(state);
     expect(iconProblems()).toEqual([]);
-    const svgs = Array.from(document.querySelectorAll("svg"));
-    for (const name of icons) {
-      expect(svgs.some((svg) => lucideIcon(svg, name)), `a lucide ${name} icon`).toBe(true);
-    }
+    expect(iconMismatches(icons)).toEqual([]);
   });
 
   it("AC-21: each present config item carries a CircleCheck and the missing one a CircleX", async () => {
@@ -233,14 +285,18 @@ describe("every admin screen state", () => {
     expect(Array.from(tryAgain.querySelectorAll("svg")).some((svg) => lucideIcon(svg, "rotate-cw"))).toBe(true);
   });
 
-  it("AC-21: the day bars are hidden from assistive technology", async () => {
+  it("AC-21: whatever the table hides from assistive technology holds no text and nothing focusable", async () => {
     await openDashboard();
     const table = screen.getByRole("table");
-    for (const cell of Array.from(table.querySelectorAll("td"))) {
-      if (normalise(cell.textContent) !== "") continue;
-      const hidden = cell.getAttribute("aria-hidden") === "true" ||
-        Array.from(cell.children).every((child) => child.getAttribute("aria-hidden") === "true");
-      expect(hidden).toBe(true);
+    // Header row and body rows alike: a hidden part is decoration only.
+    for (const hidden of Array.from(table.querySelectorAll('[aria-hidden="true"]'))) {
+      expect(normalise(hidden.textContent)).toBe("");
+      expect(hidden.querySelectorAll("a[href], button, input, [tabindex]")).toHaveLength(0);
+    }
+    // Every cell that is not hidden carries text, so nothing a screen reader reaches is blank.
+    for (const cell of Array.from(table.querySelectorAll("th, td"))) {
+      if (cell.closest('[aria-hidden="true"]') !== null) continue;
+      expect(normalise(cell.textContent), "a cell a screen reader reaches").not.toBe("");
     }
   });
 });

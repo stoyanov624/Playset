@@ -17,10 +17,10 @@ import {
   queryByLine,
   recordAnnouncements,
 } from "./fixtures/dom";
-import { settle } from "./fixtures/flows";
 import {
   connectedStatus,
   connectedWithoutNameStatus,
+  e2DaysNewestFirst,
   freshInstallStatus,
   inTurn,
   noConfigStatus,
@@ -41,6 +41,30 @@ afterEach(() => {
 });
 
 const LOGGED_OUT_LINE = "Log in as the Host Account to see its status and usage.";
+
+/**
+ * Lets every pending promise and timer task run (a few rounds of macrotasks), so a late effect,
+ * request or announcement would have shown before a "nothing happened" check.
+ */
+async function settle(): Promise<void> {
+  for (let round = 0; round < 3; round++) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
+}
+
+/** Text with all white space removed, to compare an element's whole text with its lines. */
+function withoutSpaces(text: string | null | undefined): string {
+  return (text ?? "").replace(/\s+/g, "");
+}
+
+/** The alert or its title is the h1's very next element: nothing sits between them. */
+function expectDirectlyUnderH1(el: HTMLElement): void {
+  const next = h1().nextElementSibling;
+  expect(next, "an element right after the h1").not.toBeNull();
+  expect(next === el || next?.contains(el) === true, "the element right after the h1 holds it").toBe(true);
+}
 
 function h1(): HTMLElement {
   return screen.getByRole("heading", { level: 1, name: "Admin" });
@@ -134,13 +158,32 @@ describe("opening /admin", () => {
     expect(api.getAdminStatus).toHaveBeenCalledTimes(1);
   });
 
+  it.each<[string, () => Promise<unknown>]>([
+    ["the logged-out view", () => openLoggedOut()],
+    ["the logged-out view with a login problem", () => openLoggedOut("/admin?login=NOT_ADMIN")],
+    ["the dashboard", () => openDashboard()],
+    ["a status error", async () => {
+      openAdmin({ getAdminStatus: inTurn<AdminStatusResponse>([recordsUnreadable()]) });
+      await screen.findByRole("button", { name: "Try again" });
+    }],
+    ["the logged-out view after logging out", async () => {
+      const { user } = await openDashboard(connectedStatus(), { logOut: async () => undefined });
+      await user.click(within(banner()).getByRole("button", { name: "Log out" }));
+      await screen.findByRole("link", { name: "Log in with Spotify" });
+    }],
+  ])("AC-1: the document title is Admin – Playset on %s", async (_state, open) => {
+    await open();
+    await waitFor(() => expect(document.title).toBe("Admin – Playset"));
+    expect(normalise(banner().textContent).startsWith("Playset Admin")).toBe(true);
+  });
+
   it("AC-1: the header Admin text shows only on /admin, not on Visitor screens", async () => {
     openAdmin({}, "/terms");
     await screen.findByRole("heading", { level: 1, name: "Terms and Privacy" });
     expect(normalise(banner().textContent)).toBe("Playset");
   });
 
-  it.each(["/admin/settings", "/admin/x/y", "/admin/login/extra"])(
+  it.each(["/admin/settings", "/admin/x/y", "/admin/login/extra", "/admin/login", "/admin/callback"])(
     "AC-3: %s shows Page not found and asks for no status",
     async (path) => {
       const { api } = openAdmin({}, path);
@@ -152,6 +195,13 @@ describe("opening /admin", () => {
       expect(api.logOut).not.toHaveBeenCalled();
     },
   );
+
+  it("AC-3: /admin/ with a trailing slash is /admin itself, not a path under it", async () => {
+    const { api } = await openLoggedOut("/admin/");
+    expect(h1()).toBeTruthy();
+    expect(screen.queryByRole("heading", { level: 1, name: "Page not found" })).toBeNull();
+    expect(api.getAdminStatus).toHaveBeenCalledTimes(1);
+  });
 
   it("AC-3: an in-memory start path under /admin/ shows Page not found and asks for no status", async () => {
     const api = fakeApi();
@@ -262,6 +312,7 @@ describe("login problems", () => {
     const alertTitle = await screen.findByRole("heading", { level: 2, name: title });
     await expectFocusOn(() => screen.getByRole("heading", { level: 2, name: title }));
     const bodyLine = getByLine(body);
+    expectDirectlyUnderH1(alertTitle);
     expect(isBefore(h1(), alertTitle)).toBe(true);
     expect(isBefore(alertTitle, bodyLine)).toBe(true);
     expect(isBefore(bodyLine, getByLine(LOGGED_OUT_LINE))).toBe(true);
@@ -278,7 +329,7 @@ describe("login problems", () => {
     await expectFocusOn(title);
     getByLine("Try logging in again in a minute.");
     expect(h2Names()).toEqual(["Spotify isn't answering right now.", "Host Account", "Config", "Usage", "Last 30 days", "Top Artists"]);
-    expect(isBefore(h1(), title())).toBe(true);
+    expectDirectlyUnderH1(title());
     expect(isBefore(getByLine("Try logging in again in a minute."), getByLine("Connected as playset-host"))).toBe(true);
   });
 
@@ -443,6 +494,19 @@ describe("dashboard", () => {
     expect(within(first).getByRole("rowheader").querySelector("time")?.getAttribute("dateTime")).toBe("2026-11-28");
     expect(within(last).getByRole("rowheader").querySelector("time")?.getAttribute("dateTime")).toBe("2026-10-30");
 
+    // Every row, in order, with its own numbers: a mix-up of rows or columns in the middle shows.
+    const labels = [
+      ...Array.from({ length: 28 }, (_unused, i) => `${28 - i} Nov`),
+      "31 Oct",
+      "30 Oct",
+    ];
+    expect(labels[19]).toBe("9 Nov");
+    expect(labels[27]).toBe("1 Nov");
+    const expectedRows = e2DaysNewestFirst().map((day, i) => [labels[i], String(day.created), String(day.updated), String(day.opened)]);
+    expect(rows.map(rowTexts)).toEqual(expectedRows);
+    expect(rowTexts(rows[2] ?? first)).toEqual(["26 Nov", "1", "0", "28"]);
+    expect(rowTexts(rows[3] ?? first)).toEqual(["25 Nov", "1", "1", "27"]);
+
     const expectedDates = connectedStatus().usage.perDay.map((day) => day.date).sort().reverse();
     expect(rows.map((row) => within(row).getByRole("rowheader").querySelector("time")?.getAttribute("dateTime"))).toEqual(expectedDates);
   });
@@ -461,12 +525,36 @@ describe("dashboard", () => {
   it("AC-12: a day bar, if shown, is hidden from assistive technology and carries no text", async () => {
     await openDashboard();
     const rows = bodyRows(screen.getByRole("table"));
+    // A row is its day and its three numbers; anything else in it can only be the bar.
+    const extras = rows.map((row) =>
+      Array.from(row.querySelectorAll("td")).filter((cell) => normalise(cell.textContent) === ""),
+    );
     for (const row of rows) {
-      for (const cell of Array.from(row.querySelectorAll("td"))) {
-        if (normalise(cell.textContent) !== "") continue;
-        // An empty cell holds only the presentational bar.
-        const hidden = cell.getAttribute("aria-hidden") === "true" || Array.from(cell.children).every((child) => child.getAttribute("aria-hidden") === "true");
-        expect(hidden).toBe(true);
+      expect(Array.from(row.querySelectorAll("td")).filter((cell) => normalise(cell.textContent) !== "")).toHaveLength(3);
+    }
+    const barShown = extras.some((cells) => cells.length > 0);
+    if (!barShown) {
+      // No bar at all is allowed: the rows then hold only the day and the numbers.
+      expect(extras.every((cells) => cells.length === 0)).toBe(true);
+      return;
+    }
+    // A bar, once shown, is in every row (one per day), hidden as a whole and with no text inside.
+    for (const cells of extras) {
+      expect(cells).toHaveLength(1);
+      const bar = cells[0];
+      if (!bar) throw new Error("no bar cell");
+      expect(bar.closest('[aria-hidden="true"]'), "the bar sits inside an aria-hidden element").not.toBeNull();
+      expect(normalise(bar.textContent)).toBe("");
+      for (const inside of Array.from(bar.querySelectorAll("*"))) {
+        expect(normalise(inside.textContent)).toBe("");
+        expect(inside.getAttribute("aria-label")).toBeNull();
+      }
+    }
+    // The cells a person reads are never hidden.
+    for (const row of rows) {
+      expect(within(row).getByRole("rowheader").closest('[aria-hidden="true"]')).toBeNull();
+      for (const cell of Array.from(row.querySelectorAll("td")).filter((c) => normalise(c.textContent) !== "")) {
+        expect(cell.closest('[aria-hidden="true"]')).toBeNull();
       }
     }
   });
@@ -546,10 +634,12 @@ describe("status errors", () => {
   });
 
   it("AC-14: a client error of the API client shows its own words with Try again", async () => {
-    openAdmin({ getAdminStatus: inTurn<AdminStatusResponse>([playsetUnreachable()]) });
+    const { api } = openAdmin({ getAdminStatus: inTurn<AdminStatusResponse>([playsetUnreachable()]) });
     await expectFocusOn(() => screen.getByRole("heading", { level: 2, name: "Playset isn't answering right now." }));
     getByLine("Check your connection and try again in a minute.");
     screen.getByRole("button", { name: "Try again" });
+    await settle();
+    expect(api.getAdminStatus).toHaveBeenCalledTimes(1);
   });
 
   it("AC-14: Try again answered with NOT_ADMIN shows the logged-out view", async () => {
@@ -559,6 +649,76 @@ describe("status errors", () => {
     getByLine(LOGGED_OUT_LINE);
     expect(screen.queryByRole("heading", { level: 2, name: "Playset can't read its records right now." })).toBeNull();
     expect(queryByLine("Log in as the Host Account to see this page.")).toBeNull();
+  });
+
+  it("AC-14: Try again failing a second time shows the new error, focuses its h2 and offers Try again again", async () => {
+    const second = deferred<AdminStatusResponse>();
+    const { api, user } = openAdmin({
+      getAdminStatus: inTurn<AdminStatusResponse>([recordsUnreadable(), second, connectedStatus()]),
+    });
+    await user.click(await screen.findByRole("button", { name: "Try again" }));
+    await screen.findByRole("button", { name: "Trying again…" });
+    await act(async () => second.reject(ourSide()));
+
+    const title = () => screen.getByRole("heading", { level: 2, name: "Something went wrong on our side." });
+    await screen.findByRole("heading", { level: 2, name: "Something went wrong on our side." });
+    getByLine("Please try again in a minute.");
+    expect(h2Names()).toEqual(["Something went wrong on our side."]);
+    expect(queryByLine("Try again in a minute.")).toBeNull();
+    const again = screen.getByRole("button", { name: "Try again" });
+    expect(again.getAttribute("aria-disabled")).not.toBe("true");
+    expect(screen.queryByRole("button", { name: "Log out" })).toBeNull();
+    expect(api.getAdminStatus).toHaveBeenCalledTimes(2);
+    // The new failure is a new alert: focus moves to its h2, as for the first one.
+    await expectFocusOn(title);
+
+    await user.click(again);
+    await screen.findByRole("heading", { level: 2, name: "Host Account" });
+    expect(api.getAdminStatus).toHaveBeenCalledTimes(3);
+  });
+
+  it("AC-14: Try again after a RATE_LIMITED wait that fails again shows the new error without a countdown", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { api, user } = openAdmin(
+      { getAdminStatus: inTurn<AdminStatusResponse>([tooManyRequests(2), recordsUnreadable()]) },
+      "/admin",
+      { fakeTimers: true },
+    );
+    await waitFor(() => getByLine("You can try again in 0:02"));
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Try again" }).getAttribute("aria-disabled")).not.toBe("true"));
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+
+    const title = () => screen.getByRole("heading", { level: 2, name: "Playset can't read its records right now." });
+    await screen.findByRole("heading", { level: 2, name: "Playset can't read its records right now." });
+    expect(h2Names()).toEqual(["Playset can't read its records right now."]);
+    expect(normalise(document.body.textContent)).not.toContain("You can try again in");
+    expect(queryByLine("Too many requests from here.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Try again" }).getAttribute("aria-disabled")).not.toBe("true");
+    expect(api.getAdminStatus).toHaveBeenCalledTimes(2);
+    await expectFocusOn(title);
+  });
+
+  it("AC-14: Try again after a RATE_LIMITED wait answered with NOT_ADMIN shows the logged-out view", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { api, user } = openAdmin(
+      { getAdminStatus: inTurn<AdminStatusResponse>([tooManyRequests(1), notAdmin()]) },
+      "/admin",
+      { fakeTimers: true },
+    );
+    await waitFor(() => getByLine("You can try again in 0:01"));
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Try again" }).getAttribute("aria-disabled")).not.toBe("true"));
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await screen.findByRole("link", { name: "Log in with Spotify" });
+    getByLine(LOGGED_OUT_LINE);
+    expect(screen.queryAllByRole("heading", { level: 2 })).toHaveLength(0);
+    expect(queryByLine("Log in as the Host Account to see this page.")).toBeNull();
+    expect(api.getAdminStatus).toHaveBeenCalledTimes(2);
   });
 
   it("AC-14: RATE_LIMITED counts down from the retry wait with Try again aria-disabled, announces twice, then enables it", async () => {
@@ -582,9 +742,10 @@ describe("status errors", () => {
     await waitFor(() => expect(announcements).toEqual(["Try again in 42 seconds"]));
     expect(screen.queryByRole("button", { name: "Log out" })).toBeNull();
 
-    await user.click(tryAgain);
+    // Activated without moving focus, so the check below sees that the countdown never moves it.
+    act(() => tryAgain.click());
     expect(api.getAdminStatus).toHaveBeenCalledTimes(1);
-    title().focus();
+    expect(document.activeElement).toBe(title());
 
     act(() => {
       vi.advanceTimersByTime(1000);
@@ -640,11 +801,45 @@ describe("log out", () => {
     expect((api.logOut.mock.calls[0] ?? []).some((arg: unknown) => arg instanceof AbortSignal)).toBe(false);
 
     await user.click(within(banner()).getByRole("link", { name: "Playset" }));
-    await screen.findByRole("heading", { level: 1, name: "Hear the Setlist before the Show" });
+    const start = await screen.findByRole("heading", { level: 1, name: "Hear the Setlist before the Show" });
+    await settle();
+    const focusBefore = document.activeElement;
+    const announcements = recordAnnouncements();
+
     await act(async () => logout.resolve());
     await settle();
+    // The logout was left to finish on its own: nothing of it follows the admin to the Start screen.
     expect(api.logOut).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("heading", { level: 1, name: "Hear the Setlist before the Show" }).tagName).toBe("H1");
+    expect(announcements).toEqual([]);
+    expect(announced()).not.toBe("Logged out");
+    expect(screen.queryAllByRole("alert")).toHaveLength(0);
+    expect(currentUrl()).toBe("/");
+    expect(document.activeElement).toBe(focusBefore);
+    expect(screen.queryByRole("heading", { level: 1, name: "Admin" })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Hear the Setlist before the Show" })).toBe(start);
+    expect(api.getAdminStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it("AC-15: a logout that fails after the admin left shows and announces nothing", async () => {
+    const logout = deferred<void>();
+    const { api, user } = await openDashboard(connectedStatus(), { logOut: () => logout.promise });
+    await user.click(within(banner()).getByRole("button", { name: "Log out" }));
+    await within(banner()).findByRole("button", { name: "Logging out…" });
+
+    await user.click(within(banner()).getByRole("link", { name: "Playset" }));
+    await screen.findByRole("heading", { level: 1, name: "Hear the Setlist before the Show" });
+    await settle();
+    const focusBefore = document.activeElement;
+    const announcements = recordAnnouncements();
+
+    await act(async () => logout.reject(playsetUnreachable()));
+    await settle();
+    expect(announcements).toEqual([]);
+    expect(screen.queryAllByRole("alert")).toHaveLength(0);
+    expect(queryByLine("Playset isn't answering right now.")).toBeNull();
+    expect(currentUrl()).toBe("/");
+    expect(document.activeElement).toBe(focusBefore);
+    expect(api.logOut).toHaveBeenCalledTimes(1);
   });
 
   it("AC-16: a failed logout shows a role=alert under the h1, keeps the dashboard and the Log out button, and leaves focus", async () => {
@@ -656,7 +851,8 @@ describe("log out", () => {
 
     const alert = await findAlert("Playset isn't answering right now.");
     getByLine("Check your connection and try again in a minute.", alert);
-    expect(isBefore(h1(), alert)).toBe(true);
+    expect(withoutSpaces(alert.textContent)).toBe(withoutSpaces("Playset isn't answering right now. Check your connection and try again in a minute."));
+    expectDirectlyUnderH1(alert);
     expect(isBefore(alert, screen.getByRole("heading", { level: 2, name: "Host Account" }))).toBe(true);
     expect(h2Names().slice(-5)).toEqual(["Host Account", "Config", "Usage", "Last 30 days", "Top Artists"]);
     const again = within(banner()).getByRole("button", { name: "Log out" });
@@ -672,11 +868,28 @@ describe("log out", () => {
     expect(api.getAdminStatus).toHaveBeenCalledTimes(1);
   });
 
-  it("AC-16: a failed logout with INTERNAL shows that message and hint", async () => {
-    const { user } = await openDashboard(connectedStatus(), { logOut: inTurn<void>([ourSide()]) });
-    await user.click(within(banner()).getByRole("button", { name: "Log out" }));
-    const alert = await findAlert("Something went wrong on our side.");
-    getByLine("Please try again in a minute.", alert);
-    screen.getByRole("heading", { level: 2, name: "Host Account" });
+  it.each<[string, () => Error, string, string]>([
+    ["INTERNAL", ourSide, "Something went wrong on our side.", "Please try again in a minute."],
+    ["RATE_LIMITED", () => tooManyRequests(30), "Too many requests from here.", "Wait a moment, then try again."],
+    ["NOT_ADMIN", notAdmin, "Log in as the Host Account to see this page.", "Use the Log in with Spotify button."],
+  ])("AC-16: a failed logout with %s shows that message and hint, keeps the dashboard and leaves focus", async (_code, error, message, hint) => {
+    const { api, user } = await openDashboard(connectedStatus(), { logOut: inTurn<void>([error()]) });
+    const button = within(banner()).getByRole("button", { name: "Log out" });
+    await user.click(button);
+    const alert = await findAlert(message);
+    getByLine(hint, alert);
+    expect(withoutSpaces(alert.textContent)).toBe(withoutSpaces(`${message} ${hint}`));
+    expectDirectlyUnderH1(alert);
+    // A failed logout has no countdown of its own: the button is ready again at once.
+    expect(normalise(document.body.textContent)).not.toContain("You can try again in");
+    const again = within(banner()).getByRole("button", { name: "Log out" });
+    expect(again.getAttribute("aria-disabled")).not.toBe("true");
+    expect(document.activeElement).toBe(again);
+    expect(h2Names()).toEqual(["Host Account", "Config", "Usage", "Last 30 days", "Top Artists"]);
+    expect(screen.queryByRole("link", { name: "Log in with Spotify" })).toBeNull();
+    expect(currentUrl()).toBe("/admin");
+    await settle();
+    expect(api.logOut).toHaveBeenCalledTimes(1);
+    expect(api.getAdminStatus).toHaveBeenCalledTimes(1);
   });
 });

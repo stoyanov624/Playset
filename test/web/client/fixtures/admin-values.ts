@@ -1,7 +1,7 @@
 // Answers the fake API client gives on the admin page (the admin page's examples E1–E6). Each
 // status is parsed with the contract's schema, so a fixture that drifts from it fails loudly.
 // Every builder returns a fresh object.
-import { act, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { ApiCallError } from "../../../../src/web/client/api/index.js";
 import { adminStatusResponseSchema, type AdminStatusResponse } from "../../../../src/web/shared/index.js";
 import { usageDates } from "../../shared/fixtures/contract-values";
@@ -51,8 +51,13 @@ export function playsetUnreachable(): ApiCallError {
   });
 }
 
-/** The per-day counts of E2, newest first (28 Nov down to 30 Oct). */
-function e2DaysNewestFirst() {
+/**
+ * The per-day counts of E2, newest first (28 Nov down to 30 Oct). Index i is the day i days
+ * before 28 Nov. The middle days (i = 2..28) are filled in so that every column differs from row
+ * to row: one made each, one update every third day (i divisible by 3) and 30 - i opens, so a
+ * row showing another row's numbers, or a column showing another column's, is caught.
+ */
+export function e2DaysNewestFirst() {
   return usageDates().map((date, i) => {
     if (i === 0) return { date, created: 4, updated: 1, opened: 37 };
     if (i === 1) return { date, created: 2, updated: 0, opened: 21 };
@@ -128,12 +133,19 @@ export function oneUpdateStatus(): AdminStatusResponse {
   });
 }
 
-/** Answers each call in turn: a value, an error to reject with, or a pending answer the test settles. */
+/**
+ * Answers each call in turn: a value, an error to reject with, or a pending answer the test
+ * settles. A call beyond the listed answers is unexpected and rejects, so an extra request
+ * shows up as a failure instead of silently getting the last answer again.
+ */
 export function inTurn<T>(answers: Array<T | Error | Deferred<T>>): (...args: unknown[]) => Promise<T> {
   let index = 0;
   return () => {
-    if (answers.length === 0) return Promise.reject(new Error("inTurn: no answers"));
-    const answer = answers[Math.min(index, answers.length - 1)];
+    if (index >= answers.length) {
+      index += 1;
+      return Promise.reject(new Error(`inTurn: unexpected call ${index}; only ${answers.length} answer(s) listed`));
+    }
+    const answer = answers[index];
     index += 1;
     if (answer instanceof Error) return Promise.reject(answer);
     if (typeof answer === "object" && answer !== null && "promise" in answer && "resolve" in answer) {
@@ -183,8 +195,9 @@ export async function openDashboard(
 export async function openLoggedOut(path = "/admin") {
   const opened = openAdmin({ getAdminStatus: async () => Promise.reject(notAdmin()) }, path, {});
   await screen.findByRole("link", { name: "Log in with Spotify" });
-  await act(async () => {
-    await Promise.resolve();
+  // The view is settled once focus has landed on its heading (the h1, or a login problem's h2).
+  await waitFor(() => {
+    if (!/^H[12]$/.test(document.activeElement?.tagName ?? "")) throw new Error("focus is not on a heading yet");
   });
   return opened;
 }

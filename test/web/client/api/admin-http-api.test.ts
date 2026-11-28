@@ -5,6 +5,8 @@ import { ApiCallError, createHttpApi } from "../../../../src/web/client/api/inde
 import { usageDates } from "../../shared/fixtures/contract-values";
 
 interface SentRequest {
+  /** The request target exactly as the client passed it to fetch. */
+  target: string;
   path: string;
   method: string;
   headers: Headers;
@@ -35,7 +37,7 @@ async function readRequest(input: RequestInfo | URL, init: RequestInit | undefin
   // A Request built without credentials says "same-origin"; only an explicit init counts as opting out.
   const credentials = init?.credentials ?? request?.credentials ?? undefined;
   const signal = init?.signal ?? request?.signal ?? undefined;
-  return { path, method: (init?.method ?? request?.method ?? "GET").toUpperCase(), headers, body, hasBody, credentials, signal };
+  return { target: raw, path, method: (init?.method ?? request?.method ?? "GET").toUpperCase(), headers, body, hasBody, credentials, signal };
 }
 
 /** A fetch that answers with `answer`; an aborted signal rejects the call with its reason. */
@@ -53,6 +55,21 @@ function fakeFetch(answer: Answer) {
     return Promise.race([answer(request), aborted]);
   });
   return { fetch: fetchFn as typeof fetch, sent };
+}
+
+/**
+ * The request keeps the page's cookies: credentials left to the default, or set to a value that
+ * still sends them to the same origin. "omit" (or anything else) would drop the admin's login.
+ */
+function expectsPageCookies(request: SentRequest | undefined): void {
+  expect([undefined, "same-origin", "include"]).toContain(request?.credentials);
+}
+
+/** The request goes to `path` on the page's own origin, with no query and no other host. */
+function expectsSameOriginTarget(request: SentRequest | undefined, path: string): void {
+  const target = request?.target ?? "";
+  expect(new URL(target, window.location.origin).origin).toBe(window.location.origin);
+  expect(target === path || target === `${window.location.origin}${path}`).toBe(true);
 }
 
 function json(status: number, body: unknown): Response {
@@ -124,10 +141,31 @@ describe("admin status", () => {
     expect(sent[0]?.path).toBe("/api/admin/status");
     expect(sent[0]?.method).toBe("GET");
     expect(sent[0]?.headers.get("Accept")).toBe("application/json");
-    expect(sent[0]?.credentials).not.toBe("omit");
-    controller.abort();
-    expect(sent[0]?.signal?.aborted).toBe(true);
+    expectsPageCookies(sent[0]);
+    expectsSameOriginTarget(sent[0], "/api/admin/status");
+    // The caller's own signal, not a copy, so cancelling the call cancels the request.
+    expect(sent[0]?.signal).toBe(controller.signal);
     expect(status).toEqual(e2StatusJson());
+  });
+
+  it("AC-17: a status with a field the contract doesn't know fails the schema with the INTERNAL client error", async () => {
+    const { fetch } = fakeFetch(() => json(200, { ...e2StatusJson(), visitorIps: ["203.0.113.7"] }));
+    expect(await apiError(createHttpApi({ fetch }).getAdminStatus())).toEqual(DRIFTED);
+  });
+
+  it("AC-17: a 200 HTML page (the app page served in place of the API) fails with the UPSTREAM_UNAVAILABLE client error", async () => {
+    const { fetch } = fakeFetch(() => new Response("<!doctype html><title>Playset</title>", { status: 200, headers: { "Content-Type": "text/html" } }));
+    expect(await apiError(createHttpApi({ fetch }).getAdminStatus())).toEqual(NO_ANSWER);
+  });
+
+  it("AC-17: an error status with malformed JSON fails with the UPSTREAM_UNAVAILABLE client error", async () => {
+    const { fetch } = fakeFetch(() => new Response('{"error": {"code": "INTERNAL"', { status: 500, headers: { "Content-Type": "application/json" } }));
+    expect(await apiError(createHttpApi({ fetch }).getAdminStatus())).toEqual(NO_ANSWER);
+  });
+
+  it("AC-17: an error body with a code the contract doesn't know fails with the INTERNAL client error", async () => {
+    const { fetch } = fakeFetch(() => json(401, { error: { code: "SESSION_EXPIRED", message: "Your session expired." } }));
+    expect(await apiError(createHttpApi({ fetch }).getAdminStatus())).toEqual(DRIFTED);
   });
 
   it("AC-17: works without a signal", async () => {
@@ -226,7 +264,8 @@ describe("log out", () => {
     expect(sent[0]?.headers.get("Accept")).toBe("application/json");
     expect(sent[0]?.hasBody).toBe(false);
     expect(sent[0]?.body).toBeUndefined();
-    expect(sent[0]?.credentials).not.toBe("omit");
+    expectsPageCookies(sent[0]);
+    expectsSameOriginTarget(sent[0], "/api/admin/logout");
   });
 
   it.each([
@@ -249,6 +288,21 @@ describe("log out", () => {
       json(500, { error: { code: "INTERNAL", message: "Something went wrong on our side.", hint: "Please try again in a minute." } }),
     );
     expect(await apiError(createHttpApi({ fetch }).logOut())).toEqual(DRIFTED);
+  });
+
+  it("AC-18: a 502 HTML page fails with the UPSTREAM_UNAVAILABLE client error", async () => {
+    const { fetch } = fakeFetch(() => new Response("<html>Bad Gateway</html>", { status: 502, headers: { "Content-Type": "text/html" } }));
+    expect(await apiError(createHttpApi({ fetch }).logOut())).toEqual(NO_ANSWER);
+  });
+
+  it("AC-18: an error body that fails the contract's error schema fails with the INTERNAL client error", async () => {
+    const { fetch } = fakeFetch(() => json(500, { message: "oops" }));
+    expect(await apiError(createHttpApi({ fetch }).logOut())).toEqual(DRIFTED);
+  });
+
+  it("AC-18: a 302 redirect is not a 2xx answer and fails with the UPSTREAM_UNAVAILABLE client error", async () => {
+    const { fetch } = fakeFetch(() => new Response(null, { status: 302, headers: { Location: "/admin" } }));
+    expect(await apiError(createHttpApi({ fetch }).logOut())).toEqual(NO_ANSWER);
   });
 
   it("AC-18: a 403 NOT_ADMIN body fails with that code and message", async () => {
