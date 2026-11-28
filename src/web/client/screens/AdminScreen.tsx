@@ -90,8 +90,8 @@ export function AdminScreen() {
       >
         Admin
       </Heading>
-      {logout.error === null ? null : <AdminLogoutError error={logout.error} />}
       {showLoginProblem ? <AdminLoginProblem key={`login-problem-${view.kind}`} code={loginProblem} /> : null}
+      {logout.error === null ? null : <AdminLogoutError error={logout.error} />}
       {view.kind === "loading" ? <LoadingLine text="Loading the status…" /> : null}
       {view.kind === "error" ? <AdminStatusError key={view.shown.key} shown={view.shown} onRetry={() => void answer.refetch()} /> : null}
       {view.kind === "loggedOut" ? <AdminLoggedOut /> : null}
