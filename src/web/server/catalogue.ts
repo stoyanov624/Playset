@@ -8,6 +8,7 @@ import {
   NothingToAddError,
   PartlyCreatedPlaylistError,
   PartlyUpdatedPlaylistError,
+  PlaysetError,
   SetlistChangedError,
   SetlistFmRateLimitError,
   SetlistFmRequestError,
@@ -199,6 +200,15 @@ export function catalogueEntryOf(error: unknown): CatalogueEntry {
     if (error.kind === "status" || error.kind === "network") return CATALOGUE.musicServiceDown;
   }
   return CATALOGUE.internal;
+}
+
+/** A failure Playset knows how to answer, or a stop: anything else is a fault worth seeing in the log. */
+export function isKnownFailure(error: unknown): boolean {
+  return (
+    error instanceof PlaysetError ||
+    error instanceof VisitorError ||
+    (error instanceof Error && error.name === "AbortError")
+  );
 }
 
 /** The Retry-After seconds an error's answer carries, if it is a 429. */

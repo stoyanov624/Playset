@@ -55,6 +55,7 @@ const cachedPreviewShape = z.object({
 type CachedPreviewFits = MatchPreview extends z.infer<typeof cachedPreviewShape> ? true : false;
 /** Fails to compile when `CachedPreviewFits` is `false`; nothing of it is left at run time. */
 type Holds<T extends true> = T;
+/** Exported only so the compile-time check above isn't flagged as unused; nothing imports it. */
 export type CachedPreviewShapeHolds = Holds<CachedPreviewFits>;
 
 /** The stored cached preview, or undefined when it isn't JSON or isn't a cached preview. */

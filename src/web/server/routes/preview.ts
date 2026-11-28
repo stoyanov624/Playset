@@ -1,7 +1,7 @@
 // The preview stream. A cached preview or a run already in flight for the same version is free; only a
 // preview that starts a new run is counted against the Visitor address.
 import { Router, type Request, type Response } from "express";
-import { MissingSetlistVersionError, PlaysetError, getSetlist, prepareSetlist, previewMatches } from "../../../core/index.js";
+import { MissingSetlistVersionError, getSetlist, prepareSetlist, previewMatches } from "../../../core/index.js";
 import {
   PREVIEW_EVENTS,
   ROUTES,
@@ -9,7 +9,7 @@ import {
   previewResultSchema,
   setlistParamsSchema,
 } from "../../shared/index.js";
-import { CATALOGUE, VisitorError } from "../catalogue.js";
+import { CATALOGUE, isKnownFailure } from "../catalogue.js";
 import { createAddressWindow } from "../limits.js";
 import { createPreviewRuns, eventFrame, openEventStream } from "../preview-stream.js";
 import { checked, previewResultOf } from "../shapes.js";
@@ -23,15 +23,6 @@ function leftSince(res: Response): () => boolean {
     closed = true;
   });
   return () => closed || res.destroyed;
-}
-
-/** A failure Playset knows how to answer, or a stop: anything else is a fault worth seeing in the log. */
-function isExpected(error: unknown): boolean {
-  return (
-    error instanceof PlaysetError ||
-    error instanceof VisitorError ||
-    (error instanceof Error && error.name === "AbortError")
-  );
 }
 
 export function previewRoutes({ config, services, records, now, log, hostToken, refuse }: RouteContext): Router {
@@ -50,7 +41,7 @@ export function previewRoutes({ config, services, records, now, log, hostToken, 
     } catch (error) {
       if (!left()) throw error;
       // An expected failure (setlist.fm down, no Host token, a stop) is no news once nobody waits for it.
-      if (isExpected(error)) log.cancelled(error);
+      if (isKnownFailure(error)) log.cancelled(error);
       else log.failedAfterLeaving(error);
     }
   });

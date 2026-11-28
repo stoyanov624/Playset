@@ -43,6 +43,7 @@ export function createAddressWindow(limit: number): AddressWindow {
     return moments;
   };
 
+  /** When the once-a-minute sweep of quiet addresses last ran; never, at first. */
   let lastSweep = Number.NEGATIVE_INFINITY;
 
   /**
