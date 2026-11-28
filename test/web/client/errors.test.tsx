@@ -670,4 +670,28 @@ describe("focus on Try again", () => {
     await screen.findByRole("link", { name: "19 Nov 2026, Bell Centre, 20 songs" });
     expect(document.activeElement).not.toBe(document.body);
   });
+
+  it("AC-39: Try again on a preview error reads Trying again… while pending, keeps focus on it, and the preview replaces the alert", async () => {
+    const { preview, user } = openSetlistScreen();
+    await waitFor(() => expect(preview.calls).toHaveLength(1));
+    await preview.fail(SPOTIFY_DOWN);
+    await user.click(await screen.findByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(preview.calls).toHaveLength(2));
+
+    // The new preview stream is pending with no progress yet: the alert stays, its button busy.
+    screen.getByRole("heading", { level: 2, name: "Spotify isn't answering right now." });
+    const tryingAgain = screen.getByRole("button", { name: "Trying again…" });
+    expect(tryingAgain.getAttribute("aria-disabled")).toBe("true");
+    await expectFocusOn(() => screen.getByRole("button", { name: "Trying again…" }));
+    expect(document.activeElement).not.toBe(document.body);
+
+    preview.progress(1, 5);
+    await waitFor(() => getByLine("Matching 1 of 5 Performances"));
+    expect(screen.queryByRole("heading", { name: "Spotify isn't answering right now." })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Trying again…" })).toBeNull();
+
+    await preview.finish(madridResult());
+    await screen.findByRole("button", { name: "Create playlist" });
+    expect(screen.queryByRole("heading", { name: "Spotify isn't answering right now." })).toBeNull();
+  });
 });
