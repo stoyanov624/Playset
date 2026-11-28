@@ -1,5 +1,5 @@
 // Starts the web server: reads the config (from `.env` in the working directory too, where a variable
-// already set wins), opens the SQLite file, builds the core's services once so every Visitor shares
+// already set and not empty wins), opens the SQLite file, builds the core's services once so every Visitor shares
 // setlist.fm's and Spotify's request spacing, and listens on 127.0.0.1 only.
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -24,7 +24,10 @@ const CLIENT_DIR = fileURLToPath(new URL("../../../dist/web/", import.meta.url))
 function environment(): Record<string, string | undefined> {
   const dotEnvFile = resolve(".env");
   const dotEnv = existsSync(dotEnvFile) ? parseEnv(readFileSync(dotEnvFile, "utf8")) : {};
-  return { ...dotEnv, ...process.env };
+  // A variable set but empty (as a service manager or `FOO= npm run web` leaves it) counts as unset, so
+  // it never hides the value written in .env.
+  const setInEnvironment = Object.entries(process.env).filter(([, value]) => value !== undefined && value !== "");
+  return { ...dotEnv, ...Object.fromEntries(setInEnvironment) };
 }
 
 const logger: Logger = {

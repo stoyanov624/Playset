@@ -24,6 +24,8 @@ export interface AddressWindow {
   /** Seconds until the address may ask again, or undefined when it is under its limit. */
   waitFor(address: string, now: number): number | undefined;
   count(address: string, now: number): void;
+  /** Takes back one moment counted at `now`, for a request that was refused after all. */
+  uncount(address: string, now: number): void;
 }
 
 export function createAddressWindow(limit: number): AddressWindow {
@@ -45,6 +47,49 @@ export function createAddressWindow(limit: number): AddressWindow {
     },
     count(address, now) {
       counted.set(address, [...inWindow(address, now), now]);
+    },
+    uncount(address, now) {
+      const moments = counted.get(address) ?? [];
+      const at = moments.lastIndexOf(now);
+      if (at === -1) return;
+      moments.splice(at, 1);
+      if (moments.length === 0) counted.delete(address);
+    },
+  };
+}
+
+/**
+ * The daily limit on playlists made. A create counts from the moment it is let in, not only once its
+ * usage event is saved, so creates arriving together can't all pass on the same stale count. Checks run
+ * one at a time for the same reason.
+ */
+export interface DailyLimit {
+  /**
+   * Lets one create in when the playlists made today (`countMade`) plus the creates still running stay
+   * under the limit. Gives back `done`, to call once the create has ended (its event saved or not), or
+   * undefined when the limit is reached.
+   */
+  admit(countMade: () => Promise<number>): Promise<(() => void) | undefined>;
+}
+
+export function createDailyLimit(limit: number): DailyLimit {
+  let running = 0;
+  let lastCheck: Promise<unknown> = Promise.resolve();
+
+  return {
+    admit(countMade) {
+      const check = lastCheck.then(async () => {
+        if ((await countMade()) + running >= limit) return undefined;
+        running++;
+        let ended = false;
+        return () => {
+          if (ended) return;
+          ended = true;
+          running--;
+        };
+      });
+      lastCheck = check.catch(() => undefined);
+      return check;
     },
   };
 }

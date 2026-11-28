@@ -3,6 +3,7 @@
 // included, because create-or-update puts exactly the previewed Matches in.
 import type { Database } from "better-sqlite3";
 import type { MatchPreview, SetlistPlaylistRecord, SetlistPlaylistRecords } from "../../core/index.js";
+import { z } from "zod";
 import type { UsageEvents } from "./usage-events.js";
 
 const SCHEMA = `
@@ -28,6 +29,38 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS usage_events_by_day ON usage_events (day, kind);
 `;
+
+const matchShape = z.object({ kind: z.literal("match"), uri: z.string(), name: z.string(), artists: z.array(z.string()) });
+const missShape = z.object({ kind: z.literal("miss"), title: z.string(), artist: z.string(), queries: z.array(z.string()) });
+
+/**
+ * Enough of a cached preview's shape to answer from it and create from its Matches. A row that doesn't
+ * have it (a cut-off write, an older layout) is no cached preview, so a fresh Matching replaces it.
+ */
+const cachedPreviewShape = z.object({
+  rows: z.array(
+    z.object({
+      number: z.number(),
+      performance: z.object({ title: z.string() }),
+      outcome: z.discriminatedUnion("kind", [matchShape, missShape]),
+    }),
+  ),
+  matches: z.array(matchShape),
+  misses: z.array(missShape),
+  playlistName: z.string(),
+});
+
+/** The stored cached preview, or undefined when it isn't JSON or isn't a cached preview. */
+function cachedPreviewOf(stored: string): MatchPreview | undefined {
+  let value: unknown;
+  try {
+    value = JSON.parse(stored);
+  } catch {
+    return undefined;
+  }
+  // The check only says yes or no; the stored value is given back whole, every field kept.
+  return cachedPreviewShape.safeParse(value).success ? (value as MatchPreview) : undefined;
+}
 
 interface RecordRow {
   setlist_id: string;
@@ -78,7 +111,7 @@ export function createSqliteStore(db: Database): { records: SetlistPlaylistRecor
     },
     findPreview: async (setlistId, versionId) => {
       const row = findPreview.get(setlistId, versionId);
-      return row === undefined ? undefined : (JSON.parse(row.preview) as MatchPreview);
+      return row === undefined ? undefined : cachedPreviewOf(row.preview);
     },
     savePreview: async (setlistId, versionId, preview) => {
       savePreview.run(setlistId, versionId, JSON.stringify(preview));

@@ -194,6 +194,8 @@ export function catalogueEntryOf(error: unknown): CatalogueEntry {
   if (error instanceof SetlistChangedError) return CATALOGUE.setlistChanged;
   if (error instanceof HttpError) {
     if (error.kind === "rate-limited") return CATALOGUE.musicServiceBusy;
+    // Only Spotify answers Playset with 401, and only when the Host token no longer works.
+    if (error.kind === "status" && error.status === 401) return CATALOGUE.playlistsUnavailable;
     if (error.kind === "status" || error.kind === "network") return CATALOGUE.musicServiceDown;
   }
   return CATALOGUE.internal;

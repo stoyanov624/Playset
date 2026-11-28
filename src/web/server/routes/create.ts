@@ -15,7 +15,7 @@ import {
 } from "../../shared/index.js";
 import { CATALOGUE, VisitorError } from "../catalogue.js";
 import { createSetlistQueue } from "../create-queue.js";
-import { createAddressWindow, secondsUntilNextUtcDay, utcDay } from "../limits.js";
+import { createAddressWindow, createDailyLimit, secondsUntilNextUtcDay, utcDay } from "../limits.js";
 import { addressOf, parsed, sendJson, type RouteContext } from "./context.js";
 import { LEAVE_OUT_TAPES } from "./tapes.js";
 
@@ -42,8 +42,9 @@ const checkSetlistId: RequestHandler = (req, _res, next) => {
   next();
 };
 
-export function createRoutes({ config, services, records, events, now, hostToken, refuse }: RouteContext): Router {
+export function createRoutes({ config, services, records, events, now, log, hostToken, refuse }: RouteContext): Router {
   const createWindow = createAddressWindow(config.createLimit);
+  const dailyLimit = createDailyLimit(config.dailyLimit);
   const createQueue = createSetlistQueue<CreateOrUpdateResult>();
   const router = Router();
 
@@ -53,20 +54,41 @@ export function createRoutes({ config, services, records, events, now, hostToken
     const accessToken = await hostToken();
 
     const address = addressOf(req);
-    const wait = createWindow.waitFor(address, now());
+    const admittedAt = now();
+    const wait = createWindow.waitFor(address, admittedAt);
     if (wait !== undefined) throw refuse(CATALOGUE.tooManyPlaylists, wait);
-    if ((await events.countPlaylistsMade(utcDay(now()))) >= config.dailyLimit) {
+    // Counted before anything is awaited, so creates arriving together from one address can't all pass.
+    createWindow.count(address, admittedAt);
+    // A create refused for the whole of Playset (or that couldn't be checked) leaves the address's hour as it was.
+    const done = await dailyLimit
+      .admit(() => events.countPlaylistsMade(utcDay(now())))
+      .catch((error: unknown) => {
+        createWindow.uncount(address, admittedAt);
+        throw error;
+      });
+    if (done === undefined) {
+      createWindow.uncount(address, admittedAt);
       throw refuse(CATALOGUE.dailyLimitReached, secondsUntilNextUtcDay(now()));
     }
-    createWindow.count(address, now());
 
-    const { playlist, status } = await createQueue.run(id, versionId, async () => {
-      const setlist = await getSetlist(services, id);
-      const result = await createOrUpdateSetlistPlaylist(services, setlist, versionId, { accessToken, records, now });
-      const { show } = await prepareSetlist(setlist, LEAVE_OUT_TAPES);
-      await events.recordEvent({ kind: result.status, setlistId: id, artist: show.artist, day: utcDay(now()) });
-      return result;
-    });
+    let answer: CreateOrUpdateResult;
+    try {
+      answer = await createQueue.run(id, versionId, async () => {
+        const setlist = await getSetlist(services, id);
+        const result = await createOrUpdateSetlistPlaylist(services, setlist, versionId, { accessToken, records, now });
+        const { show } = await prepareSetlist(setlist, LEAVE_OUT_TAPES);
+        try {
+          await events.recordEvent({ kind: result.status, setlistId: id, artist: show.artist, day: utcDay(now()) });
+        } catch (error) {
+          // The playlist exists; a missing usage event only makes the numbers short by one.
+          log.eventNotRecorded(error);
+        }
+        return result;
+      });
+    } finally {
+      done();
+    }
+    const { playlist, status } = answer;
     sendJson(res, createPlaylistResponseSchema, "create answer", { url: playlist.shareUrl, status });
   });
 

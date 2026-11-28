@@ -1,6 +1,6 @@
 // The preview stream. A cached preview or a run already in flight for the same version is free; only a
 // preview that starts a new run is counted against the Visitor address.
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { MissingSetlistVersionError, getSetlist, prepareSetlist, previewMatches } from "../../../core/index.js";
 import {
   PREVIEW_EVENTS,
@@ -16,6 +16,15 @@ import { checked, previewResultOf } from "../shapes.js";
 import { addressOf, parsed, type RouteContext } from "./context.js";
 import { LEAVE_OUT_TAPES } from "./tapes.js";
 
+/** Whether the Visitor's connection has closed since now, before any answer was sent. */
+function leftSince(res: Response): () => boolean {
+  let closed = res.destroyed;
+  res.once("close", () => {
+    closed = true;
+  });
+  return () => closed || res.destroyed;
+}
+
 export function previewRoutes({ config, services, records, now, log, hostToken, refuse }: RouteContext): Router {
   const previewWindow = createAddressWindow(config.previewLimit);
   const previewRuns = createPreviewRuns(log);
@@ -23,13 +32,20 @@ export function previewRoutes({ config, services, records, now, log, hostToken, 
 
   router.get(ROUTES.setlistPreview, async (req, res) => {
     const { id } = parsed(setlistParamsSchema, req.params, CATALOGUE.setlistIdInvalid);
+    // A Visitor can leave while the Host token, the Setlist or the cache lookup is still on its way. They
+    // have left as surely as one who closes the open stream: nothing is started or counted for them.
+    const left = leftSince(res);
     const accessToken = await hostToken();
-    const prepared = await prepareSetlist(await getSetlist(services, id), LEAVE_OUT_TAPES);
+    if (left()) return;
+    const setlist = await getSetlist(services, id);
+    if (left()) return;
+    const prepared = await prepareSetlist(setlist, LEAVE_OUT_TAPES);
     const { setlistId, versionId } = prepared;
     if (setlistId === undefined || versionId === undefined) throw new MissingSetlistVersionError(id);
 
     // Read here, not left to the preview step, because a cached preview must be known before the limit.
     const cached = await records.findPreview(setlistId, versionId);
+    if (left()) return;
     let run = previewRuns.find(setlistId, versionId);
     if (run === undefined && cached !== undefined) {
       const answer = checked(previewResultSchema, "preview", previewResultOf(prepared, cached, versionId));

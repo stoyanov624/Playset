@@ -49,6 +49,8 @@ export interface FailureLog {
   failure(error: unknown, entry: CatalogueEntry): void;
   /** Logs a preview run that stopped because every Visitor watching it left. */
   cancelled(error: unknown): void;
+  /** Logs a usage event that couldn't be saved; the Visitor's playlist exists all the same. */
+  eventNotRecorded(error: unknown): void;
 }
 
 export function createFailureLog(logger: Logger, redact: (text: string) => string): FailureLog {
@@ -76,6 +78,9 @@ export function createFailureLog(logger: Logger, redact: (text: string) => strin
     },
     cancelled(error) {
       write("info", "Preview stopped, nobody is watching it", error);
+    },
+    eventNotRecorded(error) {
+      write("warn", "Usage event not recorded", error);
     },
   };
 }
