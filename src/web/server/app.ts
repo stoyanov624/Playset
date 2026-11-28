@@ -51,9 +51,14 @@ const CONTENT_SECURITY_POLICY = {
   },
 };
 
+/** The Host tokens redacted by value: the current one and a few before it, for runs still using them. */
+const HOST_TOKENS_KEPT = 4;
+
 export function createApp(deps: AppDeps): express.Express {
   const { config, services, records, events, hostTokens, rateLimitHits, now, logger } = deps;
 
+  // Only the newest few Host tokens are kept for redaction, so a long-running server doesn't keep every
+  // hourly token; older ones are Spotify-shaped ("BQ…") and the redactor catches them by their shape.
   const hostTokensSeen = new Set<string>();
   const redact = createRedactor(() => [
     config.setlistFmApiKey,
@@ -79,7 +84,12 @@ export function createApp(deps: AppDeps): express.Express {
         throw new VisitorError(CATALOGUE.playlistsUnavailable, { cause: error });
       }
       if (token === undefined) throw new VisitorError(CATALOGUE.playlistsUnavailable);
+      hostTokensSeen.delete(token);
       hostTokensSeen.add(token);
+      for (const oldest of hostTokensSeen) {
+        if (hostTokensSeen.size <= HOST_TOKENS_KEPT) break;
+        hostTokensSeen.delete(oldest);
+      }
       return token;
     },
     refuse(entry, retryAfter) {

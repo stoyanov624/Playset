@@ -20,8 +20,8 @@ import {
 import { CATALOGUE, VisitorError } from "../catalogue.js";
 import { utcDay } from "../limits.js";
 import { checked, incompleteStatusOf, showOf } from "../shapes.js";
-import { LEAVE_OUT_TAPES } from "./tapes.js";
 import { parsed, sendJson, type RouteContext } from "./context.js";
+import { LEAVE_OUT_TAPES } from "./tapes.js";
 
 /** The setlist id in a setlist.fm link, only read, never fetched: the Setlist is asked of setlist.fm by its id. */
 function setlistIdIn(url: string): string {
@@ -49,7 +49,7 @@ async function playlistStatusOf(
   return lookup.kind === "none" ? { status: "none" } : { status: lookup.kind, url: lookup.shareUrl };
 }
 
-export function setlistRoutes({ services, records, events, now }: RouteContext): Router {
+export function setlistRoutes({ services, records, events, now, log }: RouteContext): Router {
   const router = Router();
 
   router.get(ROUTES.setlistLinks, (req, res) => {
@@ -68,7 +68,12 @@ export function setlistRoutes({ services, records, events, now }: RouteContext):
       playlist,
     });
     if (playlist.status === "current") {
-      await events.recordEvent({ kind: "opened", setlistId: id, artist: prepared.show.artist, day: utcDay(now()) });
+      try {
+        await events.recordEvent({ kind: "opened", setlistId: id, artist: prepared.show.artist, day: utcDay(now()) });
+      } catch (error) {
+        // The Visitor still gets the link; a missing open only makes the numbers short by one.
+        log.eventNotRecorded(error);
+      }
     }
     res.json(answer);
   });

@@ -4,6 +4,8 @@
 // run side by side.
 
 export interface SetlistQueue<T> {
+  /** Whether a run for exactly this version is queued, so `run` would share its answer. */
+  joins(setlistId: string, versionId: string): boolean;
   run(setlistId: string, versionId: string, work: () => Promise<T>): Promise<T>;
 }
 
@@ -12,6 +14,7 @@ export function createSetlistQueue<T>(): SetlistQueue<T> {
   const lastQueued = new Map<string, { versionId: string; done: Promise<T> }>();
 
   return {
+    joins: (setlistId, versionId) => lastQueued.get(setlistId)?.versionId === versionId,
     run(setlistId, versionId, work) {
       const last = lastQueued.get(setlistId);
       if (last?.versionId === versionId) return last.done;

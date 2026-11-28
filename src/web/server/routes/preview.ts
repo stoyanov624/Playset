@@ -1,6 +1,6 @@
 // The preview stream. A cached preview or a run already in flight for the same version is free; only a
 // preview that starts a new run is counted against the Visitor address.
-import { Router, type Response } from "express";
+import { Router, type Request, type Response } from "express";
 import { MissingSetlistVersionError, getSetlist, prepareSetlist, previewMatches } from "../../../core/index.js";
 import {
   PREVIEW_EVENTS,
@@ -33,8 +33,18 @@ export function previewRoutes({ config, services, records, now, log, hostToken, 
   router.get(ROUTES.setlistPreview, async (req, res) => {
     const { id } = parsed(setlistParamsSchema, req.params, CATALOGUE.setlistIdInvalid);
     // A Visitor can leave while the Host token, the Setlist or the cache lookup is still on its way. They
-    // have left as surely as one who closes the open stream: nothing is started or counted for them.
+    // have left as surely as one who closes the open stream: nothing is started or counted for them, and a
+    // failure nobody waits for any more is no error to answer.
     const left = leftSince(res);
+    try {
+      await answerPreview(id, req, res, left);
+    } catch (error) {
+      if (!left()) throw error;
+      log.cancelled(error);
+    }
+  });
+
+  async function answerPreview(id: string, req: Request, res: Response, left: () => boolean): Promise<void> {
     const accessToken = await hostToken();
     if (left()) return;
     const setlist = await getSetlist(services, id);
@@ -56,9 +66,10 @@ export function previewRoutes({ config, services, records, now, log, hostToken, 
     }
     if (run === undefined) {
       const address = addressOf(req);
-      const wait = previewWindow.waitFor(address, now());
+      const askedAt = now();
+      const wait = previewWindow.waitFor(address, askedAt);
       if (wait !== undefined) throw refuse(CATALOGUE.tooManyPreviews, wait);
-      previewWindow.count(address, now());
+      previewWindow.count(address, askedAt);
       run = previewRuns.start(setlistId, versionId, async (signal, send) => {
         const preview = await previewMatches(services, prepared, accessToken, {
           records,
@@ -71,7 +82,7 @@ export function previewRoutes({ config, services, records, now, log, hostToken, 
       });
     }
     run.listen(openEventStream(res));
-  });
+  }
 
   return router;
 }

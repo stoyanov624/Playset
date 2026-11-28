@@ -20,6 +20,7 @@ const SCHEMA = `
     preview TEXT NOT NULL,
     PRIMARY KEY (setlist_id, version_id)
   );
+  -- The kinds below are UsageEventKind (usage-events.ts); change both together.
   CREATE TABLE IF NOT EXISTS usage_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     kind TEXT NOT NULL CHECK (kind IN ('created', 'updated', 'opened')),
@@ -49,6 +50,11 @@ const cachedPreviewShape = z.object({
   misses: z.array(missShape),
   playlistName: z.string(),
 });
+
+/** Every real MatchPreview passes the check: the shape asks only for what a MatchPreview has. */
+type CachedPreviewFits = MatchPreview extends z.infer<typeof cachedPreviewShape> ? true : never;
+const cachedPreviewFits: CachedPreviewFits = true;
+void cachedPreviewFits;
 
 /** The stored cached preview, or undefined when it isn't JSON or isn't a cached preview. */
 function cachedPreviewOf(stored: string): MatchPreview | undefined {
@@ -97,14 +103,13 @@ export function createSqliteStore(db: Database): { records: SetlistPlaylistRecor
     findRecord: async (setlistId) => {
       const row = findRecord.get(setlistId);
       if (row === undefined) return undefined;
-      const record: SetlistPlaylistRecord = {
+      return {
         setlistId: row.setlist_id,
         playlistId: row.playlist_id,
         shareUrl: row.share_url,
         versionId: row.version_id,
         createdAt: row.created_at,
-      };
-      return record;
+      } satisfies SetlistPlaylistRecord;
     },
     saveRecord: async ({ setlistId, playlistId, shareUrl, versionId, createdAt }) => {
       saveRecord.run(setlistId, playlistId, shareUrl, versionId, createdAt);

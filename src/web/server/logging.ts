@@ -30,17 +30,19 @@ export function createRedactor(secrets: () => Iterable<string>): (text: string) 
 
 const MAX_CAUSE_DEPTH = 8;
 
-/** An error as text for the log: its name, message, hint and stack, then each cause in turn. */
-function describe(error: unknown, depth = 0): string {
+/**
+ * An error as text for the log: its name, message, hint and (with `stacks`) stack, then each cause in turn.
+ */
+function describe(error: unknown, stacks: boolean, depth = 0): string {
   if (depth > MAX_CAUSE_DEPTH) return "";
   if (!(error instanceof Error)) return String(error);
   const hint = (error as { hint?: unknown }).hint;
   const lines = [
     `${error.name}: ${error.message}`,
     ...(typeof hint === "string" ? [`hint: ${hint}`] : []),
-    error.stack ?? "",
+    ...(stacks ? [error.stack ?? ""] : []),
   ];
-  if (error.cause !== undefined) lines.push(`caused by: ${describe(error.cause, depth + 1)}`);
+  if (error.cause !== undefined) lines.push(`caused by: ${describe(error.cause, stacks, depth + 1)}`);
   return lines.join("\n");
 }
 
@@ -59,13 +61,13 @@ export function createFailureLog(logger: Logger, redact: (text: string) => strin
   /** The error the log is about: the server's own wrapper only adds the catalogue entry. */
   const underlying = (error: unknown): unknown => (error instanceof VisitorError ? error.cause : error);
 
-  const write = (level: "info" | "warn" | "error", summary: string, error: unknown) => {
+  const write = (level: "info" | "warn" | "error", summary: string, error: unknown, stacks = true) => {
     if (typeof error === "object" && error !== null) {
       if (logged.has(error)) return;
       logged.add(error);
     }
     const first = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-    logger[level](redact(`${summary}: ${first}`), redact(describe(error)));
+    logger[level](redact(`${summary}: ${first}`), redact(describe(error, stacks)));
   };
 
   return {
@@ -80,7 +82,8 @@ export function createFailureLog(logger: Logger, redact: (text: string) => strin
       write("info", "Preview stopped, nobody is watching it", error);
     },
     eventNotRecorded(error) {
-      write("warn", "Usage event not recorded", error);
+      // The Visitor's answer is unharmed and the store's message says what failed; no stack is needed.
+      write("warn", "Usage event not recorded", error, false);
     },
   };
 }

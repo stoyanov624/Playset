@@ -23,37 +23,48 @@ export function secondsUntilNextUtcDay(ms: number): number {
 export interface AddressWindow {
   /** Seconds until the address may ask again, or undefined when it is under its limit. */
   waitFor(address: string, now: number): number | undefined;
-  count(address: string, now: number): void;
-  /** Takes back one moment counted at `now`, for a request that was refused after all. */
-  uncount(address: string, now: number): void;
+  /** Counts one request at `now`; gives back how to take exactly that one back, if it is refused after all. */
+  count(address: string, now: number): () => void;
 }
 
 export function createAddressWindow(limit: number): AddressWindow {
-  const counted = new Map<string, number[]>();
+  /** Each address's counted moments, oldest first; each its own object, so one can be taken back exactly. */
+  const counted = new Map<string, { at: number }[]>();
+
+  const inside = (now: number) => (moment: { at: number }) => moment.at > now - HOUR_MS;
 
   /** The address's counted moments still inside the window; an address with none is forgotten. */
-  const inWindow = (address: string, now: number): number[] => {
-    const moments = (counted.get(address) ?? []).filter((at) => at > now - HOUR_MS);
+  const inWindow = (address: string, now: number): { at: number }[] => {
+    const moments = (counted.get(address) ?? []).filter(inside(now));
     if (moments.length === 0) counted.delete(address);
     else counted.set(address, moments);
     return moments;
+  };
+
+  /** Forgets every address whose newest moment has left the window, so addresses never seen again don't pile up. */
+  const forgetGone = (now: number) => {
+    for (const [address, moments] of counted) {
+      if (!inside(now)(moments[moments.length - 1]!)) counted.delete(address);
+    }
   };
 
   return {
     waitFor(address, now) {
       const moments = inWindow(address, now);
       if (moments.length < limit) return undefined;
-      return retrySeconds(moments[0]! + HOUR_MS - now);
+      return retrySeconds(moments[0]!.at + HOUR_MS - now);
     },
     count(address, now) {
-      counted.set(address, [...inWindow(address, now), now]);
-    },
-    uncount(address, now) {
-      const moments = counted.get(address) ?? [];
-      const at = moments.lastIndexOf(now);
-      if (at === -1) return;
-      moments.splice(at, 1);
-      if (moments.length === 0) counted.delete(address);
+      forgetGone(now);
+      const moment = { at: now };
+      counted.set(address, [...inWindow(address, now), moment]);
+      return () => {
+        const moments = counted.get(address);
+        if (moments === undefined) return;
+        const left = moments.filter((other) => other !== moment);
+        if (left.length === 0) counted.delete(address);
+        else counted.set(address, left);
+      };
     },
   };
 }
@@ -66,8 +77,8 @@ export function createAddressWindow(limit: number): AddressWindow {
 export interface DailyLimit {
   /**
    * Lets one create in when the playlists made today (`countMade`) plus the creates still running stay
-   * under the limit. Gives back `done`, to call once the create has ended (its event saved or not), or
-   * undefined when the limit is reached.
+   * under the limit. Gives back `done`, to call as soon as the create's usage event is saved (from then on
+   * `countMade` includes it) or the create ended without one, or undefined when the limit is reached.
    */
   admit(countMade: () => Promise<number>): Promise<(() => void) | undefined>;
 }

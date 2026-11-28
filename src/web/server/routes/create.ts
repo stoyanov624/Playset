@@ -58,19 +58,22 @@ export function createRoutes({ config, services, records, events, now, log, host
     const wait = createWindow.waitFor(address, admittedAt);
     if (wait !== undefined) throw refuse(CATALOGUE.tooManyPlaylists, wait);
     // Counted before anything is awaited, so creates arriving together from one address can't all pass.
-    createWindow.count(address, admittedAt);
+    const uncount = createWindow.count(address, admittedAt);
     // A create refused for the whole of Playset (or that couldn't be checked) leaves the address's hour as it was.
     const done = await dailyLimit
       .admit(() => events.countPlaylistsMade(utcDay(now())))
       .catch((error: unknown) => {
-        createWindow.uncount(address, admittedAt);
+        uncount();
         throw error;
       });
     if (done === undefined) {
-      createWindow.uncount(address, admittedAt);
+      uncount();
       throw refuse(CATALOGUE.dailyLimitReached, secondsUntilNextUtcDay(now()));
     }
 
+    // A create that shares a run already queued makes no playlist of its own, so it holds no daily slot.
+    // Checked and joined with nothing awaited in between, so the run can't end in the gap.
+    if (createQueue.joins(id, versionId)) done();
     let answer: CreateOrUpdateResult;
     try {
       answer = await createQueue.run(id, versionId, async () => {
@@ -83,6 +86,8 @@ export function createRoutes({ config, services, records, events, now, log, host
           // The playlist exists; a missing usage event only makes the numbers short by one.
           log.eventNotRecorded(error);
         }
+        // From here today's count holds this create (or, unsaved, never will), so its slot is free.
+        done();
         return result;
       });
     } finally {
