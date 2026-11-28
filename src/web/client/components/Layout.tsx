@@ -25,7 +25,7 @@ export function Layout() {
         </a>
         <header className={styles.header}>
           <div className={styles.container}>
-            <Link to="/" className={styles.wordmark}>
+            <Link to="/" className={styles.wordmark} translate="no">
               Playset
             </Link>
           </div>
@@ -39,7 +39,10 @@ export function Layout() {
         <footer className={styles.footer}>
           <div className={`${styles.container} ${styles.footerItems}`}>
             <p>
-              Setlists from <a href="https://www.setlist.fm/">setlist.fm</a>
+              Setlists from{" "}
+              <a href="https://www.setlist.fm/" translate="no">
+                setlist.fm
+              </a>
             </p>
             <p>Playlists are created in {PLAYSET_SPOTIFY_ACCOUNT} and are public.</p>
             <p>

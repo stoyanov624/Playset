@@ -22,7 +22,7 @@ export interface ButtonProps {
 /** A button that keeps focus while it can't be used (`aria-disabled`), so the Visitor never loses their place. */
 export function Button({ children, variant, icon, busy = false, unavailable = false, wide = false, type = "button", onActivate }: ButtonProps) {
   const inert = busy || unavailable;
-  const className = [styles.button, styles[variant], wide ? styles.wide : ""].join(" ");
+  const className = [styles.button, styles[variant], wide ? styles.wide : undefined].filter(Boolean).join(" ");
   return (
     <button
       type={type}

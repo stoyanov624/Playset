@@ -60,16 +60,23 @@ export function SetlistListScreen({ mbid }: { mbid: string }) {
   const announcedPages = useRef(pageCount);
   const firstNewRow = useRef<HTMLAnchorElement>(null);
   const endLine = useRef<HTMLParagraphElement>(null);
+  const emptyHeading = useRef<HTMLHeadingElement>(null);
   const hasNextPage = list.hasNextPage;
+  const listIsEmpty = setlists.length === 0;
   useEffect(() => {
     if (pageCount > announcedPages.current && pageCount > 1) {
       announce(addedByLastPage === 0 ? "No more Setlists" : `${counted(addedByLastPage, "more Setlist", "more Setlists")} loaded`);
-      // The last page takes Load more away; focus goes on to what it added, or to the end line.
-      if (!hasNextPage) (addedByLastPage === 0 ? endLine : firstNewRow).current?.focus();
+      // The last page takes Load more away; focus goes on to what it added, to the end line, or,
+      // when no Setlist with songs was found at all, to the empty state.
+      if (!hasNextPage) {
+        const target = addedByLastPage > 0 ? firstNewRow : listIsEmpty ? emptyHeading : endLine;
+        target.current?.focus();
+      }
     }
     announcedPages.current = pageCount;
-  }, [pageCount, addedByLastPage, hasNextPage, announce]);
-  const firstNewIndex = addedByLastPage === 0 ? -1 : setlists.length - addedByLastPage;
+  }, [pageCount, addedByLastPage, hasNextPage, listIsEmpty, announce]);
+  // Only a row brought by Load more is "new"; the first page is reached through the heading.
+  const firstNewIndex = pageCount > 1 && addedByLastPage > 0 ? setlists.length - addedByLastPage : -1;
 
   function loadMore() {
     if (!list.isFetchingNextPage) void list.fetchNextPage();
@@ -98,9 +105,9 @@ export function SetlistListScreen({ mbid }: { mbid: string }) {
         <>
           {setlists.length === 0 && !list.hasNextPage ? (
             <section>
-              <Heading level={2} className={styles.emptyHeading}>
+              <h2 ref={emptyHeading} tabIndex={-1} className={styles.emptyHeading}>
                 No Setlists with songs yet
-              </Heading>
+              </h2>
               <p className={styles.text}>setlist.fm has no Setlist with songs for this Artist.</p>
               <LinkButton to="/" variant="secondary" icon={<Search size={20} aria-hidden="true" />}>
                 Search for another Artist

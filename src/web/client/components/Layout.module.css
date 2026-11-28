@@ -46,7 +46,7 @@
 
 .main {
   display: block;
-  min-block-size: 60vh;
+  min-block-size: var(--main-min-h);
   padding-block-end: var(--space-7);
 }
 

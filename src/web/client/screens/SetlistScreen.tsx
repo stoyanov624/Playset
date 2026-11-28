@@ -118,14 +118,9 @@ export function SetlistScreen({ id }: { id: string }) {
     );
   }
 
-  return (
-    <div>
-      {listLink === undefined ? (
-        <BackLink to="/" label="New search" />
-      ) : (
-        <BackLink to={listLink.to} label={listLink.label} state={listLink.state} />
-      )}
-      {statusError !== null ? (
+  function statusPart() {
+    if (statusError !== null) {
+      return (
         <div className={styles.flow}>
           <ScreenError
             key={statusError.key}
@@ -135,34 +130,45 @@ export function SetlistScreen({ id }: { id: string }) {
             onRetry={() => void statusQuery.refetch()}
           />
         </div>
-      ) : status === undefined ? (
-        <LoadingLine text="Loading the Setlist…" />
+      );
+    }
+    if (status === undefined) return <LoadingLine text="Loading the Setlist…" />;
+    return (
+      <>
+        <div className={styles.flow}>
+          <Heading level={1} className={styles.heading} focusWhen={wantsPreview}>
+            {status.show.artist}
+          </Heading>
+          <ShowLine show={status.show} />
+          {status.incompleteStatus.isIncomplete ? <IncompleteAlert status={status.incompleteStatus} /> : null}
+          {status.playlist.status === "outdated" && made === undefined ? <OutdatedNotice url={status.playlist.url} /> : null}
+          {status.playlist.status === "current" ? (
+            <PlaylistPanel title="Setlist Playlist ready" url={status.playlist.url}>
+              <p>It's up to date with setlist.fm.</p>
+            </PlaylistPanel>
+          ) : null}
+          {made !== undefined && result !== undefined && counts !== null ? (
+            <PlaylistPanel title={made.status === "created" ? "Playlist created" : "Playlist updated"} url={made.url}>
+              <p>{result.playlistName}</p>
+              <p>
+                {counted(counts.matches, "song", "songs")}, public in {PLAYSET_SPOTIFY_ACCOUNT}.
+              </p>
+            </PlaylistPanel>
+          ) : null}
+        </div>
+        {previewPart()}
+      </>
+    );
+  }
+
+  return (
+    <div>
+      {listLink === undefined ? (
+        <BackLink to="/" label="New search" />
       ) : (
-        <>
-          <div className={styles.flow}>
-            <Heading level={1} className={styles.heading} focusWhen={wantsPreview}>
-              {status.show.artist}
-            </Heading>
-            <ShowLine show={status.show} />
-            {status.incompleteStatus.isIncomplete ? <IncompleteAlert status={status.incompleteStatus} /> : null}
-            {status.playlist.status === "outdated" && made === undefined ? <OutdatedNotice url={status.playlist.url} /> : null}
-            {status.playlist.status === "current" ? (
-              <PlaylistPanel title="Setlist Playlist ready" url={status.playlist.url}>
-                <p>It's up to date with setlist.fm.</p>
-              </PlaylistPanel>
-            ) : null}
-            {made !== undefined && result !== undefined && counts !== null ? (
-              <PlaylistPanel title={made.status === "created" ? "Playlist created" : "Playlist updated"} url={made.url}>
-                <p>{result.playlistName}</p>
-                <p>
-                  {counted(counts.matches, "song", "songs")}, public in {PLAYSET_SPOTIFY_ACCOUNT}.
-                </p>
-              </PlaylistPanel>
-            ) : null}
-          </div>
-          {previewPart()}
-        </>
+        <BackLink to={listLink.to} label={listLink.label} state={listLink.state} />
       )}
+      {statusPart()}
     </div>
   );
 }

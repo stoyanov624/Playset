@@ -49,6 +49,8 @@
   --rail: 20rem;
   --target: 2.75rem;
   --control-h: 3rem;
+  --row-h: 4rem;
+  --main-min-h: 60vh;
   --col-number: 3ch;
   --col-date: 3.5rem;
   --col-date-wide: 4.5rem;
