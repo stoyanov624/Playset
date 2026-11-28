@@ -98,6 +98,13 @@ export function createApp(deps: AppDeps): express.Express {
       rateLimitHits.add(utcDay(now()));
       return new VisitorError(entry, { retryAfter });
     },
+    async recordUsage(kind, setlistId, artist) {
+      try {
+        await events.recordEvent({ kind, setlistId, artist, day: utcDay(now()) });
+      } catch (error) {
+        log.eventNotRecorded(error);
+      }
+    },
   };
 
   const app = express();

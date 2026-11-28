@@ -1,5 +1,5 @@
 // What every Visitor route shares within one app: the injected services and stores, the failure log, the
-// Host token, Playset's refusals, and how a route reads its input and sends its answer.
+// Host token, Playset's refusals, usage events, and how a route reads its input and sends its answer.
 import type { ErrorRequestHandler, Request, Response } from "express";
 import type {
   HostPlaylistServices,
@@ -11,7 +11,7 @@ import { VisitorError, type CatalogueEntry } from "../catalogue.js";
 import type { WebConfig } from "../config.js";
 import type { FailureLog } from "../logging.js";
 import { checked, type Schema } from "../shapes.js";
-import type { UsageEvents } from "../usage-events.js";
+import type { UsageEventKind, UsageEvents } from "../usage-events.js";
 
 /** The core's setlist.fm and Spotify services, as `createRunServices` builds them. */
 export type WebServices = RunServices & SetlistBrowsingServices & HostPlaylistServices;
@@ -28,6 +28,11 @@ export interface RouteContext {
   hostToken(): Promise<string>;
   /** A Playset limit refused the request: counted for today, answered with how long to wait. */
   refuse(entry: CatalogueEntry, retryAfter: number): VisitorError;
+  /**
+   * Records a usage event for today. Never fails: the Visitor's answer is unharmed by a usage event that
+   * couldn't be saved (it only makes the numbers short by one), so that is logged instead.
+   */
+  recordUsage(kind: UsageEventKind, setlistId: string, artist: string): Promise<void>;
 }
 
 /** The input as the contract reads it, or the Visitor error `entry` when the contract rejects it. */

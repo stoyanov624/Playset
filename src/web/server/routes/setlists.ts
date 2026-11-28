@@ -18,7 +18,6 @@ import {
   type PlaylistStatus,
 } from "../../shared/index.js";
 import { CATALOGUE, VisitorError } from "../catalogue.js";
-import { utcDay } from "../limits.js";
 import { checked, incompleteStatusOf, showOf } from "../shapes.js";
 import { parsed, sendJson, undecodableParamIs, type RouteContext } from "./context.js";
 import { LEAVE_OUT_TAPES } from "./tapes.js";
@@ -49,7 +48,7 @@ async function playlistStatusOf(
   return lookup.kind === "none" ? { status: "none" } : { status: lookup.kind, url: lookup.shareUrl };
 }
 
-export function setlistRoutes({ services, records, events, now, log }: RouteContext): Router {
+export function setlistRoutes({ services, records, recordUsage }: RouteContext): Router {
   const router = Router();
 
   router.get(ROUTES.setlistLinks, (req, res) => {
@@ -67,14 +66,7 @@ export function setlistRoutes({ services, records, events, now, log }: RouteCont
       incompleteStatus: incompleteStatusOf(prepared.incompleteStatus),
       playlist,
     });
-    if (playlist.status === "current") {
-      try {
-        await events.recordEvent({ kind: "opened", setlistId: id, artist: prepared.show.artist, day: utcDay(now()) });
-      } catch (error) {
-        // The Visitor still gets the link; a missing open only makes the numbers short by one.
-        log.eventNotRecorded(error);
-      }
-    }
+    if (playlist.status === "current") await recordUsage("opened", id, prepared.show.artist);
     res.json(answer);
   });
 

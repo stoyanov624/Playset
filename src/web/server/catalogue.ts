@@ -29,6 +29,8 @@ export interface CatalogueEntry {
   /** Fixed Retry-After seconds, for an upstream service that is busy. */
   retryAfter?: number;
   log: LogLevel;
+  /** Logged even when nothing failed behind it, because the refusal itself is something the Host must see. */
+  logWithoutCause?: true;
 }
 
 const TRY_AGAIN = "Try again in a minute.";
@@ -40,7 +42,12 @@ function define(
   code: ErrorCode,
   status: number,
   message: string,
-  { hint, log, retryAfter }: { hint?: string; log: LogLevel; retryAfter?: number },
+  {
+    hint,
+    log,
+    retryAfter,
+    logWithoutCause,
+  }: { hint?: string; log: LogLevel; retryAfter?: number; logWithoutCause?: true },
 ): CatalogueEntry {
   return {
     code,
@@ -49,6 +56,7 @@ function define(
     ...(hint === undefined ? {} : { hint }),
     ...(retryAfter === undefined ? {} : { retryAfter }),
     log,
+    ...(logWithoutCause === undefined ? {} : { logWithoutCause }),
   };
 }
 
@@ -145,6 +153,8 @@ export const CATALOGUE = {
   playlistsUnavailable: define("PLAYLISTS_UNAVAILABLE", 503, "Making playlists is unavailable right now.", {
     hint: "You can still search and open playlists that already exist. Try again later.",
     log: "warn",
+    // The Host simply not being connected has no failure behind it, yet must show in the log.
+    logWithoutCause: true,
   }),
   setlistChanged: define("SETLIST_CHANGED", 409, "This Setlist was changed on setlist.fm after your preview.", {
     hint: "Load the fresh preview, then press Create again.",
@@ -173,10 +183,15 @@ export class VisitorError extends Error {
   }
 }
 
-/** A Spotify answer of 401 means the Host token no longer works, so making playlists is unavailable. */
+/**
+ * Only Spotify answers Playset with 401, and only when the Host token no longer works, so making
+ * playlists is unavailable.
+ */
+const hostTokenRejected = (status: number | undefined): boolean => status === 401;
+
 function spotifyEntry(status: number | undefined): CatalogueEntry {
   if (status === 429) return CATALOGUE.spotifyBusy;
-  if (status === 401) return CATALOGUE.playlistsUnavailable;
+  if (hostTokenRejected(status)) return CATALOGUE.playlistsUnavailable;
   return CATALOGUE.spotifyDown;
 }
 
@@ -195,8 +210,7 @@ export function catalogueEntryOf(error: unknown): CatalogueEntry {
   if (error instanceof SetlistChangedError) return CATALOGUE.setlistChanged;
   if (error instanceof HttpError) {
     if (error.kind === "rate-limited") return CATALOGUE.musicServiceBusy;
-    // Only Spotify answers Playset with 401, and only when the Host token no longer works.
-    if (error.kind === "status" && error.status === 401) return CATALOGUE.playlistsUnavailable;
+    if (error.kind === "status" && hostTokenRejected(error.status)) return CATALOGUE.playlistsUnavailable;
     if (error.kind === "status" || error.kind === "network") return CATALOGUE.musicServiceDown;
   }
   return CATALOGUE.internal;

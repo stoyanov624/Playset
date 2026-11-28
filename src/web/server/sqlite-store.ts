@@ -4,7 +4,7 @@
 import type { Database } from "better-sqlite3";
 import type { MatchPreview, SetlistPlaylistRecord, SetlistPlaylistRecords } from "../../core/index.js";
 import { z } from "zod";
-import type { UsageEvents } from "./usage-events.js";
+import { PLAYLIST_MADE_KINDS, type UsageEvents } from "./usage-events.js";
 
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS setlist_playlists (
@@ -97,8 +97,9 @@ export function createSqliteStore(db: Database): { records: SetlistPlaylistRecor
   const recordEvent = db.prepare<[string, string, string, string]>(
     "INSERT INTO usage_events (kind, setlist_id, artist, day) VALUES (?, ?, ?, ?)",
   );
-  const countPlaylistsMade = db.prepare<[string], { made: number }>(
-    "SELECT COUNT(*) AS made FROM usage_events WHERE day = ? AND kind IN ('created', 'updated')",
+  // The same kinds as the memory adapter counts (isPlaylistMade), one parameter per kind.
+  const countPlaylistsMade = db.prepare<[string, ...string[]], { made: number }>(
+    `SELECT COUNT(*) AS made FROM usage_events WHERE day = ? AND kind IN (${PLAYLIST_MADE_KINDS.map(() => "?").join(", ")})`,
   );
 
   const records: SetlistPlaylistRecords = {
@@ -129,7 +130,7 @@ export function createSqliteStore(db: Database): { records: SetlistPlaylistRecor
     recordEvent: async ({ kind, setlistId, artist, day }) => {
       recordEvent.run(kind, setlistId, artist, day);
     },
-    countPlaylistsMade: async (day) => countPlaylistsMade.get(day)?.made ?? 0,
+    countPlaylistsMade: async (day) => countPlaylistsMade.get(day, ...PLAYLIST_MADE_KINDS)?.made ?? 0,
   };
 
   return { records, events };

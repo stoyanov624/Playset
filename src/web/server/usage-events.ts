@@ -18,8 +18,11 @@ export interface UsageEvents {
   countPlaylistsMade(day: string): Promise<number>;
 }
 
+/** The kinds that are a Setlist Playlist made, as the daily limit counts them (the SQLite count uses them too). */
+export const PLAYLIST_MADE_KINDS = ["created", "updated"] as const satisfies readonly UsageEventKind[];
+
 /** Whether an event is a Setlist Playlist made, as the daily limit counts them. */
-const isPlaylistMade = (kind: UsageEventKind): boolean => kind === "created" || kind === "updated";
+const isPlaylistMade = (kind: UsageEventKind): boolean => (PLAYLIST_MADE_KINDS as readonly string[]).includes(kind);
 
 /** Usage events kept in memory only, for tests. */
 export function createMemoryUsageEvents(): UsageEvents {
