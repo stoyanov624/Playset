@@ -1,0 +1,28 @@
+.counts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.counts li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--space-6);
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+.miss {
+  color: var(--color-caution);
+  font-weight: 700;
+}
+
+.soft {
+  color: var(--color-ink-soft);
+}

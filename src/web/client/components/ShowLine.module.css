@@ -1,0 +1,16 @@
+.line {
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 64rem) {
+  .line {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: var(--space-3);
+  }
+}

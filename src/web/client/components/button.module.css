@@ -1,0 +1,76 @@
+/* Buttons and link-buttons share one look: primary (spike), secondary (paper) and quiet. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  min-block-size: var(--control-h);
+  min-inline-size: var(--target);
+  padding-inline: var(--space-5);
+  border-radius: var(--radius-control);
+  font-family: var(--font-text);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--dur-quick) var(--ease-out), color var(--dur-quick) var(--ease-out);
+}
+
+.primary {
+  background: var(--color-spike);
+  color: var(--color-on-spike);
+  border: 0;
+}
+
+.secondary {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  border: var(--border-control);
+}
+
+.quiet {
+  background: transparent;
+  color: var(--color-ink);
+  border: 0;
+  padding-inline: 0;
+  text-decoration: underline;
+  text-decoration-thickness: var(--underline);
+  text-underline-offset: 0.18em;
+}
+
+.button[aria-disabled="true"] {
+  background: var(--color-sunk);
+  color: var(--color-ink-soft);
+  border: var(--border-control);
+  cursor: not-allowed;
+}
+
+.wide {
+  inline-size: 100%;
+}
+
+@media (min-width: 48rem) {
+  .wide {
+    inline-size: auto;
+  }
+}
+
+@media (hover: hover) {
+  .primary:hover {
+    background: var(--color-spike-hover);
+  }
+
+  .secondary:hover {
+    background: var(--color-sunk);
+  }
+
+  .quiet:hover {
+    color: var(--color-spike);
+    text-decoration-thickness: var(--underline-hover);
+  }
+
+  .button[aria-disabled="true"]:hover {
+    background: var(--color-sunk);
+  }
+}

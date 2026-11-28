@@ -1,0 +1,33 @@
+.flow {
+  max-inline-size: var(--flow-max);
+}
+
+.headline {
+  margin: var(--space-6) 0 var(--space-4);
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
+  font-weight: 800;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.intro {
+  max-inline-size: var(--measure);
+  margin: 0 0 var(--space-6);
+  color: var(--color-ink-soft);
+  text-wrap: pretty;
+}
+
+.rule {
+  margin-block: var(--space-6);
+  border: 0;
+  border-top: var(--border-hair);
+}
+
+@media (min-width: 64rem) {
+  .headline {
+    font-size: var(--text-3xl);
+    line-height: var(--leading-3xl);
+  }
+}

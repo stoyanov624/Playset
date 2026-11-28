@@ -1,0 +1,63 @@
+/* Page-wide defaults: paper and ink, the browser's own surfaces themed, focus always visible. */
+html {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-text);
+  font-size: 100%;
+  line-height: var(--leading-base);
+  scrollbar-color: var(--color-ink-soft) var(--color-paper);
+  accent-color: var(--color-spike);
+  hyphens: auto;
+}
+
+body {
+  margin: 0;
+  font-size: var(--text-base);
+  overflow-x: clip;
+}
+
+h1,
+h2 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+h1:focus,
+h2:focus {
+  outline: 0;
+  scroll-margin-top: var(--space-5);
+}
+
+::selection {
+  background: var(--color-spike-tint);
+  color: var(--color-ink);
+}
+
+a {
+  color: inherit;
+  text-decoration-thickness: var(--underline);
+  text-underline-offset: 0.18em;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-spike);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (hover: hover) {
+  a:hover {
+    color: var(--color-spike);
+    text-decoration-thickness: var(--underline-hover);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:has(:target) {
+    scroll-behavior: smooth;
+  }
+}

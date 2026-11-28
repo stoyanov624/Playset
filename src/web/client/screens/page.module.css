@@ -1,0 +1,35 @@
+/* Single-column screens: Page not found and Terms and Privacy. */
+.flow {
+  max-inline-size: var(--flow-max);
+}
+
+.heading {
+  margin: var(--space-6) 0 var(--space-4);
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
+  font-weight: 800;
+  text-wrap: balance;
+}
+
+.section {
+  margin: var(--space-6) 0 var(--space-3);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: 800;
+  text-wrap: balance;
+}
+
+.text,
+.list {
+  max-inline-size: var(--measure);
+  text-wrap: pretty;
+}
+
+.updated {
+  margin: 0 0 var(--space-5);
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
