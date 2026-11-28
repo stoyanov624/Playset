@@ -25,7 +25,8 @@ export interface EventStream {
 /** Starts the stream: answers 200 with the event-stream headers at once. */
 export function openEventStream(res: Response): EventStream {
   res.status(200);
-  res.set({ "Content-Type": "text/event-stream", "Cache-Control": "no-store", Connection: "keep-alive" });
+  // A buffering reverse proxy would hold the events back until the stream ends.
+  res.set({ "Content-Type": "text/event-stream", "Cache-Control": "no-store", "X-Accel-Buffering": "no" });
   res.flushHeaders();
   const keepAlive = setInterval(() => res.write(": keep-alive\n\n"), KEEP_ALIVE_MS);
   keepAlive.unref();

@@ -34,139 +34,125 @@ const TRY_AGAIN = "Try again in a minute.";
 /** setlist.fm's and Spotify's own Retry-After never reach the server through the core's errors. */
 const UPSTREAM_WAIT_SECONDS = 60;
 
-const entry = (
+/** A catalogue entry; `hint` and `retryAfter` are left out when not given, so they are absent, not undefined. */
+function define(
   code: ErrorCode,
   status: number,
   message: string,
-  hint: string | undefined,
-  log: LogLevel,
-  retryAfter?: number,
-): CatalogueEntry => ({
-  code,
-  status,
-  message,
-  ...(hint === undefined ? {} : { hint }),
-  ...(retryAfter === undefined ? {} : { retryAfter }),
-  log,
-});
+  { hint, log, retryAfter }: { hint?: string; log: LogLevel; retryAfter?: number },
+): CatalogueEntry {
+  return {
+    code,
+    status,
+    message,
+    ...(hint === undefined ? {} : { hint }),
+    ...(retryAfter === undefined ? {} : { retryAfter }),
+    log,
+  };
+}
 
 export const CATALOGUE = {
-  artistNameInvalid: entry("INVALID_INPUT", 400, "Type an Artist name to search for.", "Use 1 to 200 characters.", "none"),
-  setlistPageInvalid: entry("INVALID_INPUT", 400, "That Artist or page isn't valid.", "Search for the Artist again.", "none"),
-  setlistLinkInvalid: entry(
-    "INVALID_INPUT",
-    400,
-    "That isn't a setlist.fm Setlist link.",
-    "Open the Setlist on setlist.fm and copy the link from the address bar. It ends in .html.",
-    "none",
-  ),
-  setlistIdInvalid: entry(
-    "INVALID_INPUT",
-    400,
-    "That Setlist id isn't valid.",
-    "Open the Setlist from a search or a setlist.fm link.",
-    "none",
-  ),
-  createBodyInvalid: entry("INVALID_INPUT", 400, "That request isn't valid.", "Load the preview again, then press Create.", "none"),
-  bodyTooLarge: entry("INVALID_INPUT", 413, "That request is too large.", undefined, "none"),
-  nothingToAdd: entry(
+  artistNameInvalid: define("INVALID_INPUT", 400, "Type an Artist name to search for.", {
+    hint: "Use 1 to 200 characters.",
+    log: "none",
+  }),
+  setlistPageInvalid: define("INVALID_INPUT", 400, "That Artist or page isn't valid.", {
+    hint: "Search for the Artist again.",
+    log: "none",
+  }),
+  setlistLinkInvalid: define("INVALID_INPUT", 400, "That isn't a setlist.fm Setlist link.", {
+    hint: "Open the Setlist on setlist.fm and copy the link from the address bar. It ends in .html.",
+    log: "none",
+  }),
+  setlistIdInvalid: define("INVALID_INPUT", 400, "That Setlist id isn't valid.", {
+    hint: "Open the Setlist from a search or a setlist.fm link.",
+    log: "none",
+  }),
+  createBodyInvalid: define("INVALID_INPUT", 400, "That request isn't valid.", {
+    hint: "Load the preview again, then press Create.",
+    log: "none",
+  }),
+  bodyTooLarge: define("INVALID_INPUT", 413, "That request is too large.", { log: "none" }),
+  nothingToAdd: define(
     "INVALID_INPUT",
     400,
     "None of the songs were found on Spotify, so there's nothing to put in a playlist.",
-    "Pick another Show.",
-    "none",
+    { hint: "Pick another Show.", log: "none" },
   ),
-  descriptionTooLong: entry(
-    "INVALID_INPUT",
-    400,
-    "Playset can't make a playlist for this Setlist.",
-    "Its setlist.fm link is too long for a Spotify playlist description.",
-    "none",
-  ),
-  setlistNotFound: entry(
-    "NOT_FOUND",
-    404,
-    "setlist.fm has no Setlist with that id.",
-    "Check the link, or search for the Artist instead.",
-    "none",
-  ),
-  nothingHere: entry("NOT_FOUND", 404, "There's nothing here.", undefined, "none"),
-  tooManyPreviews: entry(
-    "RATE_LIMITED",
-    429,
-    "Too many previews from here in the last hour.",
-    "Wait a little, then try again. Setlists that already have a preview stay free.",
-    "none",
-  ),
-  tooManyPlaylists: entry(
-    "RATE_LIMITED",
-    429,
-    "Too many playlists from here in the last hour.",
-    "Wait a little, then try again.",
-    "none",
-  ),
-  dailyLimitReached: entry(
-    "RATE_LIMITED",
-    429,
-    "Playset has made as many playlists as it can today.",
-    "Try again tomorrow. Playlists that already exist still open.",
-    "none",
-  ),
-  setlistFmBusy: entry("RATE_LIMITED", 429, "setlist.fm is busy right now.", TRY_AGAIN, "warn", UPSTREAM_WAIT_SECONDS),
-  spotifyBusy: entry("RATE_LIMITED", 429, "Spotify is busy right now.", TRY_AGAIN, "warn", UPSTREAM_WAIT_SECONDS),
-  setlistFmDown: entry("UPSTREAM_UNAVAILABLE", 502, "setlist.fm isn't answering right now.", TRY_AGAIN, "error"),
-  spotifyDown: entry("UPSTREAM_UNAVAILABLE", 502, "Spotify isn't answering right now.", TRY_AGAIN, "error"),
-  partlyCreated: entry(
-    "UPSTREAM_UNAVAILABLE",
-    502,
-    "Spotify stopped answering while the playlist was being filled.",
-    "Try again in a minute. The same playlist will be filled.",
-    "error",
-  ),
-  partlyUpdated: entry(
+  descriptionTooLong: define("INVALID_INPUT", 400, "Playset can't make a playlist for this Setlist.", {
+    hint: "Its setlist.fm link is too long for a Spotify playlist description.",
+    log: "none",
+  }),
+  setlistNotFound: define("NOT_FOUND", 404, "setlist.fm has no Setlist with that id.", {
+    hint: "Check the link, or search for the Artist instead.",
+    log: "none",
+  }),
+  nothingHere: define("NOT_FOUND", 404, "There's nothing here.", { log: "none" }),
+  tooManyPreviews: define("RATE_LIMITED", 429, "Too many previews from here in the last hour.", {
+    hint: "Wait a little, then try again. Setlists that already have a preview stay free.",
+    log: "none",
+  }),
+  tooManyPlaylists: define("RATE_LIMITED", 429, "Too many playlists from here in the last hour.", {
+    hint: "Wait a little, then try again.",
+    log: "none",
+  }),
+  dailyLimitReached: define("RATE_LIMITED", 429, "Playset has made as many playlists as it can today.", {
+    hint: "Try again tomorrow. Playlists that already exist still open.",
+    log: "none",
+  }),
+  setlistFmBusy: define("RATE_LIMITED", 429, "setlist.fm is busy right now.", {
+    hint: TRY_AGAIN,
+    log: "warn",
+    retryAfter: UPSTREAM_WAIT_SECONDS,
+  }),
+  spotifyBusy: define("RATE_LIMITED", 429, "Spotify is busy right now.", {
+    hint: TRY_AGAIN,
+    log: "warn",
+    retryAfter: UPSTREAM_WAIT_SECONDS,
+  }),
+  setlistFmDown: define("UPSTREAM_UNAVAILABLE", 502, "setlist.fm isn't answering right now.", {
+    hint: TRY_AGAIN,
+    log: "error",
+  }),
+  spotifyDown: define("UPSTREAM_UNAVAILABLE", 502, "Spotify isn't answering right now.", {
+    hint: TRY_AGAIN,
+    log: "error",
+  }),
+  partlyCreated: define("UPSTREAM_UNAVAILABLE", 502, "Spotify stopped answering while the playlist was being filled.", {
+    hint: "Try again in a minute. The same playlist will be filled.",
+    log: "error",
+  }),
+  partlyUpdated: define(
     "UPSTREAM_UNAVAILABLE",
     502,
     "Spotify stopped answering while the playlist was being updated.",
-    "Try again in a minute. The same playlist will be updated.",
-    "error",
+    { hint: "Try again in a minute. The same playlist will be updated.", log: "error" },
   ),
-  noVersion: entry(
-    "UPSTREAM_UNAVAILABLE",
-    502,
-    "setlist.fm didn't send everything Playset needs for this Setlist.",
-    "Try again in a few minutes.",
-    "error",
-  ),
-  musicServiceBusy: entry(
-    "RATE_LIMITED",
-    429,
-    "A music service Playset uses is busy right now.",
-    TRY_AGAIN,
-    "warn",
-    UPSTREAM_WAIT_SECONDS,
-  ),
-  musicServiceDown: entry(
-    "UPSTREAM_UNAVAILABLE",
-    502,
-    "A music service Playset uses isn't answering right now.",
-    TRY_AGAIN,
-    "error",
-  ),
-  playlistsUnavailable: entry(
-    "PLAYLISTS_UNAVAILABLE",
-    503,
-    "Making playlists is unavailable right now.",
-    "You can still search and open playlists that already exist. Try again later.",
-    "warn",
-  ),
-  setlistChanged: entry(
-    "SETLIST_CHANGED",
-    409,
-    "This Setlist was changed on setlist.fm after your preview.",
-    "Load the fresh preview, then press Create again.",
-    "none",
-  ),
-  internal: entry("INTERNAL", 500, "Something went wrong on our side.", "Please try again in a minute.", "error"),
+  noVersion: define("UPSTREAM_UNAVAILABLE", 502, "setlist.fm didn't send everything Playset needs for this Setlist.", {
+    hint: "Try again in a few minutes.",
+    log: "error",
+  }),
+  musicServiceBusy: define("RATE_LIMITED", 429, "A music service Playset uses is busy right now.", {
+    hint: TRY_AGAIN,
+    log: "warn",
+    retryAfter: UPSTREAM_WAIT_SECONDS,
+  }),
+  musicServiceDown: define("UPSTREAM_UNAVAILABLE", 502, "A music service Playset uses isn't answering right now.", {
+    hint: TRY_AGAIN,
+    log: "error",
+  }),
+  playlistsUnavailable: define("PLAYLISTS_UNAVAILABLE", 503, "Making playlists is unavailable right now.", {
+    hint: "You can still search and open playlists that already exist. Try again later.",
+    log: "warn",
+  }),
+  setlistChanged: define("SETLIST_CHANGED", 409, "This Setlist was changed on setlist.fm after your preview.", {
+    hint: "Load the fresh preview, then press Create again.",
+    log: "none",
+  }),
+  internal: define("INTERNAL", 500, "Something went wrong on our side.", {
+    hint: "Please try again in a minute.",
+    log: "error",
+  }),
 } as const satisfies Record<string, CatalogueEntry>;
 
 /**

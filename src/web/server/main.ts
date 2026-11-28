@@ -57,8 +57,20 @@ function start(config: WebConfig): void {
     logger,
     clientDir: CLIENT_DIR,
   });
-  app.listen(config.port, HOST, () => {
+  // Express hands a listen failure to this callback too. A port already in use is a setup problem, so it
+  // gets one clear line instead of a stack.
+  const server = app.listen(config.port, HOST, (error?: NodeJS.ErrnoException) => {
+    if (error !== undefined) {
+      const reason = error.code === "EADDRINUSE" ? `port ${config.port} is already in use` : error.message;
+      logger.error(`Playset can't start: ${reason}.`);
+      process.exitCode = 1;
+      return;
+    }
     logger.info(`Playset web is running at http://${HOST}:${config.port}`);
+  });
+  // A service manager stops the server with SIGTERM: let running requests finish, then exit.
+  process.once("SIGTERM", () => {
+    server.close();
   });
 }
 

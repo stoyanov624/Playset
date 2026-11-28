@@ -23,14 +23,15 @@ import type {
 } from "../shared/index.js";
 
 /** A core result the contract rejects: answered as INTERNAL, never sent. */
-export class ContractRejectedError extends Error {
+class ContractRejectedError extends Error {
   constructor(what: string, cause: unknown) {
     super(`The ${what} doesn't fit the web contract, so it was not sent.`, { cause });
     this.name = "ContractRejectedError";
   }
 }
 
-interface Schema<T> {
+/** A contract schema, as zod's `safeParse` reads it. */
+export interface Schema<T> {
   safeParse(value: unknown): { success: true; data: T } | { success: false; error: unknown };
 }
 
