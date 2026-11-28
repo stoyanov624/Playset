@@ -136,6 +136,30 @@ describe("Matching progress", () => {
     );
   });
 
+  it("AC-25: a progress event after the result changes nothing and is not announced", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { preview } = await startedPreview({ fakeTimers: true });
+    const announcements = recordAnnouncements({ repeats: true });
+    preview.progress(4, 5);
+    await waitFor(() => expect(announcements).toEqual(["Matching 5 Performances"]));
+    await preview.finish(madridResult());
+    await waitFor(() => expect(announcements).toEqual(["Matching 5 Performances", "Matching done: 4 Matches, 1 Miss"]));
+
+    // Long enough after the last announcement that a live progress would be read out.
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
+    preview.progress(5, 5);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(queryByLine("Matching 5 of 5 Performances")).toBeNull();
+    getByLine("4 Matches");
+    screen.getByRole("button", { name: "Create playlist" });
+    expect(announcements).toEqual(["Matching 5 Performances", "Matching done: 4 Matches, 1 Miss"]);
+  });
+
   it("AC-26: a cached preview with no progress announces only Matching done", async () => {
     const { preview } = await startedPreview();
     const announcements = recordAnnouncements();

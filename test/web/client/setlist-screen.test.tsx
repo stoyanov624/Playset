@@ -1,6 +1,6 @@
 // The Setlist screen before the preview: the status, the Show line, the Incomplete Setlist
 // warning, the "Setlist Playlist ready" panel with Copy link, and the outdated playlist notice.
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
 import type { SetlistResponse } from "../../../src/web/shared/index.js";
@@ -138,6 +138,30 @@ describe("Setlist Playlist ready", () => {
       vi.advanceTimersByTime(600);
     });
     await screen.findByRole("button", { name: "Copy link" });
+  });
+
+  it("AC-23: Copy link reads Copied at 1999 ms and Copy link again at 2000 ms", async () => {
+    openStatus(PORTLAND_ID, portlandCurrentStatus());
+    const copy = await screen.findByRole("button", { name: "Copy link" });
+    // Time moves only when the test moves it, so the 2-second edge is exact. A plain click is
+    // used here: user-event waits on a timer of its own after each action, which never fires.
+    vi.useFakeTimers();
+    await act(async () => {
+      fireEvent.click(copy);
+      await Promise.resolve();
+    });
+    screen.getByRole("button", { name: "Copied" });
+
+    act(() => {
+      vi.advanceTimersByTime(1999);
+    });
+    screen.getByRole("button", { name: "Copied" });
+    expect(screen.queryByRole("button", { name: "Copy link" })).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    screen.getByRole("button", { name: "Copy link" });
+    expect(screen.queryByRole("button", { name: "Copied" })).toBeNull();
   });
 
   it("AC-23: copying the link a second time announces Link copied again", async () => {

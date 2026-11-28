@@ -5,7 +5,7 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
 import { ApiCallError } from "../../../src/web/client/api/index.js";
-import type { ArtistSetlistsResponse, ArtistsResponse, SetlistResponse } from "../../../src/web/shared/index.js";
+import type { ArtistSetlistsResponse, ArtistsResponse, CreatePlaylistResponse, SetlistResponse } from "../../../src/web/shared/index.js";
 import { deferred, fakeApi, type Deferred } from "./fixtures/fake-api";
 import {
   expectFocusOn,
@@ -28,6 +28,7 @@ import {
   arcticMonkeysCandidates,
   arcticMonkeysPage1,
   arcticMonkeysPage2,
+  createdAnswer,
   madridOutdatedStatus,
   madridResult,
   madridStatus,
@@ -498,5 +499,175 @@ describe("create and update errors", () => {
     );
     await findAlert("You've made many playlists in the last hour.");
     expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+// ---------------------------------------------------------------- countdowns to the end, and focus on Try again
+
+describe("retry waits that run out", () => {
+  it("AC-38: the Create countdown reaches zero, announces it, enables Try again without moving focus, and Try again re-sends the create", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const manyPlaylists = new ApiCallError({
+      code: "RATE_LIMITED", message: "You've made many playlists in the last hour.", hint: "Try again later.", retryAfterSeconds: 3,
+    });
+    const created = deferred<CreatePlaylistResponse>();
+    const opened = await openFinishedPreview(
+      madridStatus(),
+      madridResult(),
+      { createPlaylist: inTurn<CreatePlaylistResponse>([manyPlaylists, created]) },
+      { fakeTimers: true },
+    );
+    const announcements = recordAnnouncements({ repeats: true });
+    await opened.user.click(screen.getByRole("button", { name: "Create playlist" }));
+
+    const alert = await findAlert("You've made many playlists in the last hour.");
+    getByLine("You can try again in 0:03", alert);
+    await waitFor(() => expect(announcements.at(-1)).toBe("Try again in 3 seconds"));
+    const tryAgain = within(alert).getByRole("button", { name: "Try again" });
+    expect(tryAgain.getAttribute("aria-disabled")).toBe("true");
+    await opened.user.click(tryAgain);
+    expect(opened.api.createPlaylist).toHaveBeenCalledTimes(1);
+    const focused = document.activeElement;
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    await waitFor(() => getByLine("You can try again in 0:02", alert));
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    await waitFor(() => expect(announcements.at(-1)).toBe("You can try again now"));
+    expect(announcements.filter((text) => text === "You can try again now")).toHaveLength(1);
+    expect(queryByLine("You can try again in 0:00")).toBeNull();
+    expect(normalise(alert.textContent)).not.toContain("You can try again in");
+    expect(within(alert).getByRole("button", { name: "Try again" }).getAttribute("aria-disabled")).not.toBe("true");
+    expect(document.activeElement).toBe(focused);
+
+    await opened.user.click(within(alert).getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(opened.api.createPlaylist).toHaveBeenCalledTimes(2));
+    expect(opened.api.createPlaylist.mock.calls[1]).toEqual([MADRID_ID, "g3e5f7a91"]);
+    await act(async () => created.resolve(createdAnswer()));
+    await expectFocusOn(() => screen.getByRole("heading", { level: 2, name: "Playlist created" }));
+  });
+
+  it("AC-38: RATE_LIMITED on Load more counts down in place of the button, then Try again asks for the same page", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const busy = new ApiCallError({
+      code: "RATE_LIMITED", message: "setlist.fm is busy right now.", hint: "Wait a moment, then load more.", retryAfterSeconds: 2,
+    });
+    const page2 = deferred<ArtistSetlistsResponse>();
+    const api = fakeApi({ getArtistSetlists: inTurn<ArtistSetlistsResponse>([arcticMonkeysPage1(), busy, page2]) });
+    const { user } = openApp(api, `/artists/${ARCTIC_MONKEYS_MBID}`, { fakeTimers: true });
+    await user.click(await screen.findByRole("button", { name: "Load more Setlists" }));
+
+    const alert = await findAlert("setlist.fm is busy right now.");
+    getByLine("Wait a moment, then load more.", alert);
+    getByLine("You can try again in 0:02", alert);
+    expect(screen.queryByRole("button", { name: "Load more Setlists" })).toBeNull();
+    expect(linksTo("/setlists/")).toHaveLength(3);
+    const tryAgain = within(alert).getByRole("button", { name: "Try again" });
+    expect(tryAgain.getAttribute("aria-disabled")).toBe("true");
+    await user.click(tryAgain);
+    expect(api.getArtistSetlists).toHaveBeenCalledTimes(2);
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    await waitFor(() => expect(within(alert).getByRole("button", { name: "Try again" }).getAttribute("aria-disabled")).not.toBe("true"));
+    expect(normalise(alert.textContent)).not.toContain("You can try again in");
+
+    await user.click(within(alert).getByRole("button", { name: "Try again" }));
+    const trying = await screen.findByRole("button", { name: "Trying again…" });
+    expect(trying.getAttribute("aria-disabled")).toBe("true");
+    await act(async () => page2.resolve(arcticMonkeysPage2()));
+    await screen.findByRole("link", { name: "19 Nov 2026, Bell Centre, 20 songs" });
+    expect(screen.queryAllByRole("alert").filter((el) => normalise(el.textContent) !== "")).toEqual([]);
+    expect(api.getArtistSetlists.mock.calls.map((call) => call.slice(0, 2))).toEqual([
+      [ARCTIC_MONKEYS_MBID, 1],
+      [ARCTIC_MONKEYS_MBID, 2],
+      [ARCTIC_MONKEYS_MBID, 2],
+    ]);
+  });
+
+  it("AC-38: RATE_LIMITED with a retry wait before the preview stream counts down, then Try again starts a new preview", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const manyPreviews = new ApiCallError({
+      code: "RATE_LIMITED", message: "You've asked for many previews in the last hour.",
+      hint: "Try again later, or open a Setlist that already has a playlist.", retryAfterSeconds: 120,
+    });
+    const { preview, user } = openSetlistScreen(madridStatus(), {}, { fakeTimers: true });
+    await waitFor(() => expect(preview.calls).toHaveLength(1));
+    const announcements = recordAnnouncements({ repeats: true });
+    await preview.fail(manyPreviews);
+
+    const title = () => screen.getByRole("heading", { level: 2, name: "You've asked for many previews in the last hour." });
+    await expectFocusOn(title);
+    getByLine("You can try again in 2:00");
+    await waitFor(() => expect(announcements).toEqual(["Try again in 120 seconds"]));
+    const tryAgain = screen.getByRole("button", { name: "Try again" });
+    expect(tryAgain.getAttribute("aria-disabled")).toBe("true");
+    await user.click(tryAgain);
+    expect(preview.calls).toHaveLength(1);
+    title().focus();
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    await waitFor(() => getByLine("You can try again in 1:59"));
+    act(() => {
+      vi.advanceTimersByTime(119_000);
+    });
+    await waitFor(() => expect(announcements).toEqual(["Try again in 120 seconds", "You can try again now"]));
+    expect(normalise(document.body.textContent)).not.toContain("You can try again in");
+    expect(document.activeElement).toBe(title());
+
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(preview.calls).toHaveLength(2));
+    expect(preview.last().id).toBe(MADRID_ID);
+    await preview.finish(madridResult());
+    await screen.findByRole("button", { name: "Create playlist" });
+  });
+});
+
+describe("focus on Try again", () => {
+  it("AC-39: Try again on a search error keeps focus on the button while it reads Trying again…, then moves it to the candidates", async () => {
+    const second = deferred<ArtistsResponse>();
+    const api = fakeApi({ searchArtists: inTurn<ArtistsResponse>([OUR_SIDE, second]) });
+    const { user } = openApp(api, "/?artist=arctic%20monkeys");
+    await user.click(await screen.findByRole("button", { name: "Try again" }));
+
+    await expectFocusOn(() => screen.getByRole("button", { name: "Trying again…" }));
+    expect(document.activeElement).not.toBe(document.body);
+    await act(async () => second.resolve(arcticMonkeysCandidates()));
+    await expectFocusOn(() => screen.getByRole("heading", { level: 1, name: "Pick the Artist" }));
+  });
+
+  it("AC-39: Try again on the Setlist list's page 1 error keeps focus on the button, then moves it to the list heading", async () => {
+    const retry = deferred<ArtistSetlistsResponse>();
+    const api = fakeApi({ getArtistSetlists: inTurn<ArtistSetlistsResponse>([SETLISTFM_DOWN, retry]) });
+    const { user } = openApp(api, `/artists/${ARCTIC_MONKEYS_MBID}`);
+    await user.click(await screen.findByRole("button", { name: "Try again" }));
+
+    await expectFocusOn(() => screen.getByRole("button", { name: "Trying again…" }));
+    await act(async () => retry.resolve(arcticMonkeysPage1()));
+    await screen.findByRole("link", { name: PAGE1_ROW_NAMES[0] });
+    await expectFocusOn(() => screen.getByRole("heading", { level: 1, name: "Arctic Monkeys" }));
+  });
+
+  it("AC-39: Try again on a Load more error keeps focus inside the alert while it reads Trying again…", async () => {
+    const page2 = deferred<ArtistSetlistsResponse>();
+    const api = fakeApi({
+      getArtistSetlists: inTurn<ArtistSetlistsResponse>([arcticMonkeysPage1(), SETLISTFM_DOWN, page2]),
+    });
+    const { user } = openApp(api, `/artists/${ARCTIC_MONKEYS_MBID}`);
+    await user.click(await screen.findByRole("button", { name: "Load more Setlists" }));
+    const alert = await findAlert("setlist.fm isn't answering right now.");
+    await user.click(within(alert).getByRole("button", { name: "Try again" }));
+
+    await expectFocusOn(() => screen.getByRole("button", { name: "Trying again…" }));
+    expect(document.activeElement).not.toBe(document.body);
+    await act(async () => page2.resolve(arcticMonkeysPage2()));
+    await screen.findByRole("link", { name: "19 Nov 2026, Bell Centre, 20 songs" });
+    expect(document.activeElement).not.toBe(document.body);
   });
 });

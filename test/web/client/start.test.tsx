@@ -273,6 +273,25 @@ describe("Artist search", () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  it("AC-52: the candidates while a new search is pending have no axe violations", async () => {
+    const second = deferred<ArtistsResponse>();
+    let calls = 0;
+    const api = fakeApi({
+      searchArtists: () => {
+        calls += 1;
+        return calls === 1 ? Promise.resolve(arcticMonkeysCandidates()) : second.promise;
+      },
+    });
+    const { user, container } = openApp(api, "/");
+    await user.type(artistInput(), "arctic monkeys{Enter}");
+    await screen.findByRole("link", { name: ARCTIC_MONKEYS_LINK });
+    await user.clear(artistInput());
+    await user.type(artistInput(), "pearl jam{Enter}");
+    await screen.findByRole("button", { name: "Searching…" });
+    expect(linksTo("/artists/")).toHaveLength(3);
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
   it("AC-52: No Artist found has no axe violations", async () => {
     const { container } = openApp(fakeApi({ searchArtists: async () => noCandidates() }), "/?artist=arctci%20monkys");
     await screen.findByRole("heading", { level: 1, name: "No Artist found — check spelling" });
@@ -325,6 +344,33 @@ describe("setlist.fm link", () => {
 
     await act(async () => answer.resolve({ setlistId: MADRID_ID }));
     await waitFor(() => expect(currentUrl()).toBe(`/setlists/${MADRID_ID}`));
+  });
+
+  it("AC-13: while Opening… is pending, Enter in the link input and Enter or Space on the button send nothing more", async () => {
+    const answer = deferred<SetlistLinksResponse>();
+    const api = fakeApi({
+      readSetlistLink: () => answer.promise,
+      getSetlist: async () => madridStatus({ status: "current", url: SHARE_URL }),
+    });
+    const { user } = openApp(api, "/");
+    await user.click(linkInput());
+    await user.paste(MADRID_URL);
+    await user.keyboard("{Enter}");
+
+    const opening = await screen.findByRole("button", { name: "Opening…" });
+    expect(opening.getAttribute("aria-disabled")).toBe("true");
+    await user.keyboard("{Enter}");
+    expect(document.activeElement).toBe(linkInput());
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Opening…" }));
+    await user.keyboard("{Enter}");
+    await user.keyboard(" ");
+    expect(api.readSetlistLink).toHaveBeenCalledTimes(1);
+    expect(currentUrl()).toBe("/");
+
+    await act(async () => answer.resolve({ setlistId: MADRID_ID }));
+    await waitFor(() => expect(currentUrl()).toBe(`/setlists/${MADRID_ID}`));
+    expect(api.readSetlistLink).toHaveBeenCalledTimes(1);
   });
 
   it.each([

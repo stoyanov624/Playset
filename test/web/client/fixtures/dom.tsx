@@ -2,7 +2,7 @@
 // full text a line shows (however it is split into elements), the live region, and the URL.
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi } from "vitest";
+import { afterEach, vi } from "vitest";
 import { App } from "../../../../src/web/client/App.js";
 import type { PlaysetApi } from "../../../../src/web/client/api/index.js";
 
@@ -86,14 +86,24 @@ export function recordAnnouncements(options: { repeats?: boolean } = {}): string
   const region = liveRegion();
   const initial = normalise(region.textContent);
   if (initial !== "") seen.push(initial);
-  new MutationObserver((mutations) => {
+  const observer = new MutationObserver((mutations) => {
     const text = normalise(region.textContent);
     if (text === "") return;
     const putInAgain = mutations.some((m) => m.type === "characterData" || m.addedNodes.length > 0);
     if (seen.at(-1) !== text || (options.repeats === true && putInAgain)) seen.push(text);
-  }).observe(region, { childList: true, subtree: true, characterData: true });
+  });
+  observer.observe(region, { childList: true, subtree: true, characterData: true });
+  recorders.add(observer);
   return seen;
 }
+
+/** Live-region recorders still listening; each test's are stopped when it ends. */
+const recorders = new Set<MutationObserver>();
+
+afterEach(() => {
+  for (const observer of recorders) observer.disconnect();
+  recorders.clear();
+});
 
 /** The text of the elements named by `aria-describedby`. */
 export function describedBy(el: Element): string {

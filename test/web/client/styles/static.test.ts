@@ -226,6 +226,25 @@ describe("the client's style sheets", () => {
     expect(declares(css, "--dur-reveal", "240ms")).toBe(true);
   });
 
+  it("AC-55: the scan reads every module style sheet of the components and the screens", () => {
+    const sheets = componentStyleSheets().map((file) => relative(CLIENT_DIR, file).split("\\").join("/"));
+    const modules = sheets.filter((file) => file.endsWith(".module.css"));
+    expect(modules.filter((file) => file.startsWith("components/")).length).toBeGreaterThan(0);
+    expect(modules.filter((file) => file.startsWith("screens/")).length).toBeGreaterThan(0);
+    expect(sheets).toContain("components/button.module.css");
+    expect(sheets).toContain("screens/SetlistScreen.module.css");
+    expect(sheets).toContain("styles/global.css");
+    expect(sheets).not.toContain("styles/tokens.css");
+    // Every component file that imports a module style sheet has it in the scan.
+    const imported = filesUnder(CLIENT_DIR, (file) => file.endsWith(".tsx")).flatMap((file) =>
+      Array.from(readFileSync(file, "utf8").matchAll(/from "(\.{1,2}\/[\w./-]+\.module\.css)"/g), (match) =>
+        relative(CLIENT_DIR, join(file, "..", match[1] ?? "")).split("\\").join("/"),
+      ),
+    );
+    expect(imported.length).toBeGreaterThan(0);
+    expect(imported.filter((file) => !sheets.includes(file))).toEqual([]);
+  });
+
   it("AC-55: component style sheets use only tokens for colours, sizes, shadows and fonts", () => {
     const sheets = componentStyleSheets();
     expect(sheets.length).toBeGreaterThan(0);

@@ -252,6 +252,31 @@ describe("Setlist list", () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  it("AC-52: the Setlist list while page 1 loads has no axe violations", async () => {
+    const { container } = openList([deferred<ArtistSetlistsResponse>().promise]);
+    await waitFor(() => getByLine("Loading Setlists…"));
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it("AC-52: the Setlist list while Load more is pending has no axe violations", async () => {
+    const { container, user } = openList([arcticMonkeysPage1(), deferred<ArtistSetlistsResponse>().promise]);
+    await user.click(await screen.findByRole("button", { name: "Load more Setlists" }));
+    await screen.findByRole("button", { name: "Loading…" });
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it("AC-52: the Setlist list reached from a candidate, while page 1 loads, has no axe violations", async () => {
+    const api = fakeApi({
+      searchArtists: async () => pearlJamCandidates(),
+      getArtistSetlists: () => deferred<ArtistSetlistsResponse>().promise,
+    });
+    const { user, container } = openApp(api, "/?artist=pearl%20jam");
+    await user.click(await screen.findByRole("link", { name: "Pearl Jam" }));
+    await screen.findByRole("heading", { level: 1, name: "Pearl Jam" });
+    getByLine("Loading Setlists…");
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
   it("AC-52: the empty Setlist list has no axe violations", async () => {
     const { container } = openList([emptyPage(false)], `/artists/${PEARL_JAM_MBID}`);
     await screen.findByRole("heading", { level: 2, name: "No Setlists with songs yet" });

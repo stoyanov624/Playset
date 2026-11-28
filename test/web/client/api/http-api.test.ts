@@ -500,4 +500,55 @@ describe("preview stream", () => {
     expect(error).toBe(reason);
     expect(error).not.toBeInstanceOf(ApiCallError);
   });
+
+  it("AC-50: once the preview event has arrived the rest of the stream is closed", async () => {
+    const watched = watchedStream([`event: preview\ndata: ${PREVIEW_JSON}\n\n`]);
+    const fetch = answering(watched.response);
+    expect(await previewCall(fetch).call).toEqual(madridPreview());
+    await vi.waitFor(() => expect(watched.cancelled).toHaveLength(1));
+  });
+
+  it("AC-50: once an error event has arrived the rest of the stream is closed", async () => {
+    const watched = watchedStream([
+      'event: error\ndata: {"code":"UPSTREAM_UNAVAILABLE","message":"Spotify isn\'t answering right now.","hint":"Try again in a minute."}\n\n',
+    ]);
+    const fetch = answering(watched.response);
+    expect((await apiError(previewCall(fetch).call)).message).toBe("Spotify isn't answering right now.");
+    await vi.waitFor(() => expect(watched.cancelled).toHaveLength(1));
+  });
+
+  it("AC-51: an event that fails its schema closes the rest of the stream", async () => {
+    const watched = watchedStream(['event: progress\ndata: {"n":3,"total":2}\n\n']);
+    const fetch = answering(watched.response);
+    expect(await apiError(previewCall(fetch).call)).toEqual(DRIFTED);
+    await vi.waitFor(() => expect(watched.cancelled).toHaveLength(1));
+  });
 });
+
+/**
+ * An answer body that stays open after its chunks (as a live preview does) and records when its
+ * reader cancels it.
+ */
+function watchedStream(chunks: string[]) {
+  let index = 0;
+  const cancelled: unknown[] = [];
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      const chunk = chunks[index];
+      index += 1;
+      if (chunk === undefined) return new Promise<void>(() => undefined);
+      controller.enqueue(encoder.encode(chunk));
+      return undefined;
+    },
+    cancel(reason) {
+      cancelled.push(reason);
+    },
+  });
+  const response = new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+  return { response, cancelled };
+}
+
+/** A fetch that hands the client `response` itself, so the client's own reader is the one on its body. */
+function answering(response: Response): typeof fetch {
+  return (async () => response) as typeof fetch;
+}
