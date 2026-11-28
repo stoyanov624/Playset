@@ -18,12 +18,11 @@ import {
   createRunServices,
   type MatchOutcome,
   type Performance,
-  type RunServices,
   type SetlistFmSetlist,
   type SetlistPlaylistRecords,
 } from "../../../../src/core/index.js";
 import { HttpError, createRequester, type RequestPolicy } from "../../../../src/core/http/index.js";
-import { createApp, readWebConfig } from "../../../../src/web/server/index.js";
+import { createApp, readWebConfig, type WebServices } from "../../../../src/web/server/index.js";
 import { makeFakeClock, makeRoutedFetch, type RecordedRequest } from "../../../run/fixtures/real-service-fakes";
 import {
   PARTLY_ID,
@@ -415,7 +414,7 @@ export function makeHarness(opts: HarnessOptions = {}) {
       }
       return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
     },
-  }) as RunServices;
+  }) as WebServices;
 
   // Host token source
   const host = { mode: opts.host ?? ({ kind: "connected", token: HOST_TOKEN } as HostMode), asked: 0 };

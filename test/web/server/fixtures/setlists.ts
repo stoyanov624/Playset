@@ -45,8 +45,11 @@ export const MADRID_URL =
 
 // ---------------------------------------------------------------- Setlists
 
-/** The Madrid Setlist (Arctic Monkeys): a Tape, a medley, a snippet, an Unknown Song, a repeat, an Encore and a tease. */
-export function madridSetlist(versionId: string | undefined = MADRID_VERSION): SetlistFmSetlist {
+/**
+ * The Madrid Setlist (Arctic Monkeys): a Tape, a medley, a snippet, an Unknown Song, a repeat, an Encore and a tease.
+ * `versionId: null` builds it with no `versionId` key at all.
+ */
+export function madridSetlist(versionId: string | null = MADRID_VERSION): SetlistFmSetlist {
   const setlist: Record<string, unknown> = {
     id: MADRID_ID,
     eventDate: "02-06-2026",
@@ -73,7 +76,7 @@ export function madridSetlist(versionId: string | undefined = MADRID_VERSION): S
       ],
     },
   };
-  if (versionId !== undefined) setlist.versionId = versionId;
+  if (versionId !== null) setlist.versionId = versionId;
   return setlist as unknown as SetlistFmSetlist;
 }
 

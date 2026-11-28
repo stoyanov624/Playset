@@ -205,7 +205,7 @@ describe("checks before the stream, in order (AC-19)", () => {
   });
 
   it("AC-19: Madrid without a version → 502 E-20 as JSON; no Spotify request, nothing counted", async () => {
-    const h = makeHarness({ env: { PLAYSET_PREVIEW_LIMIT: "1" }, setlists: { [MADRID_ID]: madridSetlist(undefined) } });
+    const h = makeHarness({ env: { PLAYSET_PREVIEW_LIMIT: "1" }, setlists: { [MADRID_ID]: madridSetlist(null) } });
     const res = await h.get(`/api/setlists/${MADRID_ID}/preview`);
     expectCatalogueError(res, "E-20");
     expect(h.spotifyRequests()).toEqual([]);
