@@ -311,3 +311,37 @@ describe("POST /api/setlists/:id/playlist — checks first (AC-27)", () => {
     expectCatalogueError(res, "E-24");
   });
 });
+
+// ---------------------------------------------------------------- AC-28: recording the usage event fails
+
+describe("POST /api/setlists/:id/playlist — the usage event can't be recorded (AC-28)", () => {
+  const failingEvents = () => ({
+    async recordEvent(): Promise<void> {
+      throw new Error("SQLITE_BUSY: database is locked");
+    },
+    async countPlaylistsMade(): Promise<number> {
+      return 0;
+    },
+  });
+
+  it("AC-28: created, then recordEvent rejects → still 200 { url, status: created }; one warning, no error", async () => {
+    const h = makeHarness({ events: failingEvents() });
+    const res = await h.post(PATH, { versionId: H_V1 });
+    expect(res.status).toBe(200);
+    expect(res.body).toStrictEqual({ url: SHARE_URL, status: "created" });
+    expect((await h.records.findRecord(H_ID))?.playlistId).toBe(PLAYLIST_ID);
+    expect(h.log.of("warn")).toHaveLength(1);
+    expect(h.log.of("error")).toEqual([]);
+    expectNoLeaks(res);
+  });
+
+  it("AC-28: updated, then recordEvent rejects → still 200 { url, status: updated }; one warning, no error", async () => {
+    const h = makeHarness({ setlists: { [H_ID]: fixtureHv2() }, events: failingEvents() });
+    await h.records.saveRecord(h1Record());
+    const res = await h.post(PATH, { versionId: H_V2 });
+    expect(res.status).toBe(200);
+    expect(res.body).toStrictEqual({ url: SHARE_URL, status: "updated" });
+    expect(h.log.of("warn")).toHaveLength(1);
+    expect(h.log.of("error")).toEqual([]);
+  });
+});

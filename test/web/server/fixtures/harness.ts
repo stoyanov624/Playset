@@ -417,10 +417,16 @@ export function makeHarness(opts: HarnessOptions = {}) {
   }) as WebServices;
 
   // Host token source
-  const host = { mode: opts.host ?? ({ kind: "connected", token: HOST_TOKEN } as HostMode), asked: 0 };
+  const host = {
+    mode: opts.host ?? ({ kind: "connected", token: HOST_TOKEN } as HostMode),
+    asked: 0,
+    /** When set, every Host token ask waits here before answering. */
+    gate: undefined as Gate | undefined,
+  };
   const hostTokens = {
     async getAccessToken(): Promise<string | undefined> {
       host.asked++;
+      if (host.gate) await host.gate.pass();
       const mode = host.mode;
       if (mode.kind === "connected") return mode.token;
       if (mode.kind === "absent") return undefined;
@@ -652,11 +658,11 @@ export function openStream(port: number, path: string, address: string): OpenStr
 
 // ---------------------------------------------------------------- the core's generic request error
 
-/** A real HttpError of the given kind, made by the core's requester over a fake fetch. */
-export async function httpError(kind: "rate-limited" | "status" | "network"): Promise<Error> {
+/** A real HttpError of the given kind (and, for "status", the given HTTP status), made by the core's requester over a fake fetch. */
+export async function httpError(kind: "rate-limited" | "status" | "network", status = 500): Promise<Error> {
   const fetch = async (): Promise<Response> => {
     if (kind === "network") throw new TypeError("fetch failed");
-    return new Response("{}", { status: kind === "status" ? 500 : 429, headers: { "Retry-After": "1" } });
+    return new Response("{}", { status: kind === "status" ? status : 429, headers: { "Retry-After": "1" } });
   };
   const request = createRequester({ name: "Spotify playlist", maxAttempts: 1 } as RequestPolicy, {
     fetch,

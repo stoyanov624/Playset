@@ -10,6 +10,8 @@ import {
   createSqliteStore,
 } from "../../../src/web/server/index.js";
 import { HOST_TOKEN, fakeMatchSearch, fixtureHv1, fixtureHv2, hostOutcomes } from "../../run/fixtures/host-setlists";
+import { makeHarness, progressNames, parseSse, frameNames } from "./fixtures/harness";
+import { MADRID_ID, MADRID_VERSION } from "./fixtures/setlists";
 
 const r1Record: SetlistPlaylistRecord = {
   setlistId: "2bf1c8e4",
@@ -221,5 +223,60 @@ describe("the rate-limit hit counter (AC-32)", () => {
     expect(hits.count("2026-11-29")).toBe(1);
     expect(hits.count("2026-11-27")).toBe(0);
     expect(createRateLimitHitCounter().count("2026-11-28")).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------- AC-35: a corrupt cached preview
+
+/**
+ * Overwrites, in every table, each text cell that holds a JSON object with `replacement`
+ * (the stored cached preview is the only JSON object in a fresh database).
+ */
+function corruptStoredJson(db: Database.Database, replacement: string): number {
+  let changed = 0;
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>;
+  for (const { name } of tables) {
+    const columns = db.prepare(`PRAGMA table_info("${name}")`).all() as Array<{ name: string }>;
+    const rows = db.prepare(`SELECT rowid AS __rowid, * FROM "${name}"`).all() as Array<Record<string, unknown>>;
+    for (const row of rows) {
+      for (const { name: column } of columns) {
+        const value = row[column];
+        if (typeof value === "string" && value.trimStart().startsWith("{")) {
+          db.prepare(`UPDATE "${name}" SET "${column}" = ? WHERE rowid = ?`).run(replacement, row.__rowid);
+          changed++;
+        }
+      }
+    }
+  }
+  return changed;
+}
+
+describe("a corrupt cached preview (AC-35)", () => {
+  it.each([
+    ["bad JSON", '{"rows": [ not json'],
+    ["valid JSON of the wrong shape", '{"hello":"world"}'],
+  ])("AC-35: a stored cached preview holding %s is no cached preview (findPreview → undefined)", async (_why, replacement) => {
+    const { db, records } = store();
+    await records.savePreview("2bf1c8e4", "g4bd1a2f6", await previewOf(fixtureHv1()));
+    expect(corruptStoredJson(db, replacement)).toBe(1);
+    await expect(records.findPreview("2bf1c8e4", "g4bd1a2f6")).resolves.toBeUndefined();
+  });
+
+  it("AC-35: through the app, a corrupt cached preview → a new run starts (progress events), and its fresh preview replaces the bad row", async () => {
+    const db = new Database(":memory:");
+    const { records } = createSqliteStore(db);
+    const first = makeHarness({ records });
+    const firstRun = await first.getStream(`/api/setlists/${MADRID_ID}/preview`);
+    expect(frameNames(parseSse(firstRun.body as string).frames)).toEqual([...progressNames(5), "preview"]);
+    expect(corruptStoredJson(db, '{"hello":"world"}')).toBe(1);
+
+    const h = makeHarness({ records });
+    const res = await h.getStream(`/api/setlists/${MADRID_ID}/preview`);
+    expect(res.status).toBe(200);
+    expect(frameNames(parseSse(res.body as string).frames)).toEqual([...progressNames(5), "preview"]);
+    expect(h.matchSearches).toHaveLength(5);
+    expect(h.log.of("error")).toEqual([]);
+    const cached = (await records.findPreview(MADRID_ID, MADRID_VERSION)) as { playlistName: string } | undefined;
+    expect(cached?.playlistName).toBe("Arctic Monkeys – 2026-06-02 – Madrid");
   });
 });

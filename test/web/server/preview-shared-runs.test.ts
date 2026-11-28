@@ -2,6 +2,7 @@
 // the test can read each stream as it comes and close a connection mid-run; the Match search is
 // held at a gate until the test releases it.
 import { afterEach, describe, expect, it } from "vitest";
+import { createMemorySetlistPlaylistRecords, type SetlistPlaylistRecords } from "../../../src/core/index.js";
 import { previewResultSchema } from "../../../src/web/shared/index.js";
 import { bareError } from "./fixtures/catalogue";
 import {
@@ -19,6 +20,8 @@ import {
   spotifyRateLimited,
   spotifyStatus,
   waitUntil,
+  type Gate,
+  type Harness,
   type HarnessOptions,
 } from "./fixtures/harness";
 import { H_ID, H_V1, H_V2, fixtureHv1, fixtureHv2 } from "./fixtures/setlists";
@@ -231,4 +234,74 @@ describe("a run failing after the stream started (AC-26)", () => {
     expect(down.log.of("error")).toHaveLength(1);
     expect(down.log.allText()).not.toContain(HOST_TOKEN);
   });
+});
+
+// ---------------------------------------------------------------- AC-25: leaving before the stream opens
+
+/** The core's in-memory records, with the cached-preview lookup held at `gate`. */
+function recordsWithGatedCacheLookup(gate: Gate): { records: SetlistPlaylistRecords; inner: SetlistPlaylistRecords } {
+  const inner = createMemorySetlistPlaylistRecords();
+  const records = new Proxy(inner as object, {
+    get(target, prop) {
+      if (prop === "findPreview") {
+        return async (...args: Parameters<SetlistPlaylistRecords["findPreview"]>) => {
+          await gate.pass();
+          return inner.findPreview(...args);
+        };
+      }
+      const value: unknown = Reflect.get(target, prop, target);
+      return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+    },
+  }) as SetlistPlaylistRecords;
+  return { records, inner };
+}
+
+type EarlyGate = "the Host token" | "the setlist.fm fetch" | "the cached-preview lookup";
+
+/** H v2 served; the preview request is held at `where` until the test releases the gate. */
+async function setupEarlyGate(where: EarlyGate) {
+  const gate = makeGate();
+  const cache = where === "the cached-preview lookup" ? recordsWithGatedCacheLookup(gate) : undefined;
+  const h: Harness = makeHarness({ setlists: { [H_ID]: fixtureHv2() }, ...(cache ? { records: cache.records } : {}) });
+  if (where === "the Host token") h.host.gate = gate;
+  if (where === "the setlist.fm fetch") {
+    h.overrides.getSetlist = async (setlistId: string) => {
+      await gate.pass();
+      return h.core.getSetlist(setlistId);
+    };
+  }
+  const server = await listen(h.app);
+  closers.push(server.close);
+  return { h, gate, port: server.port, cachedPreviews: cache?.inner ?? h.records };
+}
+
+describe("a Visitor leaving before the stream opens (AC-25)", () => {
+  it.each(["the Host token", "the setlist.fm fetch", "the cached-preview lookup"] as const)(
+    "AC-25: A closes while %s is pending → treated as left at once: no Match search, no cached preview, no error or warning; a later request starts a new run",
+    async (where) => {
+      const { h, gate, port, cachedPreviews } = await setupEarlyGate(where);
+      const a = openStream(port, PATH, A);
+      await waitUntil(() => gate.state.waiting === 1, `${where} to wait`);
+      expect(a.status()).toBeUndefined();
+      a.close();
+      await flush(50);
+      gate.release();
+      await flush(150);
+
+      expect(h.matchSearches).toEqual([]);
+      expect(await cachedPreviews.findPreview(H_ID, H_V2)).toBeUndefined();
+      expect(h.log.of("error")).toEqual([]);
+      expect(h.log.of("warn")).toEqual([]);
+      expect(h.log.of("info").length).toBeLessThanOrEqual(1);
+      expect(h.log.allText()).not.toContain(A);
+
+      const again = openStream(port, PATH, A);
+      await again.waitForEnd();
+      expect(again.status()).toBe(200);
+      expect(again.names()).toEqual([...progressNames(5), "preview"]);
+      expect(h.matchSearches).toHaveLength(5);
+      expect((await cachedPreviews.findPreview(H_ID, H_V2)) === undefined).toBe(false);
+      expect(h.log.of("error")).toEqual([]);
+    },
+  );
 });

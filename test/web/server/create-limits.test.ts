@@ -1,7 +1,21 @@
 // Create/update limits (X13): per address per hour, per day, and the rate-limit hit counter.
 import { describe, expect, it } from "vitest";
 import { expectCatalogueError } from "./fixtures/catalogue";
-import { A, B, C, HOST_TOKEN, TODAY, expectNoLeaks, makeFakeEvents, makeHarness, spotifyStatus } from "./fixtures/harness";
+import {
+  A,
+  B,
+  C,
+  HOST_TOKEN,
+  TODAY,
+  expectNoLeaks,
+  flush,
+  makeFakeEvents,
+  makeGate,
+  makeHarness,
+  spotifyStatus,
+  waitUntil,
+  type Gate,
+} from "./fixtures/harness";
 import { H_ID, H_V1, H_V2, MADRID_ID, MADRID_VERSION, NIRVANA_ID, NIRVANA_VERSION, SHARE_URL, fixtureHv2 } from "./fixtures/setlists";
 
 const create = (id: string, versionId: string) => ({ path: `/api/setlists/${id}/playlist`, body: { versionId } });
@@ -179,4 +193,124 @@ describe("the rate-limit hit counter (AC-32)", () => {
     const second = makeHarness({ env: { PLAYSET_CREATE_LIMIT: "1" } });
     expect((await second.post(H_V1_CREATE.path, H_V1_CREATE.body)).status).toBe(200);
   });
+});
+
+// ---------------------------------------------------------------- windows forgetting old moments
+
+describe("windows forget moments older than 60 minutes (AC-29, AC-23)", () => {
+  it("AC-29: A at its limit at 14:00 gets a fresh window 61 minutes later: two more admitted, the third waits a full hour", async () => {
+    const h = makeHarness({ env: { PLAYSET_CREATE_LIMIT: "2" } });
+    h.clock.set("2026-11-28T14:00:00.000Z");
+    expect((await h.post(H_V1_CREATE.path, H_V1_CREATE.body, A)).status).toBe(200);
+    expect((await h.post(H_V1_CREATE.path, H_V1_CREATE.body, A)).status).toBe(200);
+    expectCatalogueError(await h.post(MADRID_CREATE.path, MADRID_CREATE.body, A), "E-12", 3600);
+
+    h.clock.set("2026-11-28T15:01:00.000Z");
+    expect((await h.post(MADRID_CREATE.path, MADRID_CREATE.body, A)).status).toBe(200);
+    expect((await h.post(NIRVANA_CREATE.path, NIRVANA_CREATE.body, A)).status).toBe(200);
+    expectCatalogueError(await h.post(H_V1_CREATE.path, H_V1_CREATE.body, A), "E-12", 3600);
+  });
+
+  it("AC-23: A at its preview limit at 14:00 gets a fresh window 61 minutes later", async () => {
+    const h = makeHarness({ env: { PLAYSET_PREVIEW_LIMIT: "1" } });
+    h.clock.set("2026-11-28T14:00:00.000Z");
+    expect((await h.getStream(`/api/setlists/${MADRID_ID}/preview`, A)).status).toBe(200);
+    expectCatalogueError(await h.get(`/api/setlists/${H_ID}/preview`, A), "E-11", 3600);
+
+    h.clock.set("2026-11-28T15:01:00.000Z");
+    expect((await h.getStream(`/api/setlists/${H_ID}/preview`, A)).status).toBe(200);
+    expectCatalogueError(await h.get(`/api/setlists/${NIRVANA_ID}/preview`, A), "E-11", 3600);
+  });
+});
+
+// ---------------------------------------------------------------- concurrent requests
+
+/** Usage events whose playlists-made count waits at `gate` (so concurrent requests overlap there). */
+function eventsWithGatedCount(gate: Gate) {
+  const fake = makeFakeEvents();
+  return {
+    recorded: fake.recorded,
+    events: {
+      recordEvent: fake.events.recordEvent,
+      async countPlaylistsMade(day: string): Promise<number> {
+        await gate.pass();
+        return fake.events.countPlaylistsMade(day);
+      },
+    },
+  };
+}
+
+type Posted = { status: number; body: unknown; headers: Record<string, string | string[] | undefined> };
+
+/** Starts every request at once, lets them pile up at the gate, then releases it and waits for all. */
+async function allAtOnce(gate: Gate, start: Array<() => PromiseLike<Posted>>): Promise<Posted[]> {
+  let settled = 0;
+  const pending = start.map((go) =>
+    Promise.resolve(go()).then((res) => {
+      settled++;
+      return res;
+    }),
+  );
+  await waitUntil(() => gate.state.waiting >= 1 || settled === start.length, "a request to reach the daily count");
+  await flush(100);
+  gate.release();
+  return Promise.all(pending);
+}
+
+describe("concurrent creates and the limits (AC-29, AC-30)", () => {
+  it("AC-29: 5 creates from A at once with a create limit of 2 → at most 2 admitted, the rest E-12", async () => {
+    const gate = makeGate();
+    const usage = eventsWithGatedCount(gate);
+    const h = makeHarness({ env: { PLAYSET_CREATE_LIMIT: "2" }, events: usage.events });
+    const targets = [H_V1_CREATE, MADRID_CREATE, NIRVANA_CREATE, H_V1_CREATE, MADRID_CREATE];
+    const answers = await allAtOnce(
+      gate,
+      targets.map((t) => () => h.post(t.path, t.body, A)),
+    );
+    const admitted = answers.filter((r) => r.status === 200);
+    const refused = answers.filter((r) => r.status === 429);
+    expect(admitted).toHaveLength(2);
+    expect(refused).toHaveLength(3);
+    for (const res of refused) expectCatalogueError(res, "E-12", 3600);
+    expect(h.hits.count(TODAY)).toBe(3);
+    // Nothing more slipped through: A is still at its limit.
+    expectCatalogueError(await h.post(NIRVANA_CREATE.path, NIRVANA_CREATE.body, A), "E-12", 3600);
+  }, 20_000);
+
+  it("AC-30: 3 creates from 3 addresses at once with a daily limit of 1 → exactly one admitted, the others E-13", async () => {
+    const gate = makeGate();
+    const usage = eventsWithGatedCount(gate);
+    const h = makeHarness({ env: { PLAYSET_DAILY_LIMIT: "1" }, events: usage.events });
+    const answers = await allAtOnce(gate, [
+      () => h.post(H_V1_CREATE.path, H_V1_CREATE.body, A),
+      () => h.post(MADRID_CREATE.path, MADRID_CREATE.body, B),
+      () => h.post(NIRVANA_CREATE.path, NIRVANA_CREATE.body, C),
+    ]);
+    const admitted = answers.filter((r) => r.status === 200);
+    const refused = answers.filter((r) => r.status === 429);
+    expect(admitted).toHaveLength(1);
+    expect(refused).toHaveLength(2);
+    for (const res of refused) expectCatalogueError(res, "E-13", 34200);
+    expect(usage.recorded.filter((e) => e.kind === "created")).toHaveLength(1);
+    expect(await usage.events.countPlaylistsMade(TODAY)).toBe(1);
+  }, 20_000);
+
+  it("AC-30: an address refused by the daily limit in a concurrent race is not counted against its address", async () => {
+    const gate = makeGate();
+    const usage = eventsWithGatedCount(gate);
+    const h = makeHarness({ env: { PLAYSET_CREATE_LIMIT: "1", PLAYSET_DAILY_LIMIT: "1" }, events: usage.events });
+    h.clock.set("2026-11-28T23:30:00.000Z");
+    const addresses = [A, B];
+    const answers = await allAtOnce(gate, [
+      () => h.post(H_V1_CREATE.path, H_V1_CREATE.body, A),
+      () => h.post(MADRID_CREATE.path, MADRID_CREATE.body, B),
+    ]);
+    expect(answers.map((r) => r.status).sort()).toEqual([200, 429]);
+    const loser = addresses[answers.findIndex((r) => r.status === 429)]!;
+    expectCatalogueError(answers.find((r) => r.status === 429)!, "E-13", 1800);
+
+    // 40 minutes later (inside the loser's window, but a new UTC day): the loser is admitted.
+    h.clock.set("2026-11-29T00:10:00.000Z");
+    expect((await h.post(NIRVANA_CREATE.path, NIRVANA_CREATE.body, loser)).status).toBe(200);
+  }, 20_000);
 });

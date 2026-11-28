@@ -226,3 +226,24 @@ describe("the entry file with a bad config (AC-2)", () => {
     expect(run.output).not.toContain("Playset web is running at");
   }, 40_000);
 });
+
+describe("the entry file with variables set but empty (AC-2)", () => {
+  it("AC-2: a variable set but empty in the environment counts as unset, so the .env value wins", () => {
+    const dotEnv = [
+      `SETLISTFM_API_KEY=${SETLISTFM_KEY}`,
+      `SPOTIFY_CLIENT_ID=${CLIENT_ID}`,
+      `PLAYSET_HOST_SPOTIFY_ID=${HOST_ID}`,
+      "PLAYSET_COOKIE_SECRET=short-secret",
+      "PLAYSET_WEB_PORT=0",
+    ].join("\n");
+    const run = runEntry({ SETLISTFM_API_KEY: "", PLAYSET_WEB_PORT: "" }, dotEnv);
+    expect(run.stderr).toContain(
+      "Playset can't start: PLAYSET_COOKIE_SECRET must be at least 32 characters. PLAYSET_WEB_PORT must be a whole number from 1 to 65535.",
+    );
+    expect(run.output).not.toContain("Missing SETLISTFM_API_KEY.");
+    expect(run.status).toBe(1);
+    expect(run.output).not.toContain("short-secret");
+    expect(run.output).not.toContain(SETLISTFM_KEY);
+    expect(run.output).not.toContain("Playset web is running at");
+  }, 40_000);
+});

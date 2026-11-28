@@ -235,3 +235,16 @@ describe("the built client (AC-6)", () => {
     expect(res.body).toStrictEqual({ setlistId: "2bf1c8e4" });
   });
 });
+
+describe("a malformed asset path (AC-6)", () => {
+  it("AC-6: GET /assets/%E0%A4%A (malformed percent-encoding) → 404 text/plain \"Not found.\"; nothing logged as an error or warning", async () => {
+    const h = makeHarness({ clientDir: makeClientDir() });
+    const atBuild = h.log.calls.length;
+    const res = await h.get("/assets/%E0%A4%A");
+    expect(res.status).toBe(404);
+    expect(String(res.headers["content-type"])).toMatch(/^text\/plain/);
+    expect(res.text).toBe("Not found.");
+    expect(h.log.calls.slice(atBuild).filter((c) => c.level !== "info")).toEqual([]);
+    expectNoLeaks(res);
+  });
+});

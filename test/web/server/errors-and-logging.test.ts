@@ -305,3 +305,41 @@ describe("answers the contract rejects (AC-9)", () => {
     expect(res.text).not.toContain(H_URL);
   });
 });
+
+describe("the core's generic request error with status 401 (AC-7)", () => {
+  it("AC-7: a bare HttpError with status 401 on create → 503 E-23, logged as a warning; no event", async () => {
+    const error = await httpError("status", 401);
+    const h = makeHarness();
+    h.overrides.getSetlist = async () => {
+      throw error;
+    };
+    const res = await h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V1 });
+    expectCatalogueError(res, "E-23");
+    expect(res.text).not.toContain(error.message);
+    expect(h.usage.recorded).toEqual([]);
+    expect(h.log.of("warn")).toHaveLength(1);
+    expect(h.log.of("error")).toEqual([]);
+  });
+});
+
+describe("redacting Host tokens handed out long ago (AC-8)", () => {
+  it("AC-8: a Host token given out 3 refreshes earlier (and never again) is still [redacted] in the log", async () => {
+    const tokens = [
+      "BQAold1Rf5kLmN0pQx-9sTuVwXyZ_aBcDeFgHiJkLmNoPqRsTuV",
+      "BQBold2Rf5kLmN0pQx-9sTuVwXyZ_aBcDeFgHiJkLmNoPqRsTuV",
+      "BQCold3Rf5kLmN0pQx-9sTuVwXyZ_aBcDeFgHiJkLmNoPqRsTuV",
+      "BQDnew4Rf5kLmN0pQx-9sTuVwXyZ_aBcDeFgHiJkLmNoPqRsTuV",
+    ];
+    const h = makeHarness({ env: { PLAYSET_CREATE_LIMIT: "10" } });
+    for (const token of tokens) {
+      h.host.mode = { kind: "connected", token };
+      expect((await h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V1 })).status).toBe(200);
+    }
+    h.host.mode = { kind: "rejects", error: new Error(`refresh failed: invalid_grant for ${tokens[0]}`) };
+    expectCatalogueError(await h.get(`/api/setlists/${H_ID}/preview`), "E-23");
+    const warnings = h.log.of("warn");
+    expect(warnings).toHaveLength(1);
+    expect(h.log.textOf(warnings[0]!)).toContain("refresh failed: invalid_grant for [redacted]");
+    for (const token of tokens) expect(h.log.allText()).not.toContain(token);
+  });
+});
