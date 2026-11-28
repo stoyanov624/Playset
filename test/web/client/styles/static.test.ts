@@ -310,6 +310,28 @@ describe("HTML page", () => {
     );
   });
 
+  it("AC-56: the theme-color values in index.html match the paper colour tokens", () => {
+    const themeColour = (scheme: string): string | undefined =>
+      Array.from(page().querySelectorAll('meta[name="theme-color"]'))
+        .find((meta) => meta.getAttribute("media")?.replace(/\s+/g, "") === `(prefers-color-scheme:${scheme})`)
+        ?.getAttribute("content")
+        ?.trim()
+        .toUpperCase();
+    const paperIn = (css: string): string | undefined =>
+      /--color-paper\s*:\s*([^;}]+)/i.exec(css)?.[1]?.trim().toUpperCase();
+
+    const css = withoutComments(readFileSync(TOKENS_FILE, "utf8"));
+    const darkBlocks = blocks(css, /@media\s*\(\s*prefers-color-scheme\s*:\s*dark\s*\)/);
+    const lightCss = darkBlocks.reduce((rest, block) => rest.replace(block, ""), css);
+    const lightPaper = paperIn(lightCss);
+    const darkPaper = paperIn(darkBlocks.join("\n"));
+
+    expect(lightPaper).toMatch(/^#[0-9A-F]{3,8}$/);
+    expect(darkPaper).toMatch(/^#[0-9A-F]{3,8}$/);
+    expect(themeColour("light")).toBe(lightPaper);
+    expect(themeColour("dark")).toBe(darkPaper);
+  });
+
   it("AC-56: loads no script or style sheet from another origin, and its entry is main.tsx", () => {
     const doc = page();
     const sources = [

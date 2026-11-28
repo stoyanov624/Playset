@@ -185,6 +185,16 @@ describe("Setlist list", () => {
     await expectFocusOn(() => getByLine("That's every Setlist on setlist.fm."));
   });
 
+  it("AC-18: when the list is still empty and the last page adds nothing, focus moves to the empty-state heading", async () => {
+    const { api, user } = openList([emptyPage(true), emptyPage(false)], `/artists/${PEARL_JAM_MBID}`);
+    await user.click(await screen.findByRole("button", { name: "Load more Setlists" }));
+    await screen.findByRole("heading", { level: 2, name: "No Setlists with songs yet" });
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Load more Setlists|Loading…/ })).toBeNull());
+    expect(linksTo("/setlists/")).toEqual([]);
+    expect(api.getArtistSetlists).toHaveBeenCalledTimes(2);
+    await expectFocusOn(() => screen.getByRole("heading", { level: 2, name: "No Setlists with songs yet" }));
+  });
+
   it("AC-18: a single page with hasMore false ends the list at once", async () => {
     const page = { ...arcticMonkeysPage1(), hasMore: false };
     openList([page]);
