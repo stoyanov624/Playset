@@ -506,3 +506,9 @@ For the orchestrator (this Slice edits none of these):
 ## Open questions
 
 (none)
+
+## Notes added during review (2026-11-28)
+
+- **Searching the name already shown** sends the search again only while that search shows an error; with candidates on screen nothing is asked again (AC-4: no new request for data already shown).
+- **Every screen state has exactly one h1**, including loading states (screen-reader-only there), so AC-1 holds while a search, the Setlist status or a server-marked field problem is showing.
+- **Focus after Show all, the last Load more and an empty last page** moves to the first newly shown item, the end line or the empty-state heading.
