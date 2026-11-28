@@ -87,19 +87,20 @@ export function createHostTokenSource(deps: {
     const stored = usable(await store.read());
     if (stored === undefined) return undefined;
     if (fresh(stored)) return stored.accessToken;
-    let grant: TokenGrant;
+    // Undefined: Spotify ended the login.
+    let grant: TokenGrant | undefined;
     try {
       grant = await login.refresh(stored.refreshToken);
     } catch (error) {
       if (!loginEnded(error)) throw error;
-      const newLogin = await loginSavedMeanwhile(stored);
-      if (newLogin) return newLogin.accessToken;
+    }
+    const newLogin = await loginSavedMeanwhile(stored);
+    if (newLogin) return newLogin.accessToken;
+    if (grant === undefined) {
       await store.clear();
       logger.warn(LOGIN_ENDED_WARNING);
       return undefined;
     }
-    const newLogin = await loginSavedMeanwhile(stored);
-    if (newLogin) return newLogin.accessToken;
     const { accessToken, refreshToken, expiresAt } = grant;
     await store.save({ ...stored, accessToken, refreshToken, expiresAt });
     return grant.accessToken;

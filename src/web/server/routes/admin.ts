@@ -64,22 +64,25 @@ class LoginStopped extends Error {
 const spotifyUnavailable = (status: number | undefined): boolean =>
   status === undefined || status === 429 || status >= 500;
 
-function exchangeFailure(error: unknown): LoginStopped {
-  const cause = error instanceof TokenError ? error.cause : undefined;
-  const unreachable =
-    error instanceof RateLimitError ||
-    (cause instanceof HttpError && (cause.kind === "network" || spotifyUnavailable(cause.status)));
-  return unreachable
+/** A failed call to Spotify: the admin may try again later when Spotify was unavailable, else it's ours. */
+const stoppedBy = (error: unknown, unavailable: boolean): LoginStopped =>
+  unavailable
     ? new LoginStopped("UPSTREAM_UNAVAILABLE", "warn", { cause: error })
     : new LoginStopped("INTERNAL", "error", { cause: error });
+
+function exchangeFailure(error: unknown): LoginStopped {
+  const cause = error instanceof TokenError ? error.cause : undefined;
+  const unavailable =
+    error instanceof RateLimitError ||
+    (cause instanceof HttpError && (cause.kind === "network" || spotifyUnavailable(cause.status)));
+  return stoppedBy(error, unavailable);
 }
 
 function accountFailure(error: unknown): LoginStopped {
-  if (!(error instanceof SpotifyAccountError)) return new LoginStopped("INTERNAL", "error", { cause: error });
+  if (!(error instanceof SpotifyAccountError)) return stoppedBy(error, false);
   // 403: the account isn't on the Spotify app's user list, so it can't be the Host Account.
   if (error.status === 403) return new LoginStopped("NOT_ADMIN");
-  if (spotifyUnavailable(error.status)) return new LoginStopped("UPSTREAM_UNAVAILABLE", "warn", { cause: error });
-  return new LoginStopped("INTERNAL", "error", { cause: error });
+  return stoppedBy(error, spotifyUnavailable(error.status));
 }
 
 /** Compared in constant time, so the answer's timing says nothing about the expected state. */
@@ -151,7 +154,7 @@ export function adminRoutes(context: AdminContext): Router {
           expiresAt: grant.expiresAt,
         })
         .catch((error: unknown) => {
-          throw new LoginStopped("INTERNAL", "error", { cause: error });
+          throw stoppedBy(error, false);
         });
     } catch (error) {
       if (!(error instanceof LoginStopped)) throw error;

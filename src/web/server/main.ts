@@ -2,7 +2,7 @@
 // already set and not empty wins), opens the SQLite file, builds the core's services once so every Visitor shares
 // setlist.fm's and Spotify's request spacing, gives every preview and create the Host token kept in the
 // SQLite file, and listens on 127.0.0.1 only.
-import { chmodSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
@@ -46,9 +46,12 @@ const logger: Logger = {
 
 function start(config: WebConfig): void {
   mkdirSync(dirname(resolve(config.dataFile)), { recursive: true });
-  const { records, events, hostTokenStore } = createSqliteStore(new Database(config.dataFile));
-  // The file holds the Host Account's refresh token: readable and writable by its owner only.
+  // The file holds the Host Account's refresh token: readable and writable by its owner only. A new file
+  // is created owner-only before SQLite opens it, so it is never wider for a moment; a file kept from an
+  // older run is narrowed too. SQLite gives its journal and WAL files the same mode as the file.
+  closeSync(openSync(config.dataFile, "a", 0o600));
   chmodSync(config.dataFile, 0o600);
+  const { records, events, hostTokenStore } = createSqliteStore(new Database(config.dataFile));
   const spotify = {
     fetch: (input: string, init?: RequestInit) => fetch(input, init),
     sleep: (ms: number) => new Promise<void>((done) => setTimeout(done, ms)),

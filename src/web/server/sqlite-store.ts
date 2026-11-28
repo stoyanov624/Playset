@@ -187,7 +187,9 @@ export function createSqliteStore(db: Database): {
           updated: count(date, "updated"),
           opened: count(date, "opened"),
         })),
-        topArtists: topArtistsOf(new Map(setlistsPerArtist.all(...PLAYLIST_MADE_KINDS).map(({ artist, n }) => [artist, n]))),
+        topArtists: topArtistsOf(
+          new Map(setlistsPerArtist.all(...PLAYLIST_MADE_KINDS).map(({ artist, n }) => [artist, n])),
+        ),
       };
     },
   };
