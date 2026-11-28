@@ -59,7 +59,7 @@ export function ArtistSearchForm({ artist, searching, serverProblem, onSearchAga
       <label htmlFor={`${messageId}-input`} className={styles.label}>
         Artist
       </label>
-      <div className={styles.row}>
+      <div className={problem === null ? styles.row : `${styles.row} ${styles.invalid}`}>
         <input
           ref={input}
           id={`${messageId}-input`}
@@ -73,11 +73,11 @@ export function ArtistSearchForm({ artist, searching, serverProblem, onSearchAga
           aria-invalid={problem === null ? undefined : "true"}
           aria-describedby={problem === null ? undefined : describedByIds(messageId, hintId, problem.hint)}
         />
+        {problem === null ? null : <FieldProblem messageId={messageId} hintId={hintId} message={problem.message} hint={problem.hint} />}
         <Button type="submit" variant="primary" wide icon={<Search size={20} aria-hidden="true" />} busy={searching}>
           {searching ? "Searching…" : "Search"}
         </Button>
       </div>
-      {problem === null ? null : <FieldProblem messageId={messageId} hintId={hintId} message={problem.message} hint={problem.hint} />}
     </form>
   );
 }

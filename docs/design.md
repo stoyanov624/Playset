@@ -107,7 +107,7 @@ Root font size stays the browser default (16px). Sizes in rem so visitor zoom wo
 
 `--space-1: 0.25rem` · `--space-2: 0.5rem` · `--space-3: 0.75rem` · `--space-4: 1rem` · `--space-5: 1.5rem` · `--space-6: 2rem` · `--space-7: 3rem` · `--space-8: 4rem`
 
-Layout sizes (added while building the client): `--row-h: 4rem` (Setlist list row height), `--main-min-h: 60vh` (main area minimum height), `--col-number`, `--col-date`, `--col-date-wide` (sheet and list columns, matching the 3ch / 3.5rem / 4.5rem in the wireframes), `--underline-offset`.
+Layout sizes (added while building the client): `--row-h: 4.5rem` (Setlist list row height), `--row-h-artist: 3.5rem` (Artist candidate row height), `--main-min-h: 60vh` (main area minimum height), `--col-number`, `--col-date`, `--col-date-wide` (sheet and list columns, matching the 3ch / 3.5rem / 4.5rem in the wireframes), `--underline-offset`.
 
 Layout tokens: `--gutter: var(--space-4)` (16px at 375), `--gutter-wide: var(--space-6)` at ≥ 48rem; `--page-max: 72rem`; `--flow-max: 44rem` (single-column screens); `--rail: 20rem` (Preview side rail at ≥ 64rem); `--target: 2.75rem` (44px minimum touch target); `--control-h: 3rem` (48px inputs and buttons).
 

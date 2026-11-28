@@ -1,5 +1,6 @@
+/* Placed inside the form's row, whose gap spaces it from the input and the button. */
 .problem {
-  margin-block: var(--space-2);
+  margin: 0;
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
 }

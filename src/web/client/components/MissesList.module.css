@@ -46,7 +46,9 @@
 }
 
 @media (hover: hover) {
+  /* A row shows hover with the sunk background alone; its text stays ink, not the link pink. */
   .link:hover {
     background: var(--color-sunk);
+    color: var(--color-ink);
   }
 }

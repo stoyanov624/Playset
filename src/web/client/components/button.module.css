@@ -72,8 +72,10 @@
     color: var(--color-on-spike);
   }
 
+  /* Only primary actions turn pink: a secondary LinkButton keeps ink over the global link hover colour. */
   .secondary:hover {
     background: var(--color-sunk);
+    color: var(--color-ink);
   }
 
   .quiet:hover {
@@ -83,5 +85,6 @@
 
   .button[aria-disabled="true"]:hover {
     background: var(--color-sunk);
+    color: var(--color-ink-soft);
   }
 }

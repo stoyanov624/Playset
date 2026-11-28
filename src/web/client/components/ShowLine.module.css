@@ -7,10 +7,13 @@
   overflow-wrap: anywhere;
 }
 
+/* On desktop the Show reads as one comma-separated line; it stays a list for screen readers. */
 @media (min-width: 64rem) {
-  .line {
-    display: flex;
-    flex-wrap: wrap;
-    column-gap: var(--space-3);
+  .line > li {
+    display: inline;
+  }
+
+  .line > li:not(:last-child)::after {
+    content: ", ";
   }
 }

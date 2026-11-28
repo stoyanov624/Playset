@@ -68,7 +68,7 @@ export function SetlistLinkForm() {
         <label htmlFor={`${messageId}-input`} className={styles.label}>
           setlist.fm link
         </label>
-        <div className={styles.row}>
+        <div className={problem === null ? styles.row : `${styles.row} ${styles.invalid}`}>
           <input
             ref={input}
             id={`${messageId}-input`}
@@ -85,11 +85,11 @@ export function SetlistLinkForm() {
             aria-invalid={problem === null ? undefined : "true"}
             aria-describedby={problem === null ? undefined : describedByIds(messageId, hintId, problem.hint)}
           />
+          {problem === null ? null : <FieldProblem messageId={messageId} hintId={hintId} message={problem.message} hint={problem.hint} />}
           <Button type="submit" variant="secondary" wide icon={<Link2 size={20} aria-hidden="true" />} busy={read.isPending}>
             {read.isPending ? "Opening…" : "Open"}
           </Button>
         </div>
-        {problem === null ? null : <FieldProblem messageId={messageId} hintId={hintId} message={problem.message} hint={problem.hint} />}
       </form>
       {shown !== null && fieldError === null && !emptyTried ? (
         <ScreenError key={shown.key} error={shown.error} headingLevel={2} retrying={shown.retrying} onRetry={() => open(sentLink)} />
