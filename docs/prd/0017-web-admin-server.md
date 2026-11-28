@@ -1,6 +1,6 @@
 # PRD 0017 — Admin server: Host login, Host token and usage
 
-Status: Approved
+Status: Implemented
 Slice: 17
 Depends on: 0016 (and 0004, 0014, 0015)
 Module: src/web/server (plus three stateless additions to src/core/spotify-auth, see "Who owns what")
