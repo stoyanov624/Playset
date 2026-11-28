@@ -109,6 +109,11 @@ export function createApp(deps: AppDeps): express.Express {
     next();
   });
 
+  // No /api route answers OPTIONS, so the routers' automatic answer (an Allow list) must not reach a Visitor.
+  // (A path-less check: a route pattern would decode the path, and a broken encoding has its own answer.)
+  app.use("/api", (req, _res, next) => {
+    next(req.method === "OPTIONS" ? new VisitorError(CATALOGUE.nothingHere) : undefined);
+  });
   app.use(artistRoutes(context), setlistRoutes(context), previewRoutes(context), createRoutes(context));
   app.use("/api", () => {
     throw new VisitorError(CATALOGUE.nothingHere);

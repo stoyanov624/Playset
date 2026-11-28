@@ -1,6 +1,6 @@
 // The server log: no access log and no Visitor address; failures are logged with their cause chain,
 // every secret replaced by [redacted]. Each failure is logged once, even when several Visitors share it.
-import { VisitorError, type CatalogueEntry } from "./catalogue.js";
+import { CATALOGUE, VisitorError, type CatalogueEntry } from "./catalogue.js";
 
 export interface Logger {
   info(message: string, details?: unknown): void;
@@ -76,8 +76,12 @@ export function createFailureLog(logger: Logger, redact: (text: string) => strin
     failure(error, entry) {
       if (entry.log === "none") return;
       const cause = underlying(error);
-      // A refusal the server made itself (such as "not connected") has nothing behind it to log.
-      if (cause === undefined) return;
+      if (cause === undefined) {
+        // Playlists being unavailable must show in the log even when nothing failed behind it (the Host is
+        // simply not connected); other refusals the server made itself have nothing to log.
+        if (entry === CATALOGUE.playlistsUnavailable) write(entry.log, `Answered ${entry.code}`, error, false);
+        return;
+      }
       write(entry.log, `Answered ${entry.code}`, cause);
     },
     cancelled(error) {
