@@ -67,11 +67,17 @@ describe("admin status answer", () => {
     expect(adminStatusResponseSchema.parse(freshInstallAdminStatus())).toEqual(freshInstallAdminStatus());
   });
 
-  it("AC-22: 10 top Artists parse", () => {
+  it("AC-22: 10 top Artists parse unchanged, in the order sent", () => {
     const ten = changed(adminStatusAnswer(), (d) => {
       d.usage.topArtists = Array.from({ length: 10 }, (_, i) => ({ artist: `Artist ${i + 1}`, playlistCount: 10 - i }));
     });
-    expect(adminStatusResponseSchema.safeParse(ten).success).toBe(true);
+    const parsed = adminStatusResponseSchema.parse(ten);
+    expect(parsed).toEqual(ten);
+    expect(parsed.usage.topArtists.map((top) => top.artist)).toEqual([
+      "Artist 1", "Artist 2", "Artist 3", "Artist 4", "Artist 5",
+      "Artist 6", "Artist 7", "Artist 8", "Artist 9", "Artist 10",
+    ]);
+    expect(parsed.usage.topArtists[9]).toEqual({ artist: "Artist 10", playlistCount: 1 });
   });
 
   it.each([
@@ -85,10 +91,15 @@ describe("admin status answer", () => {
     ["a config name not in the list", (d: any) => { d.config[0] = { name: "Preview limit", present: true }; }],
     ["a config name in another case", (d: any) => { d.config[0] = { name: "setlist.fm api key", present: true }; }],
     ["a config present that isn't a boolean", (d: any) => { d.config[0].present = "yes"; }],
+    ["a hostAccount without connected", (d: any) => { delete d.hostAccount.connected; }],
+    ["a hostAccount connected that isn't a boolean", (d: any) => { d.hostAccount.connected = "true"; }],
+    ["a hostAccount connected of 1", (d: any) => { d.hostAccount.connected = 1; }],
     ["a hostAccount with an id", (d: any) => { d.hostAccount = { connected: true, id: "31abcxyzhost" }; }],
     ["an empty displayName", (d: any) => { d.hostAccount.displayName = ""; }],
     ["a null displayName", (d: any) => { d.hostAccount.displayName = null; }],
     ["a top Artist with a playlistCount of 0", (d: any) => { d.usage.topArtists[0] = { artist: "Arctic Monkeys", playlistCount: 0 }; }],
+    ["a top Artist with a fractional playlistCount", (d: any) => { d.usage.topArtists[0].playlistCount = 1.5; }],
+    ["a top Artist with a negative playlistCount", (d: any) => { d.usage.topArtists[0].playlistCount = -3; }],
     ["a top Artist with an empty name", (d: any) => { d.usage.topArtists[0].artist = ""; }],
     ["negative opens", (d: any) => { d.usage.opens = -1; }],
     ["negative playlistsMade", (d: any) => { d.usage.playlistsMade = -1; }],
@@ -104,12 +115,20 @@ describe("admin status answer", () => {
 });
 
 describe("admin logout body", () => {
-  it("AC-23: an absent body and {} parse", () => {
-    expect(adminLogoutBodySchema.safeParse(undefined).success).toBe(true);
-    expect(adminLogoutBodySchema.safeParse({}).success).toBe(true);
+  it("AC-23: an absent body parses to undefined and {} parses to {}", () => {
+    expect(adminLogoutBodySchema.parse(undefined)).toBeUndefined();
+    expect(adminLogoutBodySchema.parse({})).toEqual({});
   });
 
-  it.each([[{ all: true }], [{ versionId: "g4bd1a2f6" }]])("AC-23: rejects logout body %j", (body) => {
+  it.each([
+    [{ all: true }],
+    [{ versionId: "g4bd1a2f6" }],
+    [null],
+    [[]],
+    [["logout"]],
+    ["logout"],
+    [""],
+  ])("AC-23: rejects logout body %j", (body) => {
     expect(adminLogoutBodySchema.safeParse(body).success).toBe(false);
   });
 });

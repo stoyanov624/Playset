@@ -17,7 +17,7 @@ export function changed(base: unknown, edit: (draft: any) => void): unknown {
   return draft;
 }
 
-/** X3: the Genesis Artist search answer (PRD 0012 F1). */
+/** X3: the Genesis Artist search answer (the core's search fixture F1). */
 export function genesisSearchAnswer() {
   return {
     artists: [
@@ -28,7 +28,7 @@ export function genesisSearchAnswer() {
   };
 }
 
-/** X4: Pearl Jam Setlist page 1 (PRD 0012 P1). */
+/** X4: Pearl Jam Setlist page 1 (the core's Setlist page fixture P1). */
 export function pearlJamPage() {
   return {
     artist: { mbid: PEARL_JAM_MBID, name: "Pearl Jam" },
@@ -53,7 +53,7 @@ export function pearlJamPage() {
   };
 }
 
-/** X6: Fixture H v1 (PRD 0014) as a Setlist status answer, recorded and current. */
+/** X6: Fixture H v1 as a Setlist status answer, recorded and current. */
 export function portlandStatusAnswer() {
   return {
     show: { artist: "Pearl Jam", date: "2026-11-22", venue: "Moda Center", city: "Portland", url: PORTLAND_URL },
@@ -62,7 +62,7 @@ export function portlandStatusAnswer() {
   };
 }
 
-/** X7: the Madrid preview (PRD 0012 P2, Arctic Monkeys, every Tape left out, "505" a Miss). */
+/** X7: the Madrid preview (the core's preview fixture P2, Arctic Monkeys, every Tape left out, "505" a Miss). */
 export function madridPreview() {
   return {
     show: { artist: "Arctic Monkeys", date: "2026-06-02", venue: "Estadio Metropolitano", city: "Madrid", url: MADRID_URL },
@@ -101,7 +101,7 @@ export function madridPreview() {
   };
 }
 
-/** X7: the Nirvana Cover row (PRD 0011 U1; number and position illustrative). */
+/** X7: the Nirvana Cover row (Fixture U1; number and position illustrative). */
 export function loveBuzzCoverRow() {
   return {
     number: 3, performance: { position: 3, title: "Love Buzz", setLabel: "main", originalArtist: "Shocking Blue" },
@@ -109,7 +109,7 @@ export function loveBuzzCoverRow() {
   };
 }
 
-/** X7: the empty preview of PRD 0011 T1d (only Unknown Songs). */
+/** X7: the empty preview of Fixture T1d (only Unknown Songs). */
 export function unknownSongsOnlyPreview() {
   return {
     show: { artist: "Pearl Jam", date: "2026-11-22", venue: "Moda Center", city: "Portland", url: PORTLAND_URL },

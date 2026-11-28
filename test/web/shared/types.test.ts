@@ -1,7 +1,6 @@
 // Compile-time checks of the inferred types (example X11). `npm run typecheck` enforces them;
-// at run time the expectTypeOf calls are no-ops.
-import { describe, expectTypeOf, it } from "vitest";
-import type { z } from "zod";
+// at run time the expectTypeOf calls are no-ops, so the run-time expects below check the values.
+import { describe, expect, expectTypeOf, it } from "vitest";
 import type {
   AdminCallbackQuery,
   AdminLogoutBody,
@@ -80,6 +79,7 @@ import {
   showSchema,
   versionIdSchema,
 } from "../../../src/web/shared/index.js";
+import { madridPreview } from "./fixtures/contract-values";
 
 type AllCodes =
   | "INVALID_INPUT"
@@ -108,11 +108,23 @@ describe("inferred types", () => {
     expectTypeOf<PreviewRow["outcome"]>().toEqualTypeOf<Match | Miss>();
     expectTypeOf<Match["kind"]>().toEqualTypeOf<"match">();
     expectTypeOf<Miss["kind"]>().toEqualTypeOf<"miss">();
-    const narrow = (outcome: PreviewRow["outcome"]) => {
-      if (outcome.kind === "match") expectTypeOf(outcome).toEqualTypeOf<Match>();
-      else expectTypeOf(outcome).toEqualTypeOf<Miss>();
+    // Reading a field only one side has compiles only after narrowing on kind.
+    const outcomeLine = (outcome: PreviewRow["outcome"]): string => {
+      if (outcome.kind === "match") {
+        expectTypeOf(outcome).toEqualTypeOf<Match>();
+        return `${outcome.name} (${outcome.album})`;
+      }
+      expectTypeOf(outcome).toEqualTypeOf<Miss>();
+      return `Miss: ${outcome.title} by ${outcome.artist}`;
     };
-    expectTypeOf(narrow).toBeFunction();
+    const rows = previewResultSchema.parse(madridPreview()).rows;
+    expect(rows.map((row) => outcomeLine(row.outcome))).toEqual([
+      "Brianstorm (Favourite Worst Nightmare)",
+      "Do I Wanna Know? (AM)",
+      "R U Mine? (AM)",
+      "Brianstorm (Favourite Worst Nightmare)",
+      "Miss: 505 by Arctic Monkeys",
+    ]);
     expectTypeOf<PreviewResult["rows"]>().toEqualTypeOf<PreviewRow[]>();
     expectTypeOf<PreviewResult["misses"]>().toEqualTypeOf<PreviewMiss[]>();
     expectTypeOf<PreviewResult["notAdded"]>().toEqualTypeOf<NotAdded[]>();
@@ -170,40 +182,134 @@ describe("inferred types", () => {
     expectTypeOf<AdminStatusResponse["config"][number]>().not.toHaveProperty("value");
   });
 
-  it("AC-25: each exported type is the parsed type of its schema", () => {
-    expectTypeOf<SetlistId>().toEqualTypeOf<z.output<typeof setlistIdSchema>>();
-    expectTypeOf<Mbid>().toEqualTypeOf<z.output<typeof mbidSchema>>();
-    expectTypeOf<VersionId>().toEqualTypeOf<z.output<typeof versionIdSchema>>();
-    expectTypeOf<IncompleteStatus>().toEqualTypeOf<z.output<typeof incompleteStatusSchema>>();
-    expectTypeOf<Show>().toEqualTypeOf<z.output<typeof showSchema>>();
-    expectTypeOf<ArtistCandidate>().toEqualTypeOf<z.output<typeof artistCandidateSchema>>();
-    expectTypeOf<SetlistSummary>().toEqualTypeOf<z.output<typeof setlistSummarySchema>>();
-    expectTypeOf<PreviewPerformance>().toEqualTypeOf<z.output<typeof previewPerformanceSchema>>();
-    expectTypeOf<Match>().toEqualTypeOf<z.output<typeof matchSchema>>();
-    expectTypeOf<Miss>().toEqualTypeOf<z.output<typeof missSchema>>();
-    expectTypeOf<PreviewRow>().toEqualTypeOf<z.output<typeof previewRowSchema>>();
-    expectTypeOf<PreviewMiss>().toEqualTypeOf<z.output<typeof previewMissSchema>>();
-    expectTypeOf<NotAdded>().toEqualTypeOf<z.output<typeof notAddedSchema>>();
-    expectTypeOf<PlaylistStatus>().toEqualTypeOf<z.output<typeof playlistStatusSchema>>();
-    expectTypeOf<ApiError>().toEqualTypeOf<z.output<typeof apiErrorSchema>>();
-    expectTypeOf<ErrorBody>().toEqualTypeOf<z.output<typeof errorBodySchema>>();
-    expectTypeOf<ArtistsQuery>().toEqualTypeOf<z.output<typeof artistsQuerySchema>>();
-    expectTypeOf<ArtistSetlistsParams>().toEqualTypeOf<z.output<typeof artistSetlistsParamsSchema>>();
-    expectTypeOf<ArtistSetlistsQuery>().toEqualTypeOf<z.output<typeof artistSetlistsQuerySchema>>();
-    expectTypeOf<SetlistLinksQuery>().toEqualTypeOf<z.output<typeof setlistLinksQuerySchema>>();
-    expectTypeOf<SetlistParams>().toEqualTypeOf<z.output<typeof setlistParamsSchema>>();
-    expectTypeOf<CreatePlaylistBody>().toEqualTypeOf<z.output<typeof createPlaylistBodySchema>>();
-    expectTypeOf<AdminCallbackQuery>().toEqualTypeOf<z.output<typeof adminCallbackQuerySchema>>();
-    expectTypeOf<AdminPageQuery>().toEqualTypeOf<z.output<typeof adminPageQuerySchema>>();
-    expectTypeOf<AdminLogoutBody>().toEqualTypeOf<z.output<typeof adminLogoutBodySchema>>();
-    expectTypeOf<ArtistsResponse>().toEqualTypeOf<z.output<typeof artistsResponseSchema>>();
-    expectTypeOf<ArtistSetlistsResponse>().toEqualTypeOf<z.output<typeof artistSetlistsResponseSchema>>();
-    expectTypeOf<SetlistLinksResponse>().toEqualTypeOf<z.output<typeof setlistLinksResponseSchema>>();
-    expectTypeOf<SetlistResponse>().toEqualTypeOf<z.output<typeof setlistResponseSchema>>();
-    expectTypeOf<CreatePlaylistResponse>().toEqualTypeOf<z.output<typeof createPlaylistResponseSchema>>();
-    expectTypeOf<AdminStatusResponse>().toEqualTypeOf<z.output<typeof adminStatusResponseSchema>>();
-    expectTypeOf<PreviewProgress>().toEqualTypeOf<z.output<typeof previewProgressSchema>>();
-    expectTypeOf<PreviewResult>().toEqualTypeOf<z.output<typeof previewResultSchema>>();
-    expectTypeOf<PreviewError>().toEqualTypeOf<z.output<typeof previewErrorSchema>>();
+  it("AC-25: each exported type has exactly the agreed shape, field by field", () => {
+    expectTypeOf<SetlistId>().toEqualTypeOf<string>();
+    expectTypeOf<Mbid>().toEqualTypeOf<string>();
+    expectTypeOf<VersionId>().toEqualTypeOf<string>();
+    expectTypeOf<IncompleteStatus>().toEqualTypeOf<{
+      isIncomplete: boolean;
+      unknownSongCount: number;
+      matchedPhrase?: string | undefined;
+      setlistNote?: string | undefined;
+    }>();
+    expectTypeOf<Show>().toEqualTypeOf<{ artist: string; date: string; venue: string; city: string; url: string }>();
+    expectTypeOf<ArtistCandidate>().toEqualTypeOf<{ name: string; mbid: string; disambiguation?: string | undefined }>();
+    expectTypeOf<SetlistSummary>().toEqualTypeOf<{
+      id: string;
+      date: string;
+      venue: string;
+      city: string;
+      songCount: number;
+      incompleteStatus: IncompleteStatus;
+    }>();
+    expectTypeOf<PreviewPerformance>().toEqualTypeOf<{
+      position: number;
+      title: string;
+      setLabel: string;
+      originalArtist?: string | undefined;
+      medley?: string | undefined;
+    }>();
+    expectTypeOf<Match>().toEqualTypeOf<{ kind: "match"; name: string; artists: string[]; album: string; live: boolean }>();
+    expectTypeOf<Miss>().toEqualTypeOf<{ kind: "miss"; title: string; artist: string; originalArtist?: string | undefined }>();
+    expectTypeOf<PreviewRow>().toEqualTypeOf<{ number: number; performance: PreviewPerformance; outcome: Match | Miss }>();
+    expectTypeOf<PreviewMiss>().toEqualTypeOf<{ number: number; title: string; artist: string; originalArtist?: string | undefined }>();
+    expectTypeOf<NotAdded>().toEqualTypeOf<
+      { reason: "snippet" | "tape"; name: string } | { reason: "unknown"; after: number; info?: string | undefined }
+    >();
+    expectTypeOf<PlaylistStatus>().toEqualTypeOf<
+      { status: "none" } | { status: "current"; url: string } | { status: "outdated"; url: string }
+    >();
+    expectTypeOf<ApiError>().toEqualTypeOf<{ code: ErrorCode; message: string; hint?: string | undefined }>();
+    expectTypeOf<ErrorBody>().toEqualTypeOf<{ error: ApiError }>();
+    expectTypeOf<PreviewError>().toEqualTypeOf<ApiError>();
+    expectTypeOf<ArtistsQuery>().toEqualTypeOf<{ name: string }>();
+    expectTypeOf<ArtistSetlistsParams>().toEqualTypeOf<{ mbid: string }>();
+    expectTypeOf<ArtistSetlistsQuery>().toEqualTypeOf<{ page: number }>();
+    expectTypeOf<SetlistLinksQuery>().toEqualTypeOf<{ url: string }>();
+    expectTypeOf<SetlistParams>().toEqualTypeOf<{ id: string }>();
+    expectTypeOf<AdminPageQuery>().toEqualTypeOf<{ login?: ErrorCode | undefined }>();
+    expectTypeOf<ArtistsResponse>().toEqualTypeOf<{ artists: ArtistCandidate[] }>();
+    expectTypeOf<ArtistSetlistsResponse>().toEqualTypeOf<{
+      artist: { mbid: string; name?: string | undefined };
+      setlists: SetlistSummary[];
+      hasMore: boolean;
+    }>();
+    expectTypeOf<SetlistLinksResponse>().toEqualTypeOf<{ setlistId: string }>();
+    expectTypeOf<SetlistResponse>().toEqualTypeOf<{ show: Show; incompleteStatus: IncompleteStatus; playlist: PlaylistStatus }>();
+    expectTypeOf<CreatePlaylistResponse>().toEqualTypeOf<{ url: string; status: "created" | "updated" }>();
+    expectTypeOf<PreviewProgress>().toEqualTypeOf<{ n: number; total: number }>();
+    expectTypeOf<PreviewResult>().toEqualTypeOf<{
+      show: Show;
+      incompleteStatus: IncompleteStatus;
+      rows: PreviewRow[];
+      misses: PreviewMiss[];
+      notAdded: NotAdded[];
+      playlistName: string;
+      versionId: string;
+    }>();
+    expectTypeOf<AdminStatusResponse>().toEqualTypeOf<{
+      hostAccount: { connected: boolean; displayName?: string | undefined };
+      config: Array<{ name: ConfigItem; present: boolean }>;
+      usage: {
+        playlistsMade: number;
+        opens: number;
+        perDay: Array<{ date: string; created: number; updated: number; opened: number }>;
+        topArtists: Array<{ artist: string; playlistCount: number }>;
+      };
+      rateLimitHitsToday: number;
+    }>();
+  });
+
+  it("AC-25: the admin callback query is a code or an error, never both", () => {
+    expectTypeOf<{ code: string; state: string }>().toExtend<AdminCallbackQuery>();
+    expectTypeOf<{ error: string; state: string }>().toExtend<AdminCallbackQuery>();
+    expectTypeOf<{ code: string; error: string; state: string }>().not.toExtend<AdminCallbackQuery>();
+    expectTypeOf<{ state: string }>().not.toExtend<AdminCallbackQuery>();
+    expectTypeOf<AdminCallbackQuery["state"]>().toEqualTypeOf<string>();
+  });
+
+  it("AC-25: the logout body is absent or an empty object", () => {
+    expectTypeOf<undefined>().toExtend<AdminLogoutBody>();
+    expectTypeOf<{}>().toExtend<AdminLogoutBody>();
+    expectTypeOf<{ all: true }>().not.toExtend<AdminLogoutBody>();
+  });
+
+  it("AC-25: every schema parses to its exported type (so the schemas carry the agreed shapes too)", () => {
+    const parsed = previewResultSchema.parse(madridPreview());
+    expectTypeOf(parsed).toEqualTypeOf<PreviewResult>();
+    expectTypeOf(setlistIdSchema.parse).returns.toEqualTypeOf<SetlistId>();
+    expectTypeOf(mbidSchema.parse).returns.toEqualTypeOf<Mbid>();
+    expectTypeOf(versionIdSchema.parse).returns.toEqualTypeOf<VersionId>();
+    expectTypeOf(incompleteStatusSchema.parse).returns.toEqualTypeOf<IncompleteStatus>();
+    expectTypeOf(showSchema.parse).returns.toEqualTypeOf<Show>();
+    expectTypeOf(artistCandidateSchema.parse).returns.toEqualTypeOf<ArtistCandidate>();
+    expectTypeOf(setlistSummarySchema.parse).returns.toEqualTypeOf<SetlistSummary>();
+    expectTypeOf(previewPerformanceSchema.parse).returns.toEqualTypeOf<PreviewPerformance>();
+    expectTypeOf(matchSchema.parse).returns.toEqualTypeOf<Match>();
+    expectTypeOf(missSchema.parse).returns.toEqualTypeOf<Miss>();
+    expectTypeOf(previewRowSchema.parse).returns.toEqualTypeOf<PreviewRow>();
+    expectTypeOf(previewMissSchema.parse).returns.toEqualTypeOf<PreviewMiss>();
+    expectTypeOf(notAddedSchema.parse).returns.toEqualTypeOf<NotAdded>();
+    expectTypeOf(playlistStatusSchema.parse).returns.toEqualTypeOf<PlaylistStatus>();
+    expectTypeOf(apiErrorSchema.parse).returns.toEqualTypeOf<ApiError>();
+    expectTypeOf(errorBodySchema.parse).returns.toEqualTypeOf<ErrorBody>();
+    expectTypeOf(previewErrorSchema.parse).returns.toEqualTypeOf<PreviewError>();
+    expectTypeOf(artistsQuerySchema.parse).returns.toEqualTypeOf<ArtistsQuery>();
+    expectTypeOf(artistSetlistsParamsSchema.parse).returns.toEqualTypeOf<ArtistSetlistsParams>();
+    expectTypeOf(artistSetlistsQuerySchema.parse).returns.toEqualTypeOf<ArtistSetlistsQuery>();
+    expectTypeOf(setlistLinksQuerySchema.parse).returns.toEqualTypeOf<SetlistLinksQuery>();
+    expectTypeOf(setlistParamsSchema.parse).returns.toEqualTypeOf<SetlistParams>();
+    expectTypeOf(createPlaylistBodySchema.parse).returns.toEqualTypeOf<CreatePlaylistBody>();
+    expectTypeOf(adminCallbackQuerySchema.parse).returns.toEqualTypeOf<AdminCallbackQuery>();
+    expectTypeOf(adminPageQuerySchema.parse).returns.toEqualTypeOf<AdminPageQuery>();
+    expectTypeOf(adminLogoutBodySchema.parse).returns.toEqualTypeOf<AdminLogoutBody>();
+    expectTypeOf(artistsResponseSchema.parse).returns.toEqualTypeOf<ArtistsResponse>();
+    expectTypeOf(artistSetlistsResponseSchema.parse).returns.toEqualTypeOf<ArtistSetlistsResponse>();
+    expectTypeOf(setlistLinksResponseSchema.parse).returns.toEqualTypeOf<SetlistLinksResponse>();
+    expectTypeOf(setlistResponseSchema.parse).returns.toEqualTypeOf<SetlistResponse>();
+    expectTypeOf(createPlaylistResponseSchema.parse).returns.toEqualTypeOf<CreatePlaylistResponse>();
+    expectTypeOf(adminStatusResponseSchema.parse).returns.toEqualTypeOf<AdminStatusResponse>();
+    expectTypeOf(previewProgressSchema.parse).returns.toEqualTypeOf<PreviewProgress>();
+    expect(parsed.versionId).toBe("g3e5f7a91");
   });
 });

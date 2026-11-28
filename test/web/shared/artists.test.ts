@@ -53,6 +53,15 @@ describe("Artist search answer", () => {
     expect(artistsResponseSchema.safeParse(answer).success).toBe(false);
   });
 
+  it("AC-5: a candidate's mbid in upper case parses to lower case, as the path mbid does (answers are silent on case; current behaviour pinned)", () => {
+    const upper = changed(genesisSearchAnswer(), (d) => { d.artists[0].mbid = "8E3FCD7D-BDA1-4CA0-B987-B8528D2EE74E"; });
+    expect(artistsResponseSchema.parse(upper)).toEqual(genesisSearchAnswer());
+    expect(artistCandidateSchema.parse({ name: "Genesis", mbid: "8E3FCD7D-BDA1-4CA0-B987-B8528D2EE74E" })).toEqual({
+      name: "Genesis",
+      mbid: "8e3fcd7d-bda1-4ca0-b987-b8528d2ee74e",
+    });
+  });
+
   it("AC-5: a single candidate needs a non-empty name and an mbid", () => {
     const candidate = { name: "Genesis", mbid: "8e3fcd7d-bda1-4ca0-b987-b8528d2ee74e", disambiguation: "English rock band" };
     expect(artistCandidateSchema.parse(candidate)).toEqual(candidate);

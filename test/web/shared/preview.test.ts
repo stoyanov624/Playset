@@ -27,6 +27,10 @@ describe("progress event data", () => {
     ["n of 0", { n: 0, total: 5 }],
     ["n above total", { n: 6, total: 5 }],
     ["a fractional n", { n: 1.5, total: 5 }],
+    ["a negative n with a valid total", { n: -1, total: 5 }],
+    ["a fractional n below 1 with a valid total", { n: 0.5, total: 5 }],
+    ["an n given as a string", { n: "1", total: 5 }],
+    ["a missing n", { total: 5 }],
     ["a total of 0", { n: 1, total: 0 }],
     ["a fractional total", { n: 1, total: 5.5 }],
     ["a missing total", { n: 1 }],
@@ -65,6 +69,18 @@ describe("preview event data", () => {
     expect(missSchema.parse(coverMiss)).toEqual(coverMiss);
   });
 
+  it("AC-13: a Match with an empty album parses unchanged (album is a plain string; Spotify may leave it blank)", () => {
+    const noAlbum = { kind: "match", name: "Brianstorm", artists: ["Arctic Monkeys"], album: "", live: false };
+    expect(matchSchema.parse(noAlbum)).toEqual(noAlbum);
+    const preview = changed(madridPreview(), (d) => { d.rows[0].outcome.album = ""; });
+    expect(previewResultSchema.parse(preview)).toEqual(preview);
+  });
+
+  it("AC-13: a preview whose Show has an empty venue and city parses unchanged (both are plain strings)", () => {
+    const preview = changed(madridPreview(), (d) => { d.show.venue = ""; d.show.city = ""; });
+    expect(previewResultSchema.parse(preview)).toEqual(preview);
+  });
+
   it("AC-13: a Performance parses with and without originalArtist and medley", () => {
     for (const performance of [
       { position: 2, title: "Brianstorm", setLabel: "main" },
@@ -99,6 +115,22 @@ describe("preview event data", () => {
     ["an empty medley", (d: any) => { d.rows[1].performance.medley = ""; }],
     ["a null originalArtist", (d: any) => { d.rows[0].performance.originalArtist = null; }],
     ["no rows", (d: any) => { delete d.rows; }],
+    ["no show", (d: any) => { delete d.show; }],
+    ["no incompleteStatus", (d: any) => { delete d.incompleteStatus; }],
+    ["no misses", (d: any) => { delete d.misses; }],
+    ["no notAdded", (d: any) => { delete d.notAdded; }],
+    ["a Match live that isn't a boolean", (d: any) => { d.rows[0].outcome.live = "false"; }],
+    ["a Match without live", (d: any) => { delete d.rows[0].outcome.live; }],
+    ["a Match without album", (d: any) => { delete d.rows[0].outcome.album; }],
+    ["a null Match album", (d: any) => { d.rows[0].outcome.album = null; }],
+    ["a Performance with an empty title", (d: any) => { d.rows[0].performance.title = ""; }],
+    ["a Performance without a title", (d: any) => { delete d.rows[0].performance.title; }],
+    ["a fractional Performance position", (d: any) => { d.rows[0].performance.position = 2.5; }],
+    ["a negative Performance position", (d: any) => { d.rows[0].performance.position = -2; }],
+    ["a fractional row number", (d: any) => { d.rows[0].number = 1.5; }],
+    ["a negative row number", (d: any) => { d.rows[0].number = -1; }],
+    ["a fractional Miss entry number", (d: any) => { d.misses[0].number = 5.5; }],
+    ["a Miss entry number of 0", (d: any) => { d.misses[0].number = 0; }],
   ])("AC-13: rejects the Madrid preview with %s", (_why, edit) => {
     expect(previewResultSchema.safeParse(changed(madridPreview(), edit)).success).toBe(false);
   });

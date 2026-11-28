@@ -68,12 +68,13 @@ describe("Setlist page query", () => {
     ["1", 1],
     ["2", 2],
     ["66", 66],
+    ["100", 100],
     ["1000", 1000],
   ])("AC-7: page %j parses to %d", (page, parsed) => {
     expect(artistSetlistsQuerySchema.parse({ page })).toEqual({ page: parsed });
   });
 
-  it.each([["0"], ["-1"], ["1.5"], ["01"], ["1e2"], [" 2"], ["abc"], [""], ["1001"], [["1", "2"]]])(
+  it.each([["0"], ["-1"], ["1.5"], ["01"], ["1e2"], [" 2"], ["abc"], [""], ["1001"], ["99999999999999999999"], [["1", "2"]]])(
     "AC-7: rejects page %j",
     (page) => {
       expect(artistSetlistsQuerySchema.safeParse({ page }).success).toBe(false);
@@ -102,6 +103,8 @@ describe("Setlist page answer", () => {
     ["a summary with a versionId", changed(pearlJamPage(), (d) => { d.setlists[0].versionId = "g4bd1a2f6"; })],
     ["a summary with a country", changed(pearlJamPage(), (d) => { d.setlists[0].country = "United States"; })],
     ["a date that isn't YYYY-MM-DD", changed(pearlJamPage(), (d) => { d.setlists[0].date = "22-11-2026"; })],
+    ["an impossible date", changed(pearlJamPage(), (d) => { d.setlists[0].date = "2026-13-45"; })],
+    ["a date with a time", changed(pearlJamPage(), (d) => { d.setlists[0].date = "2026-11-22T00:00:00Z"; })],
     ["a negative songCount", changed(pearlJamPage(), (d) => { d.setlists[0].songCount = -1; })],
     ["a fractional songCount", changed(pearlJamPage(), (d) => { d.setlists[0].songCount = 2.5; })],
     ["no hasMore", changed(pearlJamPage(), (d) => { delete d.hasMore; })],
@@ -111,6 +114,11 @@ describe("Setlist page answer", () => {
     ["an empty matchedPhrase", changed(pearlJamPage(), (d) => { d.setlists[1].incompleteStatus.matchedPhrase = ""; })],
   ])("AC-8: rejects the page with %s", (_why, page) => {
     expect(artistSetlistsResponseSchema.safeParse(page).success).toBe(false);
+  });
+
+  it("AC-8: a summary with an empty venue and city parses unchanged (both are plain strings; setlist.fm may leave them blank)", () => {
+    const page = changed(pearlJamPage(), (d) => { d.setlists[0].venue = ""; d.setlists[0].city = ""; });
+    expect(artistSetlistsResponseSchema.parse(page)).toEqual(page);
   });
 
   it("AC-8: a single Setlist summary parses on its own and rejects a versionId", () => {
@@ -226,6 +234,9 @@ describe("Setlist status answer", () => {
     ["an http:// link", { status: "current", url: "http://open.spotify.com/playlist/5PqRsTuVwXyZaBcDeFgHiJ" }],
     ["another host", { status: "current", url: "https://example.com/playlist/5PqRsTuVwXyZaBcDeFgHiJ" }],
     ["no playlist id after /playlist/", { status: "current", url: "https://open.spotify.com/playlist/" }],
+    ["a trailing slash after the playlist id (current behaviour pinned)", { status: "current", url: `${SHARE_URL}/` }],
+    ["an outdated playlist with an unknown key", { status: "outdated", url: SHARE_URL, trackCount: 12 }],
+    ["a none playlist with an unknown key", { status: "none", reason: "never made" }],
     ["a playlistId key", { status: "current", url: SHARE_URL, playlistId: "5PqRsTuVwXyZaBcDeFgHiJ" }],
     ["another status (created)", { status: "created", url: SHARE_URL }],
     ["the core's kind instead of status", { kind: "current", shareUrl: SHARE_URL }],
@@ -233,6 +244,29 @@ describe("Setlist status answer", () => {
     expect(playlistStatusSchema.safeParse(playlist).success).toBe(false);
     const answer = changed(portlandStatusAnswer(), (d) => { d.playlist = playlist; });
     expect(setlistResponseSchema.safeParse(answer).success).toBe(false);
+  });
+
+  it("AC-11: a Show with an empty venue and city parses unchanged (both are plain strings; setlist.fm may leave them blank)", () => {
+    const answer = changed(portlandStatusAnswer(), (d) => { d.show.venue = ""; d.show.city = ""; });
+    expect(setlistResponseSchema.parse(answer)).toEqual(answer);
+    expect(showSchema.parse({ ...portlandStatusAnswer().show, venue: "", city: "" })).toEqual({
+      ...portlandStatusAnswer().show, venue: "", city: "",
+    });
+  });
+
+  it("AC-11: a Show link on a nested setlist.fm subdomain parses (current behaviour pinned)", () => {
+    const show = { ...portlandStatusAnswer().show, url: "https://a.b.setlist.fm/setlist/x-2bf1c8e4.html" };
+    expect(showSchema.parse(show)).toEqual(show);
+  });
+
+  it("AC-11: a Show link with an upper-case scheme or host parses unchanged (current behaviour pinned)", () => {
+    for (const url of [
+      "HTTPS://www.setlist.fm/setlist/pearl-jam/2026/moda-center-portland-or-2bf1c8e4.html",
+      "https://WWW.SETLIST.FM/setlist/pearl-jam/2026/moda-center-portland-or-2bf1c8e4.html",
+    ]) {
+      const show = { ...portlandStatusAnswer().show, url };
+      expect(showSchema.parse(show), url).toEqual(show);
+    }
   });
 
   it("AC-11: a Show link on a setlist.fm subdomain parses", () => {
@@ -245,6 +279,11 @@ describe("Setlist status answer", () => {
     ["another host", "https://example.com/setlist/pearl-jam/2026/moda-center-portland-or-2bf1c8e4.html"],
     ["http://", "http://www.setlist.fm/setlist/pearl-jam/2026/moda-center-portland-or-2bf1c8e4.html"],
     ["a host that only ends like setlist.fm", "https://notsetlist.fm/setlist/pearl-jam/2026/x-2bf1c8e4.html"],
+    ["a host that only starts like setlist.fm", "https://setlist.fm.evil.com/setlist/pearl-jam/2026/x-2bf1c8e4.html"],
+    ["setlist.fm with no slash after the host", "https://www.setlist.fm"],
+    ["setlist.fm with a query right after the host", "https://www.setlist.fm?x=1"],
+    ["setlist.fm with a port", "https://www.setlist.fm:8443/setlist/x-2bf1c8e4.html"],
+    ["setlist.fm with user info", "https://user@www.setlist.fm/setlist/x-2bf1c8e4.html"],
   ])("AC-11: rejects a Show link on %s", (_why, url) => {
     const show = { ...portlandStatusAnswer().show, url };
     expect(showSchema.safeParse(show).success).toBe(false);
@@ -314,9 +353,14 @@ describe("Setlist status answer", () => {
     }
   });
 
-  it("AC-11: rejects a Show without its date or with a date that isn't YYYY-MM-DD", () => {
+  it("AC-11: rejects a Show without its date, with a date that isn't a real YYYY-MM-DD day, or with an empty artist", () => {
     expect(setlistResponseSchema.safeParse(changed(portlandStatusAnswer(), (d) => { delete d.show.date; })).success).toBe(false);
     expect(setlistResponseSchema.safeParse(changed(portlandStatusAnswer(), (d) => { d.show.date = "2026/11/22"; })).success).toBe(false);
+    expect(setlistResponseSchema.safeParse(changed(portlandStatusAnswer(), (d) => { d.show.date = "2026-13-45"; })).success).toBe(false);
+    expect(setlistResponseSchema.safeParse(changed(portlandStatusAnswer(), (d) => { d.show.date = "2026-02-30"; })).success).toBe(false);
+    expect(
+      setlistResponseSchema.safeParse(changed(portlandStatusAnswer(), (d) => { d.show.date = "2026-11-22T00:00:00Z"; })).success,
+    ).toBe(false);
     expect(setlistResponseSchema.safeParse(changed(portlandStatusAnswer(), (d) => { d.show.artist = ""; })).success).toBe(false);
   });
 });
