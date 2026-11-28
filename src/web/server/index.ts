@@ -2,7 +2,7 @@
 // listening by itself), its config, the SQLite store and the in-memory parts tests and the entry file
 // wire together.
 export { createApp, type AppDeps, type WebServices } from "./app.js";
-export { WebConfigError, readWebConfig, type WebConfig } from "./config.js";
+export { LISTEN_HOST, WebConfigError, readWebConfig, type WebConfig } from "./config.js";
 export {
   createHostTokenSource,
   createMemoryHostTokenStore,

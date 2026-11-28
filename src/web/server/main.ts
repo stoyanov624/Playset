@@ -15,6 +15,7 @@ import {
   refreshAccessToken,
 } from "../../core/index.js";
 import {
+  LISTEN_HOST,
   WebConfigError,
   createApp,
   createHostTokenSource,
@@ -25,7 +26,6 @@ import {
   type Logger,
   type WebConfig,
 } from "./index.js";
-import { LISTEN_HOST } from "./config.js";
 
 const CLIENT_DIR = fileURLToPath(new URL("../../../dist/web/", import.meta.url));
 
