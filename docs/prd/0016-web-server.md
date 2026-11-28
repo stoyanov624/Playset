@@ -755,3 +755,9 @@ The words in "Words used in this PRD" are PRD-local, not glossary terms.
 ## Open questions
 
 (none)
+
+## Notes added during review (2026-11-28)
+
+- **The daily limit also counts creates still running,** not only the usage events of finished ones, so creates arriving together cannot pass it. A request that only shares a queued run for the same Setlist and version holds no slot.
+- **A Visitor who leaves before the preview stream opens starts nothing:** no Match search, no cached preview, no limit used.
+- **Usage events are best effort:** a failed opened, created or updated event is logged as a warning and the answer is unchanged.
