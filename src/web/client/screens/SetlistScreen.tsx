@@ -1,7 +1,6 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router";
-import type { PreviewProgress } from "../../shared/index.js";
 import { asApiCallError } from "../api/index.js";
 import { BackLink } from "../components/BackLink.js";
 import { Heading } from "../components/Heading.js";
@@ -17,14 +16,14 @@ import { ShowLine } from "../components/ShowLine.js";
 import { useAnnounce } from "../context/announcer.js";
 import { useApi } from "../context/api.js";
 import { counted, formatShowDate } from "../format.js";
+import { useCreatePlaylist } from "../hooks/useCreatePlaylist.js";
 import { useDocumentTitle } from "../hooks/useDocumentTitle.js";
+import { usePreviewStream } from "../hooks/usePreviewStream.js";
 import { useShownError } from "../hooks/useShownError.js";
 import { readFromList } from "../navigation-state.js";
 import { countPreview } from "../preview/sheet.js";
+import { PLAYSET_SPOTIFY_ACCOUNT } from "../wording.js";
 import styles from "./SetlistScreen.module.css";
-
-/** Screen readers hear Matching progress at most this often; the counter on screen moves freely. */
-const PROGRESS_ANNOUNCE_GAP_MS = 5000;
 
 /**
  * `/setlists/:id`: the Setlist status first, so a current Setlist Playlist shows at once; otherwise
@@ -37,7 +36,7 @@ export function SetlistScreen({ id }: { id: string }) {
   // Each "Load fresh preview" asks for the status and the preview anew.
   const [round, setRound] = useState(0);
 
-  // The status and the preview are never reused from an earlier visit: the Setlist may have changed.
+  // The status is never reused from an earlier visit: the Setlist may have changed.
   const statusQuery = useQuery({
     queryKey: ["setlist", id, round],
     queryFn: ({ signal }) => api.getSetlist(id, signal),
@@ -47,65 +46,22 @@ export function SetlistScreen({ id }: { id: string }) {
   const status = statusQuery.data;
   const statusError = useShownError(statusQuery.error, statusQuery.isFetching);
   const wantsPreview = status !== undefined && status.playlist.status !== "current";
-
-  const [progress, setProgress] = useState<PreviewProgress | null>(null);
-  const lastProgressAnnouncement = useRef<number | null>(null);
-  const previewQuery = useQuery({
-    queryKey: ["preview", id, round],
-    queryFn: ({ signal }) => {
-      setProgress(null);
-      lastProgressAnnouncement.current = null;
-      return api.streamPreview(id, {
-        signal,
-        onProgress: (next) => {
-          // A stream the Visitor already left says nothing more.
-          if (signal.aborted) return;
-          setProgress(next);
-          const now = Date.now();
-          const last = lastProgressAnnouncement.current;
-          if (last === null) {
-            announce(`Matching ${next.total} Performances`);
-            lastProgressAnnouncement.current = now;
-          } else if (now - last >= PROGRESS_ANNOUNCE_GAP_MS) {
-            announce(`Matching ${next.n} of ${next.total}`);
-            lastProgressAnnouncement.current = now;
-          }
-        },
-      });
-    },
-    enabled: wantsPreview,
-    staleTime: 0,
-    gcTime: 0,
-  });
-  const result = previewQuery.data;
-  const counts = result === undefined ? null : countPreview(result);
-
-  useEffect(() => {
-    if (result === undefined) return;
-    const done = countPreview(result);
-    announce(`Matching done: ${counted(done.matches, "Match", "Matches")}, ${counted(done.misses, "Miss", "Misses")}`);
-  }, [result, announce]);
-
-  // Never cancelled on leaving: the server finishes a playlist it has started.
-  const create = useMutation({ mutationFn: (versionId: string) => api.createPlaylist(id, versionId) });
-  const createError = useShownError(create.error, create.isPending);
-  const sending = useRef(false);
   const update = status?.playlist.status === "outdated";
 
-  function send(versionId: string, announceStart: boolean) {
-    if (sending.current) return;
-    sending.current = true;
-    if (announceStart) announce(update ? "Updating playlist" : "Creating playlist");
-    create.mutate(versionId, {
-      onSettled: () => {
-        sending.current = false;
-      },
-    });
-  }
+  const preview = usePreviewStream(id, round, wantsPreview);
+  const result = preview.query.data;
+  const counts = useMemo(() => (result === undefined ? null : countPreview(result)), [result]);
+
+  useEffect(() => {
+    if (counts === null) return;
+    announce(`Matching done: ${counted(counts.matches, "Match", "Matches")}, ${counted(counts.misses, "Miss", "Misses")}`);
+  }, [counts, announce]);
+
+  const playlist = useCreatePlaylist(id, update);
 
   function loadFreshPreview() {
-    create.reset();
-    setProgress(null);
+    playlist.reset();
+    preview.clearProgress();
     setRound((current) => current + 1);
   }
 
@@ -119,7 +75,45 @@ export function SetlistScreen({ id }: { id: string }) {
           label: fromList.artistName === undefined ? "Setlists" : `Setlists of ${fromList.artistName}`,
           state: { artistName: fromList.artistName },
         };
-  const made = create.data;
+  const made = playlist.made;
+
+  function previewPart() {
+    if (!wantsPreview) return null;
+    if (preview.query.error !== null && !preview.query.isFetching) {
+      return (
+        <div className={styles.flow}>
+          <ScreenError
+            key={preview.query.errorUpdatedAt}
+            error={asApiCallError(preview.query.error)}
+            headingLevel={2}
+            retrying={false}
+            onRetry={() => void preview.query.refetch()}
+            elsewhere={listLink}
+          />
+        </div>
+      );
+    }
+    if (result === undefined || counts === null) return <MatchingProgress progress={preview.progress} />;
+    return (
+      <PreviewResultView
+        result={result}
+        counts={counts}
+        action={
+          made === undefined ? (
+            <PlaylistAction
+              update={update}
+              matches={counts.matches}
+              pending={playlist.pending}
+              error={playlist.error}
+              onSend={() => playlist.send(result.versionId, true)}
+              onRetry={() => playlist.send(result.versionId, false)}
+              onFreshPreview={loadFreshPreview}
+            />
+          ) : null
+        }
+      />
+    );
+  }
 
   return (
     <div>
@@ -157,41 +151,13 @@ export function SetlistScreen({ id }: { id: string }) {
             {made !== undefined && result !== undefined && counts !== null ? (
               <PlaylistPanel title={made.status === "created" ? "Playlist created" : "Playlist updated"} url={made.url}>
                 <p>{result.playlistName}</p>
-                <p>{counted(counts.matches, "song", "songs")}, public in Playset's Spotify account.</p>
+                <p>
+                  {counted(counts.matches, "song", "songs")}, public in {PLAYSET_SPOTIFY_ACCOUNT}.
+                </p>
               </PlaylistPanel>
             ) : null}
           </div>
-          {!wantsPreview ? null : previewQuery.error !== null && !previewQuery.isFetching ? (
-            <div className={styles.flow}>
-              <ScreenError
-                key={previewQuery.errorUpdatedAt}
-                error={asApiCallError(previewQuery.error)}
-                headingLevel={2}
-                retrying={false}
-                onRetry={() => void previewQuery.refetch()}
-                elsewhere={listLink}
-              />
-            </div>
-          ) : result === undefined || counts === null ? (
-            <MatchingProgress progress={progress} />
-          ) : (
-            <PreviewResultView
-              result={result}
-              action={
-                made === undefined ? (
-                  <PlaylistAction
-                    update={update}
-                    matches={counts.matches}
-                    pending={create.isPending}
-                    error={createError}
-                    onSend={() => send(result.versionId, true)}
-                    onRetry={() => send(result.versionId, false)}
-                    onFreshPreview={loadFreshPreview}
-                  />
-                ) : null
-              }
-            />
-          )}
+          {previewPart()}
         </>
       )}
     </div>

@@ -8,6 +8,7 @@ html {
   scrollbar-color: var(--color-ink-soft) var(--color-paper);
   accent-color: var(--color-spike);
   hyphens: auto;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -39,7 +40,15 @@ h2:focus {
 a {
   color: inherit;
   text-decoration-thickness: var(--underline);
-  text-underline-offset: 0.18em;
+  text-underline-offset: var(--underline-offset);
+}
+
+/* No double-tap zoom delay on controls; pinch zoom still works. */
+a,
+button,
+input,
+label {
+  touch-action: manipulation;
 }
 
 a:focus-visible,

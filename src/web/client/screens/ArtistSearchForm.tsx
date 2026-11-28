@@ -61,6 +61,7 @@ export function ArtistSearchForm({ artist, searching, serverProblem }: ArtistSea
           ref={input}
           id={`${messageId}-input`}
           className={styles.input}
+          name="artist"
           type="search"
           autoComplete="off"
           enterKeyHint="search"

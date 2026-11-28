@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useLocation } from "react-router";
 import type { SetlistSummary } from "../../shared/index.js";
 import { ActionError } from "../components/ActionError.js";
@@ -47,13 +47,13 @@ export function SetlistListScreen({ mbid }: { mbid: string }) {
     initialPageParam: 1,
     getNextPageParam: (last, _pages, lastPage) => (last.hasMore ? lastPage + 1 : undefined),
   });
-  const pages = list.data?.pages ?? [];
+  const pages = useMemo(() => list.data?.pages ?? [], [list.data]);
   const firstPageError = useShownError(list.data === undefined ? list.error : null, list.isFetching);
   const morePagesError = useShownError(list.isFetchNextPageError ? list.error : null, list.isFetchingNextPage);
 
   const name = pages.find((page) => page.artist.name !== undefined)?.artist.name ?? pickedName;
   useDocumentTitle(name === undefined ? "Setlists – Playset" : `${name} – Setlists – Playset`);
-  const { setlists, addedByLastPage } = uniqueSetlists(pages);
+  const { setlists, addedByLastPage } = useMemo(() => uniqueSetlists(pages), [pages]);
 
   // Only pages loaded while the Visitor is here are announced, not those kept from an earlier visit.
   const pageCount = pages.length;

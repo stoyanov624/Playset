@@ -54,14 +54,6 @@
   outline: 0;
 }
 
-.live {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-}
-
 .footer {
   margin-block-start: var(--space-7);
   padding-block: var(--space-5);

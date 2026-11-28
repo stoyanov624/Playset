@@ -30,6 +30,12 @@
   font-family: var(--font-text);
   font-size: var(--text-base);
   caret-color: var(--color-spike);
+  appearance: none;
+}
+
+/* The search field's built-in decoration would sit outside the design's own field look. */
+.input::-webkit-search-decoration {
+  appearance: none;
 }
 
 .input::placeholder {

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import styles from "./AlertBox.module.css";
+import styles from "./AlertActions.module.css";
 
 /** The row of buttons and links at the foot of an alert. */
 export function AlertActions({ children }: { children: ReactNode }) {

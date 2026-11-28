@@ -3,13 +3,8 @@
 }
 
 .heading {
+  composes: screenTitle from "../styles/type.module.css";
   margin: var(--space-6) 0 var(--space-2);
-  font-family: var(--font-display);
-  font-size: var(--text-2xl);
-  line-height: var(--leading-2xl);
-  font-weight: 800;
-  text-wrap: balance;
-  overflow-wrap: anywhere;
 }
 
 .subtitle {
@@ -20,11 +15,8 @@
 }
 
 .emptyHeading {
+  composes: sectionTitle from "../styles/type.module.css";
   margin: var(--space-6) 0 var(--space-3);
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  line-height: var(--leading-lg);
-  font-weight: 800;
 }
 
 .text {

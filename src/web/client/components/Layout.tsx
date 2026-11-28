@@ -2,6 +2,8 @@ import { useCallback, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router";
 import { AnnouncerContext } from "../context/announcer.js";
 import { NavigatedContext } from "../context/navigation.js";
+import { PLAYSET_SPOTIFY_ACCOUNT } from "../wording.js";
+import { VisuallyHidden } from "./VisuallyHidden.js";
 import styles from "./Layout.module.css";
 
 /** The page shell: skip link, header, one main with the live region, and the footer. */
@@ -29,16 +31,14 @@ export function Layout() {
         </header>
         <main id="main" tabIndex={-1} className={`${styles.container} ${styles.main}`}>
           <Outlet />
-          <div aria-live="polite" className={styles.live}>
-            {announcement}
-          </div>
+          <VisuallyHidden live="polite">{announcement}</VisuallyHidden>
         </main>
         <footer className={styles.footer}>
           <div className={`${styles.container} ${styles.footerItems}`}>
             <p>
               Setlists from <a href="https://www.setlist.fm/">setlist.fm</a>
             </p>
-            <p>Playlists are created in Playset's Spotify account and are public.</p>
+            <p>Playlists are created in {PLAYSET_SPOTIFY_ACCOUNT} and are public.</p>
             <p>
               <Link to="/terms" className={styles.target}>
                 Terms and Privacy

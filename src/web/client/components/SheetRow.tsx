@@ -2,7 +2,7 @@ import { CircleCheck, CircleSlash } from "lucide-react";
 import type { PreviewRow } from "../../shared/index.js";
 import { missRowId } from "../preview/sheet.js";
 import { Badge } from "./Badge.js";
-import styles from "./Sheet.module.css";
+import styles from "./SheetRow.module.css";
 
 /** The Miss wording is the client's own: the contract carries no reason, and "not found" is not said of a Miss. */
 function missLine(artist: string, originalArtist: string | undefined): string {

@@ -1,0 +1,31 @@
+/* Laid out like a sheet row, in soft ink: it is never added. */
+.row {
+  composes: row from "./SheetRow.module.css";
+}
+
+.number {
+  composes: number from "./SheetRow.module.css";
+}
+
+.body {
+  composes: body from "./SheetRow.module.css";
+}
+
+.titleLine {
+  composes: titleLine from "./SheetRow.module.css";
+}
+
+.title {
+  composes: title from "./SheetRow.module.css";
+  color: var(--color-ink-soft);
+}
+
+.icon {
+  composes: icon from "./SheetRow.module.css";
+  color: var(--color-ink-soft);
+}
+
+.note {
+  composes: outcomeLine from "./SheetRow.module.css";
+  color: var(--color-ink-soft);
+}

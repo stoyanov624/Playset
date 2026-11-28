@@ -5,17 +5,20 @@ export interface HeadingProps {
   level: 1 | 2;
   children: ReactNode;
   className?: string | undefined;
-  /** Take focus as soon as this heading is shown (a new screen, result or error). */
+  /**
+   * Take focus as soon as this is true (a new screen, result or error). Only a heading given this
+   * can take focus, and it never joins the Tab order.
+   */
   focusWhen?: boolean;
 }
 
-/** A screen or section heading that can receive focus without joining the Tab order. */
-export function Heading({ level, children, className, focusWhen = false }: HeadingProps) {
+/** A screen or section heading; one that announces a new step can receive focus. */
+export function Heading({ level, children, className, focusWhen }: HeadingProps) {
   const ref = useRef<HTMLHeadingElement>(null);
-  useFocusWhen(ref, focusWhen);
+  useFocusWhen(ref, focusWhen === true);
   const Tag = level === 1 ? "h1" : "h2";
   return (
-    <Tag ref={ref} tabIndex={-1} className={className}>
+    <Tag ref={ref} tabIndex={focusWhen === undefined ? undefined : -1} className={className}>
       {children}
     </Tag>
   );

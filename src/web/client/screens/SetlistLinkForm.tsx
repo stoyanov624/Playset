@@ -73,10 +73,12 @@ export function SetlistLinkForm() {
             ref={input}
             id={`${messageId}-input`}
             className={styles.input}
+            name="link"
             type="url"
             inputMode="url"
             enterKeyHint="go"
             autoComplete="off"
+            spellCheck={false}
             placeholder="https://www.setlist.fm/setlist/…"
             value={value}
             onChange={(event) => setValue(event.target.value)}

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { PreviewResult } from "../../shared/index.js";
 import { buildSheet, setHeading } from "../preview/sheet.js";
 import { Heading } from "./Heading.js";
@@ -7,9 +8,10 @@ import styles from "./Sheet.module.css";
 
 /** The Setlist sheet: every Performance in played order, under its Set. */
 export function Sheet({ result }: { result: PreviewResult }) {
+  const sections = useMemo(() => buildSheet(result), [result]);
   return (
     <>
-      {buildSheet(result).map((section, index) => (
+      {sections.map((section, index) => (
         <section key={index} className={styles.section}>
           {section.label === null ? null : (
             <Heading level={2} className={styles.setHeading}>

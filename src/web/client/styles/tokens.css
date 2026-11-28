@@ -49,6 +49,9 @@
   --rail: 20rem;
   --target: 2.75rem;
   --control-h: 3rem;
+  --col-number: 3ch;
+  --col-date: 3.5rem;
+  --col-date-wide: 4.5rem;
 
   --radius-none: 0;
   --radius-control: 4px;
@@ -61,6 +64,7 @@
 
   --underline: 1px;
   --underline-hover: 2px;
+  --underline-offset: 0.18em;
   --focus-ring-width: 3px;
   --focus-ring-offset: 2px;
   --progress-h: 8px;

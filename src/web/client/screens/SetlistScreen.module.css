@@ -3,18 +3,6 @@
 }
 
 .heading {
+  composes: leadTitle from "../styles/type.module.css";
   margin: var(--space-6) 0 var(--space-2);
-  font-family: var(--font-display);
-  font-size: var(--text-2xl);
-  line-height: var(--leading-2xl);
-  font-weight: 800;
-  text-wrap: balance;
-  overflow-wrap: anywhere;
-}
-
-@media (min-width: 64rem) {
-  .heading {
-    font-size: var(--text-3xl);
-    line-height: var(--leading-3xl);
-  }
 }

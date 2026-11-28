@@ -20,7 +20,25 @@
   box-shadow: var(--shadow-bar);
 }
 
+/* Keyboard focus scrolled into view never ends up under the sticky bar; two lines allow for its
+   note wrapping on a narrow screen or at large text sizes. */
+:global(html):has(.action) {
+  scroll-padding-block-end: calc(var(--control-h) + var(--space-3) * 2 + var(--space-2) + var(--leading-xs) * 2 + env(safe-area-inset-bottom));
+}
+
+/* The bar spans the page's padding, which widens here. */
+@media (min-width: 48rem) {
+  .action {
+    padding-inline: var(--gutter-wide);
+    margin-inline: calc(var(--gutter-wide) * -1);
+  }
+}
+
 @media (min-width: 64rem) {
+  :global(html):has(.action) {
+    scroll-padding-block-end: 0;
+  }
+
   .preview {
     grid-template-columns: minmax(0, 1fr) var(--rail);
     grid-template-rows: auto 1fr;

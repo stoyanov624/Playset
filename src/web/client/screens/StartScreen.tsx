@@ -31,6 +31,33 @@ export function StartScreen() {
   const fieldError = shown?.error.code === "INVALID_INPUT" ? shown.error : null;
 
   const home = artist === "";
+
+  /** Home offers the link form; a search shows its error (unless it is on the field) or its candidates. */
+  function belowForm() {
+    if (home) {
+      return (
+        <>
+          <hr className={styles.rule} />
+          <SetlistLinkForm />
+        </>
+      );
+    }
+    if (shown !== null) {
+      if (fieldError !== null) return null;
+      return (
+        <ScreenError
+          key={shown.key}
+          error={shown.error}
+          headingLevel={1}
+          retrying={shown.retrying}
+          onRetry={() => void search.refetch()}
+        />
+      );
+    }
+    if (search.data === undefined) return null;
+    return <ArtistResults name={search.data.name} artists={search.data.answer.artists} />;
+  }
+
   // One form for both states, so the input keeps its place (and focus) when a search starts.
   return (
     <div className={styles.flow}>
@@ -44,24 +71,7 @@ export function StartScreen() {
         </>
       ) : null}
       <ArtistSearchForm artist={artist} searching={search.isFetching} serverProblem={fieldError} />
-      {home ? (
-        <>
-          <hr className={styles.rule} />
-          <SetlistLinkForm />
-        </>
-      ) : shown !== null ? (
-        fieldError === null ? (
-          <ScreenError
-            key={shown.key}
-            error={shown.error}
-            headingLevel={1}
-            retrying={shown.retrying}
-            onRetry={() => void search.refetch()}
-          />
-        ) : null
-      ) : search.data === undefined ? null : (
-        <ArtistResults name={search.data.name} artists={search.data.answer.artists} />
-      )}
+      {belowForm()}
     </div>
   );
 }

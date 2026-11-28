@@ -1,5 +1,6 @@
 import { ListMusic } from "lucide-react";
 import type { ShownError } from "../hooks/useShownError.js";
+import { PLAYSET_SPOTIFY_ACCOUNT } from "../wording.js";
 import { ActionError } from "./ActionError.js";
 import { Button } from "./Button.js";
 import styles from "./PlaylistAction.module.css";
@@ -39,7 +40,7 @@ export function PlaylistAction({ update, matches, pending, error, onSend, onRetr
         {pending ? busy : idle}
       </Button>
       <p className={styles.line}>
-        {update ? "Replaces the songs in the same playlist" : "Public, in Playset's Spotify account"}
+        {update ? "Replaces the songs in the same playlist" : `Public, in ${PLAYSET_SPOTIFY_ACCOUNT}`}
       </p>
     </>
   );

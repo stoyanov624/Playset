@@ -36,7 +36,7 @@
   padding-inline: 0;
   text-decoration: underline;
   text-decoration-thickness: var(--underline);
-  text-underline-offset: 0.18em;
+  text-underline-offset: var(--underline-offset);
 }
 
 .button[aria-disabled="true"] {
@@ -54,6 +54,15 @@
   .wide {
     inline-size: auto;
   }
+}
+
+/* Press feedback on touch, where the browser's own tap highlight is turned off. */
+.primary:active {
+  background: var(--color-spike-hover);
+}
+
+.secondary:active {
+  background: var(--color-sunk);
 }
 
 @media (hover: hover) {
