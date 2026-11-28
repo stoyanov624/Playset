@@ -868,6 +868,37 @@ describe("log out", () => {
     expect(api.getAdminStatus).toHaveBeenCalledTimes(1);
   });
 
+  it("AC-5: with login=UPSTREAM_UNAVAILABLE still in the URL, a failed logout keeps the login-problem alert directly under the h1 and puts the logout error right after it", async () => {
+    const { user } = await openDashboard(
+      connectedStatus(),
+      { logOut: inTurn<void>([playsetUnreachable(), undefined]) },
+      "/admin?login=UPSTREAM_UNAVAILABLE",
+    );
+    const loginTitle = () => screen.getByRole("heading", { level: 2, name: "Spotify isn't answering right now." });
+    await expectFocusOn(loginTitle);
+
+    await user.click(within(banner()).getByRole("button", { name: "Log out" }));
+    const logoutAlert = await findAlert("Playset isn't answering right now.");
+
+    // The login problem keeps the slot right under the h1; the logout error follows it directly.
+    expectDirectlyUnderH1(loginTitle());
+    const loginProblem = h1().nextElementSibling;
+    if (!(loginProblem instanceof HTMLElement)) throw new Error("nothing right after the h1");
+    expect(loginProblem.contains(loginTitle()), "the element under the h1 holds the login problem").toBe(true);
+    expect(loginProblem.contains(logoutAlert), "the element under the h1 does not hold the logout error").toBe(false);
+    const afterLoginProblem = loginProblem.nextElementSibling;
+    expect(afterLoginProblem, "an element right after the login problem").not.toBeNull();
+    expect(
+      afterLoginProblem === logoutAlert || afterLoginProblem?.contains(logoutAlert) === true,
+      "the element right after the login problem holds the logout error",
+    ).toBe(true);
+    expect(isBefore(loginTitle(), logoutAlert)).toBe(true);
+    expect(isBefore(logoutAlert, screen.getByRole("heading", { level: 2, name: "Host Account" }))).toBe(true);
+
+    expect(document.activeElement).toBe(within(banner()).getByRole("button", { name: "Log out" }));
+    expect(currentUrl()).toBe("/admin?login=UPSTREAM_UNAVAILABLE");
+  });
+
   it.each<[string, () => Error, string, string]>([
     ["INTERNAL", ourSide, "Something went wrong on our side.", "Please try again in a minute."],
     ["RATE_LIMITED", () => tooManyRequests(30), "Too many requests from here.", "Wait a moment, then try again."],
