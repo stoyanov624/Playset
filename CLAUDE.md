@@ -5,6 +5,7 @@ Turns a setlist.fm Setlist into a Spotify Setlist Playlist, through the `playset
 ## Commands
 - `npm test` — Vitest (no network; fixtures only)
 - `npm run typecheck` — tsc
+- `npm run lint` — oxlint (`.oxlintrc.json`: correctness + react-hooks + jsx-a11y + no `any` in src). Not ESLint: TypeScript 7 has no JS API, so typescript-eslint cannot run. oxlint is pinned to an exact version because its rule sets change between releases.
 - `npm run build` — Vite bundles `src/cli/index.ts` → `dist/cli.js`
 - `npm run dev -- <args>` — run CLI via tsx
 
@@ -16,6 +17,7 @@ Turns a setlist.fm Setlist into a Spotify Setlist Playlist, through the `playset
   - `setlist-link`, `performances` (Setlist → Performances, noted songs, Incomplete Setlist), `setlistfm` (client, Artist lookup, Latest Setlist), `matching` (one Performance → Match/Miss), `spotify-auth` (PKCE login, token refresh), `setlist-playlist` (name, duplicate check, create + fill, update in place).
   - `src/core/index.ts` exports only what a front-end needs; module `index.ts` files also export internals that tests use.
 - Still Node-only in core: `spotify-auth` (`node:crypto` PKCE, `node:http` loopback receiver) and the settings file adapter.
+- `src/web/shared/` — the web API contract: zod schemas for every route and preview event, inferred types, route paths, error codes, limits. Browser-safe (imports only zod); server and client both import it.
 - `src/cli/` — thin: argument parsing (commander), prompts (@inquirer/prompts), printing, interactive shell. No domain rules.
 - `test/` — tests (`*.test.ts`) and fixtures. Shared fixture Fixture A (Arctic Monkeys) is an Incomplete Setlist (its blank-name song is an Unknown Song) and has medleys.
 
@@ -31,7 +33,7 @@ Turns a setlist.fm Setlist into a Spotify Setlist Playlist, through the `playset
 - CLI secrets: env first (`SETLISTFM_API_KEY`, `SPOTIFY_CLIENT_ID`), then `~/.config/playset/config.json` (`setlistfmApiKey`, `spotifyClientId`); tokens in `spotify-token.json` (0600). Spotify login = Authorization Code + PKCE, redirect `http://127.0.0.1:<port>/callback` (not `localhost`), no client secret.
 
 ## External API facts (verified — don't re-research)
-- setlist.fm: header `x-api-key`, `Accept: application/json`; non-commercial key; throttle ≤2 req/s; 429 + `Retry-After`. An Unknown Song is a song with `"name": ""` (site shows "(Unknown)"; checked on setlist `53d60349`). There is no incomplete flag — only the free-text setlist `info`. Artist search `GET /search/artists?artistName=…&sort=relevance` (404 = no results); setlists `GET /artist/{mbid}/setlists?p=N` (newest first; announced future Shows are empty placeholders).
+- setlist.fm: header `x-api-key`, `Accept: application/json`; non-commercial key; throttle ≤2 req/s; 429 + `Retry-After`. An Unknown Song is a song with `"name": ""` (site shows "(Unknown)"; checked on setlist `53d60349`). There is no incomplete flag — only the free-text setlist `info`. Artist search `GET /search/artists?artistName=…&sort=relevance` (404 = no results); setlists `GET /artist/{mbid}/setlists?p=N` (newest first; announced future Shows are empty placeholders). Setlist `url`s are plain ASCII: slugs are transliterated (`bjork`, `motley-crue`, `beyonce`; 60 links checked 2026-11-28).
 - Spotify (Development Mode, 2026): owner needs Premium; only accounts added under the app's User Management can log in, max 5; extended quota is not available to personal projects. Search `limit` ≤ 10; create playlist `POST /v1/me/playlists`; add `POST /v1/playlists/{id}/items` (≤100 URIs); old `/tracks` and `/users/{id}/playlists` are gone. Access token lasts 1 h; refresh tokens may rotate (keep the old one if none returned); `invalid_grant` on refresh → full login. Playlists are created in the account of whoever logged in.
 - Spotify playlist update (live check 2026-11-27): `PUT /v1/playlists/{id}/items` `{ uris }` (≤100) replaces all items (200 + `snapshot_id`); `PUT /v1/playlists/{id}` `{ name, description }` renames (200, empty body). Deleting a playlist = unfollowing it (`DELETE /v1/me/library?uris=spotify:playlist:{id}`; `DELETE /v1/playlists/{id}/followers` still answers 200). On a deleted own playlist, replace items and rename answer 404, add items answers 502, `GET /v1/playlists/{id}` still answers 200 (the public link keeps opening); writing never brings it back. `GET /v1/me/library/contains` needs a library scope (403 with only playlist scopes) — not used: a 404 on replace means "no longer held".
 
