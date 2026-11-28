@@ -22,7 +22,7 @@ import {
   type SetlistPlaylistRecords,
 } from "../../../../src/core/index.js";
 import { HttpError, createRequester, type RequestPolicy } from "../../../../src/core/http/index.js";
-import { createApp, readWebConfig, type WebServices } from "../../../../src/web/server/index.js";
+import { createApp, createMemoryUsageEvents, readWebConfig, type WebServices } from "../../../../src/web/server/index.js";
 import { makeFakeClock, makeRoutedFetch, type RecordedRequest } from "../../../run/fixtures/real-service-fakes";
 import {
   PARTLY_ID,
@@ -207,6 +207,12 @@ export function makeFakeEvents() {
       async countPlaylistsMade(day: string): Promise<number> {
         return recorded.filter((e) => e.day === day && (e.kind === "created" || e.kind === "updated")).length;
       },
+      /** The admin status numbers, worked out by the server's own in-memory usage events. */
+      async readUsage(today: string) {
+        const memory = createMemoryUsageEvents();
+        for (const event of recorded) await memory.recordEvent({ ...event });
+        return memory.readUsage(today);
+      },
     },
   };
 }
@@ -262,6 +268,31 @@ export function sharedClientDir(): string {
 }
 
 // ---------------------------------------------------------------- the harness
+
+/** A Host token store in memory, for apps whose Visitor routes get the Host token from a fake source. */
+export function memoryHostTokenStore() {
+  type Stored = { accountId: string; displayName?: string; accessToken: string; refreshToken: string; expiresAt: number };
+  let stored: Stored | undefined;
+  return {
+    async read(): Promise<Stored | undefined> {
+      return stored === undefined ? undefined : { ...stored };
+    },
+    async save(token: Stored): Promise<void> {
+      stored = { ...token };
+    },
+    async clear(): Promise<void> {
+      stored = undefined;
+    },
+  };
+}
+
+/** A Host login no Visitor route may use: every call fails the test. */
+export function neverCalledHostLogin() {
+  const fail = async (): Promise<never> => {
+    throw new Error("no Host login expected on a Visitor route");
+  };
+  return { exchangeCode: fail, fetchAccount: fail, refresh: fail };
+}
 
 export type HostMode = { kind: "connected"; token: string } | { kind: "absent" } | { kind: "rejects"; error: unknown };
 
@@ -473,6 +504,8 @@ export function makeHarness(opts: HarnessOptions = {}) {
     now: () => clock.ms,
     logger: log.logger,
     clientDir,
+    hostTokenStore: memoryHostTokenStore(),
+    hostLogin: neverCalledHostLogin(),
   });
 
   const isSetlistFm = (r: RecordedRequest) => r.url.hostname === "api.setlist.fm";

@@ -4,7 +4,17 @@ import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { createApp, notConnectedHostTokenSource } from "../../../src/web/server/index.js";
 import { expectCatalogueError } from "./fixtures/catalogue";
-import { A, HOST_TOKEN, TODAY, expectNoLeaks, makeHarness, sharedClientDir, type HostMode } from "./fixtures/harness";
+import {
+  A,
+  HOST_TOKEN,
+  TODAY,
+  expectNoLeaks,
+  makeHarness,
+  memoryHostTokenStore,
+  neverCalledHostLogin,
+  sharedClientDir,
+  type HostMode,
+} from "./fixtures/harness";
 import { H_ID, H_V1, PEARL_JAM_MBID, PLAYLIST_ID, SHARE_URL, pearlJamPagePayload, pearlJamSearchPayload } from "./fixtures/setlists";
 
 const absent: HostMode = { kind: "absent" };
@@ -149,6 +159,8 @@ describe("notConnectedHostTokenSource (AC-18)", () => {
       now: () => h.clock.ms,
       logger: h.log.logger,
       clientDir: sharedClientDir(),
+      hostTokenStore: memoryHostTokenStore(),
+      hostLogin: neverCalledHostLogin(),
     });
     expectCatalogueError(await request(app).get(`/api/setlists/${H_ID}/preview`).set("X-Forwarded-For", A), "E-23");
     expectCatalogueError(
