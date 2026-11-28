@@ -50,9 +50,7 @@ export type PreviewRow = z.output<typeof previewRowSchema>;
 /** A Miss with its row number, so the Misses list can link to its row. */
 export const previewMissSchema = z.strictObject({
   number: ordinal,
-  title: nonEmptyString,
-  artist: nonEmptyString,
-  originalArtist: nonEmptyString.optional(),
+  ...missSchema.omit({ kind: true }).shape,
 });
 export type PreviewMiss = z.output<typeof previewMissSchema>;
 
