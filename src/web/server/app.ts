@@ -1,4 +1,4 @@
-// The web app: the Visitor routes of the contract and the built client. Each route checks its input with
+// The web app: the Visitor routes of the contract, the admin's Host login and status, and the built client. Each route checks its input with
 // the contract, calls the core's steps and answers in the contract's shapes; the server adds only what
 // HTTP needs (limits, shared runs, one create per Setlist at a time, usage events, error wording).
 // Every in-memory state belongs to the app built here, so two apps share nothing.
@@ -9,9 +9,11 @@ import { CATALOGUE, VisitorError } from "./catalogue.js";
 import { clientRoutes } from "./client.js";
 import type { WebConfig } from "./config.js";
 import { createErrorHandler } from "./error-handler.js";
-import type { HostTokenSource } from "./host-tokens.js";
+import { createAdminCookies } from "./admin-cookies.js";
+import type { HostLogin, HostTokenSource, HostTokenStore } from "./host-tokens.js";
 import { utcDay, type RateLimitHitCounter } from "./limits.js";
 import { createFailureLog, createRedactor, type Logger } from "./logging.js";
+import { adminRoutes } from "./routes/admin.js";
 import { artistRoutes } from "./routes/artists.js";
 import type { RouteContext, WebServices } from "./routes/context.js";
 import { createRoutes } from "./routes/create.js";
@@ -33,6 +35,10 @@ export interface AppDeps {
   logger: Logger;
   /** The built client: index.html and assets/. */
   clientDir: string;
+  /** Where the Host Account's login is kept (the Host token source reads the same store). */
+  hostTokenStore: HostTokenStore;
+  /** Spotify's code exchange, `/me` and refresh, for the admin's Host login. */
+  hostLogin: HostLogin;
 }
 
 const CONTENT_SECURITY_POLICY = {
@@ -62,13 +68,14 @@ export function createApp(deps: AppDeps): express.Express {
   const { config, services, records, events, hostTokens, rateLimitHits, now, logger } = deps;
 
   const hostTokensSeen = new Set<string>();
-  const redact = createRedactor(() => [
+  const appSecrets = () => [
     config.setlistFmApiKey,
     config.spotifyClientId,
     config.cookieSecret,
     config.hostSpotifyId,
     ...hostTokensSeen,
-  ]);
+  ];
+  const redact = createRedactor(appSecrets);
   const log = createFailureLog(logger, redact);
 
   const context: RouteContext = {
@@ -121,6 +128,19 @@ export function createApp(deps: AppDeps): express.Express {
   app.use("/api", (req, _res, next) => {
     next(req.method === "OPTIONS" ? new VisitorError(CATALOGUE.nothingHere) : undefined);
   });
+  app.use(
+    adminRoutes({
+      config,
+      cookies: createAdminCookies(config.cookieSecret, now),
+      hostTokenStore: deps.hostTokenStore,
+      hostLogin: deps.hostLogin,
+      events,
+      rateLimitHits,
+      now,
+      logger,
+      redactorFor: (extra) => createRedactor(() => [...extra(), ...appSecrets()]),
+    }),
+  );
   app.use(artistRoutes(context), setlistRoutes(context), previewRoutes(context), createRoutes(context));
   app.use("/api", () => {
     throw new VisitorError(CATALOGUE.nothingHere);

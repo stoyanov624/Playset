@@ -2,7 +2,7 @@ import { processEnv, settingsStoreFor, type SettingsStore, type SpotifyTokens } 
 import { resolveClientId, resolveRedirectUri, type Env } from "./config.js";
 import { TokenError } from "./errors.js";
 import { runLogin, type LoginDeps } from "./login.js";
-import { requestToken, type TokenGrant } from "./token-endpoint.js";
+import { requestToken, type TokenAnswer } from "./token-endpoint.js";
 
 /** A cached access token is reused only while its expiry is more than this far away. */
 const EXPIRY_MARGIN_MS = 60_000;
@@ -40,7 +40,7 @@ function isFresh(tokens: SpotifyTokens, now: number): boolean {
 }
 
 /** Returns null when Spotify rejected the refresh token (invalid_grant) so a full login should run. */
-async function refresh(deps: SpotifyAuthDeps, clientId: string, refreshToken: string): Promise<TokenGrant | null> {
+async function refresh(deps: SpotifyAuthDeps, clientId: string, refreshToken: string): Promise<TokenAnswer | null> {
   try {
     return await requestToken(deps, { grant_type: "refresh_token", refresh_token: refreshToken, client_id: clientId });
   } catch (err) {
@@ -50,7 +50,7 @@ async function refresh(deps: SpotifyAuthDeps, clientId: string, refreshToken: st
 }
 
 /** Caches the grant's tokens, keeping the previous refresh token when Spotify sent no new one. */
-async function keep(settings: SettingsStore, grant: TokenGrant, previousRefreshToken?: string): Promise<string> {
+async function keep(settings: SettingsStore, grant: TokenAnswer, previousRefreshToken?: string): Promise<string> {
   const refreshToken = grant.refreshToken ?? previousRefreshToken;
   if (!refreshToken) throw new TokenError("Spotify's token endpoint sent no refresh token.");
   await settings.writeSpotifyTokens({ refreshToken, accessToken: grant.accessToken, expiresAt: grant.expiresAt });

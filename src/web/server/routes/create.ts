@@ -1,6 +1,6 @@
 // Create or update the Setlist's one Setlist Playlist: behind the per-address and daily limits, and one
 // run per Setlist at a time.
-import express, { Router, type Request, type Response } from "express";
+import { Router } from "express";
 import {
   createOrUpdateSetlistPlaylist,
   getSetlist,
@@ -13,33 +13,11 @@ import {
   createPlaylistResponseSchema,
   setlistParamsSchema,
 } from "../../shared/index.js";
-import { CATALOGUE, VisitorError } from "../catalogue.js";
+import { CATALOGUE } from "../catalogue.js";
 import { createSetlistQueue } from "../create-queue.js";
 import { createAddressWindow, createDailyLimit, secondsUntilNextUtcDay, utcDay } from "../limits.js";
-import { addressOf, parsed, sendJson, undecodableParamIs, type RouteContext } from "./context.js";
+import { addressOf, parsed, readJsonBody, sendJson, undecodableParamIs, type RouteContext } from "./context.js";
 import { LEAVE_OUT_TAPES } from "./tapes.js";
-
-/** 10 kB: a create body is a version id; nothing a Visitor sends needs more. */
-const BODY_LIMIT_BYTES = 10 * 1024;
-
-const jsonBody = express.json({ limit: BODY_LIMIT_BYTES });
-
-/**
- * Reads the JSON body into `req.body`; a body too large or not JSON is the Visitor's error, never logged.
- * Read only after the `:id` is checked, so a bad id is answered as such whatever the body.
- */
-function readJsonBody(req: Request, res: Response): Promise<void> {
-  return new Promise((resolve, reject) => {
-    jsonBody(req, res, (error?: unknown) => {
-      if (error === undefined) {
-        resolve();
-        return;
-      }
-      const tooLarge = (error as { type?: unknown }).type === "entity.too.large";
-      reject(new VisitorError(tooLarge ? CATALOGUE.bodyTooLarge : CATALOGUE.createBodyInvalid));
-    });
-  });
-}
 
 /** A create that shares another's run holds no daily slot, so it has none to give back. */
 const NO_DAILY_SLOT = (): void => {};
@@ -61,7 +39,8 @@ export function createRoutes({
 
   router.post(ROUTES.setlistPlaylist, async (req, res) => {
     const { id } = parsed(setlistParamsSchema, req.params, CATALOGUE.setlistIdInvalid);
-    await readJsonBody(req, res);
+    // Read only after the `:id` is checked, so a bad id is answered as such whatever the body.
+    await readJsonBody(req, res, CATALOGUE.createBodyInvalid);
     const { versionId } = parsed(createPlaylistBodySchema, req.body, CATALOGUE.createBodyInvalid);
     const accessToken = await hostToken();
 

@@ -1,19 +1,22 @@
 // Starts the web server: reads the config (from `.env` in the working directory too, where a variable
 // already set and not empty wins), opens the SQLite file, builds the core's services once so every Visitor shares
-// setlist.fm's and Spotify's request spacing, and listens on 127.0.0.1 only.
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+// setlist.fm's and Spotify's request spacing, gives every preview and create the Host token kept in the
+// SQLite file, and listens on 127.0.0.1 only.
+import { chmodSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 import Database from "better-sqlite3";
 import { createMemorySettingsStore, createRunServices } from "../../core/index.js";
+import { exchangeAuthorizationCode, fetchSpotifyAccount, refreshAccessToken } from "../../core/index.js";
 import {
   WebConfigError,
   createApp,
+  createHostTokenSource,
   createRateLimitHitCounter,
   createSqliteStore,
-  notConnectedHostTokenSource,
   readWebConfig,
+  type HostLogin,
   type Logger,
   type WebConfig,
 } from "./index.js";
@@ -38,7 +41,21 @@ const logger: Logger = {
 
 function start(config: WebConfig): void {
   mkdirSync(dirname(resolve(config.dataFile)), { recursive: true });
-  const { records, events } = createSqliteStore(new Database(config.dataFile));
+  const { records, events, hostTokenStore } = createSqliteStore(new Database(config.dataFile));
+  // The file holds the Host Account's refresh token: readable and writable by its owner only.
+  chmodSync(config.dataFile, 0o600);
+  const spotify = {
+    fetch: (input: string, init?: RequestInit) => fetch(input, init),
+    sleep: (ms: number) => new Promise<void>((done) => setTimeout(done, ms)),
+    now: Date.now,
+  };
+  const clientId = config.spotifyClientId;
+  const hostLogin: HostLogin = {
+    exchangeCode: ({ code, codeVerifier, redirectUri }) =>
+      exchangeAuthorizationCode(spotify, { clientId, redirectUri, code, codeVerifier }),
+    fetchAccount: (accessToken) => fetchSpotifyAccount(spotify, accessToken),
+    refresh: (refreshToken) => refreshAccessToken(spotify, { clientId, refreshToken }),
+  };
   const services = createRunServices({
     env: {},
     settings: createMemorySettingsStore({
@@ -54,11 +71,19 @@ function start(config: WebConfig): void {
     services,
     records,
     events,
-    hostTokens: notConnectedHostTokenSource,
+    hostTokens: createHostTokenSource({
+      store: hostTokenStore,
+      login: hostLogin,
+      hostAccountId: config.hostSpotifyId,
+      now: Date.now,
+      logger,
+    }),
     rateLimitHits: createRateLimitHitCounter(),
     now: Date.now,
     logger,
     clientDir: CLIENT_DIR,
+    hostTokenStore,
+    hostLogin,
   });
   // Express hands a listen failure to this callback too. A port already in use is a setup problem, so it
   // gets one clear line instead of a stack.

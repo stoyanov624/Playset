@@ -1,5 +1,6 @@
 // The server log: no access log and no Visitor address; failures are logged with their cause chain,
 // every secret replaced by [redacted]. Each failure is logged once, even when several Visitors share it.
+import type { ErrorCode } from "../shared/index.js";
 import { VisitorError, type CatalogueEntry } from "./catalogue.js";
 
 export interface Logger {
@@ -16,11 +17,14 @@ const REDACTED = "[redacted]";
  */
 const TOKEN_SHAPED = [/\bBQ[A-Za-z0-9_-]{6,}/g, /\bBearer\s+\S+/gi];
 
-/** Replaces every secret the server knows (and every token-shaped word) with [redacted]. */
+/**
+ * Replaces every secret the server knows (and every token-shaped word) with [redacted]. Longer secrets go
+ * first, so a secret that holds another (a cookie value holding a token-like piece) goes whole.
+ */
 export function createRedactor(secrets: () => Iterable<string>): (text: string) => string {
   return (text) => {
     let redacted = text;
-    for (const secret of secrets()) {
+    for (const secret of [...secrets()].sort((x, y) => y.length - x.length)) {
       if (secret !== "") redacted = redacted.split(secret).join(REDACTED);
     }
     for (const pattern of TOKEN_SHAPED) redacted = redacted.replace(pattern, REDACTED);
@@ -55,6 +59,8 @@ export interface FailureLog {
   failedAfterLeaving(error: unknown): void;
   /** Logs a usage event that couldn't be saved; the Visitor's playlist exists all the same. */
   eventNotRecorded(error: unknown): void;
+  /** Logs a Host login that failed after Spotify was asked, with the code the admin page is sent. */
+  hostLoginFailed(code: ErrorCode, level: "warn" | "error", error: unknown): void;
 }
 
 export function createFailureLog(logger: Logger, redact: (text: string) => string): FailureLog {
@@ -93,6 +99,9 @@ export function createFailureLog(logger: Logger, redact: (text: string) => strin
     eventNotRecorded(error) {
       // The Visitor's answer is unharmed and the store's message says what failed; no stack is needed.
       write("warn", "Usage event not recorded", error, false);
+    },
+    hostLoginFailed(code, level, error) {
+      write(level, `Host login ended with ${code}`, error);
     },
   };
 }

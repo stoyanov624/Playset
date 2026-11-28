@@ -1,4 +1,4 @@
-// The server's fixed error catalogue: every error a Visitor can get, with its code, HTTP status and
+// The server's fixed error catalogue: every error a Visitor (or the admin) can get, with its code, HTTP status and
 // wording written for a Visitor. A core error's own message is written for the CLI (env names,
 // commands), so it is never sent; each core error kind maps to one entry here.
 import {
@@ -160,6 +160,11 @@ export const CATALOGUE = {
     hint: "Load the fresh preview, then press Create again.",
     log: "none",
   }),
+  notAdmin: define("NOT_ADMIN", 401, "You're not logged in as Playset's admin.", {
+    hint: "Log in with Spotify as the Host Account.",
+    log: "none",
+  }),
+  logoutBodyInvalid: define("INVALID_INPUT", 400, "That request isn't valid.", { log: "none" }),
   internal: define("INTERNAL", 500, "Something went wrong on our side.", {
     hint: "Please try again in a minute.",
     log: "error",
