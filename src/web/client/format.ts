@@ -7,9 +7,22 @@ function parseIsoDate(iso: string): Date {
   return new Date(`${iso}T00:00:00Z`);
 }
 
+const USAGE_DAY = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+const COUNT = new Intl.NumberFormat("en-GB");
+
 /** "2026-11-27" → "27 Nov 2026". */
 export function formatShowDate(iso: string): string {
   return SHOW_DATE.format(parseIsoDate(iso));
+}
+
+/** "2026-11-27" → "27 Nov", for the admin page's days. */
+export function formatUsageDay(iso: string): string {
+  return USAGE_DAY.format(parseIsoDate(iso));
+}
+
+/** "1042" → "1,042". */
+export function formatCount(count: number): string {
+  return COUNT.format(count);
 }
 
 /** The day, and the month with the year, for the date block of a Setlist row. */

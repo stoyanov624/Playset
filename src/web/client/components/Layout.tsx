@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router";
 import { AnnouncerContext } from "../context/announcer.js";
+import { HeaderSlotContext } from "../context/header.js";
 import { NavigatedContext } from "../context/navigation.js";
 import { PLAYSET_SPOTIFY_ACCOUNT } from "../wording.js";
 import { VisuallyHidden } from "./VisuallyHidden.js";
@@ -16,18 +17,21 @@ export function Layout() {
   // Each announcement is a new node, so the same sentence twice ("Link copied") is read out twice.
   const [announcement, setAnnouncement] = useState({ text: "", count: 0 });
   const announce = useCallback((text: string) => setAnnouncement((last) => ({ text, count: last.count + 1 })), []);
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
 
   return (
     <AnnouncerContext.Provider value={announce}>
       <NavigatedContext.Provider value={navigated}>
+        <HeaderSlotContext.Provider value={headerSlot}>
         <a href="#main" className={styles.skip}>
           Skip to content
         </a>
         <header className={styles.header}>
-          <div className={styles.container}>
+          <div className={`${styles.container} ${styles.headerRow}`}>
             <Link to="/" className={styles.wordmark} translate="no">
               Playset
-            </Link>
+            </Link>{" "}
+            <div ref={setHeaderSlot} className={styles.headerSlot} />
           </div>
         </header>
         <main id="main" tabIndex={-1} className={`${styles.container} ${styles.main}`}>
@@ -52,6 +56,7 @@ export function Layout() {
             </p>
           </div>
         </footer>
+        </HeaderSlotContext.Provider>
       </NavigatedContext.Provider>
     </AnnouncerContext.Provider>
   );

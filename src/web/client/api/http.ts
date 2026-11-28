@@ -3,6 +3,7 @@
 import type { z } from "zod";
 import {
   ROUTES,
+  adminStatusResponseSchema,
   artistSetlistsResponseSchema,
   artistsResponseSchema,
   createPlaylistResponseSchema,
@@ -103,6 +104,11 @@ export function createHttpApi(deps: HttpApiDeps): PlaysetApi {
         headers: { "Content-Type": JSON_TYPE },
         body: JSON.stringify({ versionId }),
       }),
+    getAdminStatus: (signal) => call(ROUTES.adminStatus, adminStatusResponseSchema, signal),
+    // Any 2xx counts, whatever its body: the server has cleared the login.
+    logOut: async () => {
+      await send(ROUTES.adminLogout, { method: "POST", headers: { Accept: JSON_TYPE } }, undefined);
+    },
     streamPreview: async (id, { onProgress, signal }) => {
       const response = await send(
         withParam(ROUTES.setlistPreview, "id", id),
