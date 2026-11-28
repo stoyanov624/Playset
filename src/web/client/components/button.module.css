@@ -66,8 +66,10 @@
 }
 
 @media (hover: hover) {
+  /* A primary LinkButton is an <a>: keep its text on-spike over the global link hover colour. */
   .primary:hover {
     background: var(--color-spike-hover);
+    color: var(--color-on-spike);
   }
 
   .secondary:hover {

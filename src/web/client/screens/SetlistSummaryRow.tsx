@@ -1,4 +1,5 @@
 import { ChevronRight, TriangleAlert } from "lucide-react";
+import type { Ref } from "react";
 import { Link } from "react-router";
 import type { SetlistSummary } from "../../shared/index.js";
 import { Badge } from "../components/Badge.js";
@@ -14,11 +15,20 @@ function rowName(setlist: SetlistSummary): string {
 }
 
 /** One Setlist in the list, the whole row a link to its Setlist screen. */
-export function SetlistSummaryRow({ setlist, state }: { setlist: SetlistSummary; state: SetlistState }) {
+export function SetlistSummaryRow({
+  setlist,
+  state,
+  linkRef,
+}: {
+  setlist: SetlistSummary;
+  state: SetlistState;
+  /** Lets the list move focus to this row, as when the last page has been added. */
+  linkRef?: Ref<HTMLAnchorElement> | undefined;
+}) {
   const { day, monthYear } = showDateParts(setlist.date);
   return (
     <li>
-      <Link to={`/setlists/${setlist.id}`} state={state} className={styles.row} aria-label={rowName(setlist)}>
+      <Link ref={linkRef} to={`/setlists/${setlist.id}`} state={state} className={styles.row} aria-label={rowName(setlist)}>
         <time dateTime={setlist.date} className={styles.date}>
           <span className={styles.day}>{day}</span>
           <span className={styles.monthYear}>{monthYear}</span>

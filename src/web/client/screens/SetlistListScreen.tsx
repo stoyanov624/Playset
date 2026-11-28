@@ -58,12 +58,18 @@ export function SetlistListScreen({ mbid }: { mbid: string }) {
   // Only pages loaded while the Visitor is here are announced, not those kept from an earlier visit.
   const pageCount = pages.length;
   const announcedPages = useRef(pageCount);
+  const firstNewRow = useRef<HTMLAnchorElement>(null);
+  const endLine = useRef<HTMLParagraphElement>(null);
+  const hasNextPage = list.hasNextPage;
   useEffect(() => {
     if (pageCount > announcedPages.current && pageCount > 1) {
       announce(addedByLastPage === 0 ? "No more Setlists" : `${counted(addedByLastPage, "more Setlist", "more Setlists")} loaded`);
+      // The last page takes Load more away; focus goes on to what it added, or to the end line.
+      if (!hasNextPage) (addedByLastPage === 0 ? endLine : firstNewRow).current?.focus();
     }
     announcedPages.current = pageCount;
-  }, [pageCount, addedByLastPage, announce]);
+  }, [pageCount, addedByLastPage, hasNextPage, announce]);
+  const firstNewIndex = addedByLastPage === 0 ? -1 : setlists.length - addedByLastPage;
 
   function loadMore() {
     if (!list.isFetchingNextPage) void list.fetchNextPage();
@@ -106,8 +112,13 @@ export function SetlistListScreen({ mbid }: { mbid: string }) {
           ) : null}
           {setlists.length === 0 ? null : (
             <ol className={styles.rows}>
-              {setlists.map((setlist) => (
-                <SetlistSummaryRow key={setlist.id} setlist={setlist} state={fromList} />
+              {setlists.map((setlist, index) => (
+                <SetlistSummaryRow
+                  key={setlist.id}
+                  setlist={setlist}
+                  state={fromList}
+                  linkRef={index === firstNewIndex ? firstNewRow : undefined}
+                />
               ))}
             </ol>
           )}
@@ -125,7 +136,9 @@ export function SetlistListScreen({ mbid }: { mbid: string }) {
               </Button>
             </div>
           ) : setlists.length === 0 ? null : (
-            <p className={styles.end}>That's every Setlist on setlist.fm.</p>
+            <p ref={endLine} tabIndex={-1} className={styles.end}>
+              That's every Setlist on setlist.fm.
+            </p>
           )}
         </>
       )}

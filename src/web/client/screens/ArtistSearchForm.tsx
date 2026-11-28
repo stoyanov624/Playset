@@ -13,10 +13,12 @@ export interface ArtistSearchFormProps {
   searching: boolean;
   /** The server refused the name itself (too long, say): shown on the field, not as a screen error. */
   serverProblem: ApiCallError | null;
+  /** The same name was searched again: its URL is already open, so the screen asks again itself. */
+  onSearchAgain: () => void;
 }
 
 /** Searching puts the name in the URL, so Back and a shared link return to the same candidates. */
-export function ArtistSearchForm({ artist, searching, serverProblem }: ArtistSearchFormProps) {
+export function ArtistSearchForm({ artist, searching, serverProblem, onSearchAgain }: ArtistSearchFormProps) {
   const navigate = useNavigate();
   const input = useRef<HTMLInputElement>(null);
   const messageId = useId();
@@ -42,7 +44,8 @@ export function ArtistSearchForm({ artist, searching, serverProblem }: ArtistSea
     }
     setEmptyTried(false);
     setValue(name);
-    if (name !== artist) void navigate({ pathname: "/", search: `?artist=${encodeURIComponent(name)}` });
+    if (name === artist) onSearchAgain();
+    else void navigate({ pathname: "/", search: `?artist=${encodeURIComponent(name)}` });
   }
 
   const problem = emptyTried

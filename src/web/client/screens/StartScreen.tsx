@@ -27,7 +27,7 @@ export function StartScreen() {
     enabled: artist !== "",
     placeholderData: keepPreviousData,
   });
-  const shown = useShownError(search.error, search.isFetching);
+  const shown = useShownError(search.error, search.isFetching, artist);
   const fieldError = shown?.error.code === "INVALID_INPUT" ? shown.error : null;
 
   const home = artist === "";
@@ -70,7 +70,15 @@ export function StartScreen() {
           <p className={styles.intro}>Find an Artist's Setlist on setlist.fm and play it as a Spotify playlist.</p>
         </>
       ) : null}
-      <ArtistSearchForm artist={artist} searching={search.isFetching} serverProblem={fieldError} />
+      <ArtistSearchForm
+        artist={artist}
+        searching={search.isFetching}
+        serverProblem={fieldError}
+        // Candidates already shown are kept for the visit; only a failed search is asked again.
+        onSearchAgain={() => {
+          if (shown !== null) void search.refetch();
+        }}
+      />
       {belowForm()}
     </div>
   );

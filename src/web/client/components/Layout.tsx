@@ -13,8 +13,9 @@ export function Layout() {
   const [navigated, setNavigated] = useState(false);
   if (!navigated && location.key !== firstKey) setNavigated(true);
 
-  const [announcement, setAnnouncement] = useState("");
-  const announce = useCallback((text: string) => setAnnouncement(text), []);
+  // Each announcement is a new node, so the same sentence twice ("Link copied") is read out twice.
+  const [announcement, setAnnouncement] = useState({ text: "", count: 0 });
+  const announce = useCallback((text: string) => setAnnouncement((last) => ({ text, count: last.count + 1 })), []);
 
   return (
     <AnnouncerContext.Provider value={announce}>
@@ -31,7 +32,9 @@ export function Layout() {
         </header>
         <main id="main" tabIndex={-1} className={`${styles.container} ${styles.main}`}>
           <Outlet />
-          <VisuallyHidden live="polite">{announcement}</VisuallyHidden>
+          <VisuallyHidden live="polite">
+            <span key={announcement.count}>{announcement.text}</span>
+          </VisuallyHidden>
         </main>
         <footer className={styles.footer}>
           <div className={`${styles.container} ${styles.footerItems}`}>

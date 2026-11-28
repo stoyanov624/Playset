@@ -32,7 +32,10 @@ import styles from "./SetlistScreen.module.css";
 export function SetlistScreen({ id }: { id: string }) {
   const api = useApi();
   const announce = useAnnounce();
-  const fromList = readFromList(useLocation().state);
+  // Kept from the first visit: an in-page jump (a Miss link, Skip to content) replaces the
+  // history entry's state, but the Visitor still came from that Setlist list.
+  const location = useLocation();
+  const [fromList] = useState(() => readFromList(location.state));
   // Each "Load fresh preview" asks for the status and the preview anew.
   const [round, setRound] = useState(0);
 
