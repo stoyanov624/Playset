@@ -9,3 +9,4 @@ coverage/
 .ralph/
 .conflict-brief.md
 data/
+!.env.example
