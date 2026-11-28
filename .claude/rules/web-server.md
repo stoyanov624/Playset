@@ -10,7 +10,7 @@ Direction: `docs/phases/web-ui.md`, ADR 0001 (stateless steps), ADR 0002 (Host A
 
 ## Structure
 - Express 5 (async route errors reach the error handler without wrappers).
-- `createApp(deps)` builds the app from injected deps (core run steps, `SetlistPlaylistRecords`, clock, config, logger) and never calls `listen`; only the entry file starts the server. Tests use `createApp` with fakes.
+- `createApp(deps)` builds the app from injected deps (the setlist.fm and Spotify services from `createRunServices`, `SetlistPlaylistRecords`, usage events, Host token source, clock, config, logger; the stateless core steps are imported directly, since they hold no state and reach the outside only through those services) and never calls `listen`; only the entry file starts the server. Tests use `createApp` with fakes.
 - Config is read from env once at startup, validated with zod, and passed down; nothing else reads `process.env`. A missing or invalid value stops startup with a clear log line.
 - Routes are thin: validate input → call one core step → shape the response. No domain rules in the server — matching, naming, Tapes, Incomplete Setlist logic all stay in `src/core/`.
 - The Setlist Playlist record is behind the `SetlistPlaylistRecords` interface: a `better-sqlite3` adapter and an in-memory adapter for tests. SQL lives only in the SQLite adapter, with parameters, never string-built.
