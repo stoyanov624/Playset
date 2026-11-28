@@ -234,6 +234,20 @@ describe("readUsage (AC-23, AC-24)", () => {
     ]);
   });
 
+  it("AC-24: ties go by code point, so a BMP name at U+E000 or above comes before an astral one (both adapters)", async () => {
+    const fullwidthArtist = "\uFF21band"; // FULLWIDTH LATIN CAPITAL A, U+FF21
+    const astralArtist = "\u{1F3B8}band"; // GUITAR, U+1F3B8 (a surrogate pair in UTF-16)
+    for (const events of [createMemoryUsageEvents(), createSqliteStore(new Database(":memory:")).events] as UsageEventsLike[]) {
+      await events.recordEvent({ kind: "created", setlistId: "1b000001", artist: astralArtist, day: "2026-11-28" });
+      await events.recordEvent({ kind: "created", setlistId: "1b000002", artist: fullwidthArtist, day: "2026-11-28" });
+      const usage = (await events.readUsage("2026-11-28")) as { topArtists: Array<{ artist: string; playlistCount: number }> };
+      expect(usage.topArtists).toStrictEqual([
+        { artist: fullwidthArtist, playlistCount: 1 },
+        { artist: astralArtist, playlistCount: 1 },
+      ]);
+    }
+  });
+
   it("AC-23: readUsage leaves the stored events unchanged and gives the same usage when read again", async () => {
     const db = new Database(":memory:");
     const sqlite: UsageEventsLike = createSqliteStore(db).events;
