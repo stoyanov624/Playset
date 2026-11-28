@@ -217,6 +217,8 @@ export function makeFakeEvents() {
   };
 }
 
+type FakeEvents = ReturnType<typeof makeFakeEvents>["events"];
+
 export function makeFakeHits() {
   const added: string[] = [];
   return {
@@ -303,7 +305,8 @@ export interface HarnessOptions {
   env?: Record<string, string>;
   setlists?: Record<string, SetlistSource>;
   records?: SetlistPlaylistRecords;
-  events?: ReturnType<typeof makeFakeEvents>["events"];
+  /** Usage events; a hand-built fake may leave out `readUsage`, then the harness reads usage from what it recorded. */
+  events?: Omit<FakeEvents, "readUsage"> & Partial<Pick<FakeEvents, "readUsage">>;
   now?: string;
   clientDir?: string;
   /** null: the core's services have no setlist.fm key. */
@@ -489,7 +492,9 @@ export function makeHarness(opts: HarnessOptions = {}) {
 
   const records = opts.records ?? createMemorySetlistPlaylistRecords();
   const fakeEvents = makeFakeEvents();
-  const events = opts.events ?? fakeEvents.events;
+  const events: FakeEvents = opts.events
+    ? { readUsage: fakeEvents.events.readUsage, ...opts.events }
+    : fakeEvents.events;
   const hits = makeFakeHits();
   const log = makeLogger();
   const clientDir = opts.clientDir ?? sharedClientDir();
