@@ -167,6 +167,24 @@ describe("Setlist list", () => {
     expect(isAfterRows(end)).toBe(true);
   });
 
+  it("AC-18: when the last page adds Setlists and Load more goes away, focus moves to the first new row", async () => {
+    const { user } = openList([arcticMonkeysPage1(), arcticMonkeysPage2()]);
+    await user.click(await screen.findByRole("button", { name: "Load more Setlists" }));
+    await screen.findByRole("link", { name: "19 Nov 2026, Bell Centre, 20 songs" });
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Load more Setlists|Loading…/ })).toBeNull());
+    await expectFocusOn(() => screen.getByRole("link", { name: "19 Nov 2026, Bell Centre, 20 songs" }));
+  });
+
+  it("AC-18: when the last page adds nothing and Load more goes away, focus moves to the end line", async () => {
+    const lastPage = { ...arcticMonkeysPage2(), setlists: arcticMonkeysPage2().setlists.slice(0, 1) };
+    const { user } = openList([arcticMonkeysPage1(), lastPage]);
+    await user.click(await screen.findByRole("button", { name: "Load more Setlists" }));
+    await waitFor(() => expect(announced()).toBe("No more Setlists"));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Load more Setlists|Loading…/ })).toBeNull());
+    expectRows(PAGE1_ROW_NAMES);
+    await expectFocusOn(() => getByLine("That's every Setlist on setlist.fm."));
+  });
+
   it("AC-18: a single page with hasMore false ends the list at once", async () => {
     const page = { ...arcticMonkeysPage1(), hasMore: false };
     openList([page]);

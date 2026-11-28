@@ -87,6 +87,54 @@ function componentStyleSheets(): string[] {
   return filesUnder(CLIENT_DIR, (file) => file.endsWith(".css") && file !== TOKENS_FILE);
 }
 
+/** Every style rule (selector list and body), looking inside @media, @supports and @layer blocks. */
+function ruleSets(css: string): Array<{ selectors: string[]; body: string }> {
+  const rules: Array<{ selectors: string[]; body: string }> = [];
+  const text = withoutComments(css);
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== "{") continue;
+    const prelude = text.slice(start, i).trim();
+    let depth = 0;
+    let end = i;
+    for (; end < text.length; end++) {
+      if (text[end] === "{") depth += 1;
+      if (text[end] === "}") depth -= 1;
+      if (depth === 0) break;
+    }
+    const body = text.slice(i + 1, end);
+    if (/^@(media|supports|layer|container)\b/i.test(prelude)) rules.push(...ruleSets(body));
+    else if (!prelude.startsWith("@")) rules.push({ selectors: prelude.split(",").map((part) => part.trim()), body });
+    start = end + 1;
+    i = end;
+  }
+  return rules;
+}
+
+/** Specificity [ids, classes/attributes/pseudo-classes, elements] of one selector. */
+function specificity(selector: string): [number, number, number] {
+  let rest = selector.replace(/:where\([^)]*\)/g, "").replace(/:(not|is|has)\(([^)]*)\)/g, " $2");
+  const ids = (rest.match(/#[-\w]+/g) ?? []).length;
+  rest = rest.replace(/#[-\w]+/g, "");
+  const pseudoElements = (rest.match(/::[-\w]+/g) ?? []).length;
+  rest = rest.replace(/::[-\w]+/g, "");
+  const classes = (rest.match(/\.[-\w]+|\[[^\]]*\]|:[-\w]+/g) ?? []).length;
+  rest = rest.replace(/\.[-\w]+|\[[^\]]*\]|:[-\w]+/g, "");
+  const elements = (rest.match(/(^|[\s>+~])[a-zA-Z][-\w]*/g) ?? []).length + pseudoElements;
+  return [ids, classes, elements];
+}
+
+function beats(a: [number, number, number], b: [number, number, number]): boolean {
+  for (let i = 0; i < 3; i++) {
+    if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  }
+  return false;
+}
+
+function setsColour(body: string): string | undefined {
+  return declarations(body).find((d) => d.property === "color")?.value;
+}
+
 // ---------------------------------------------------------------- the checks themselves
 
 describe("style sheet checks", () => {
@@ -106,6 +154,16 @@ describe("style sheet checks", () => {
         ".row { padding: var(--space-4); border-bottom: 1px solid var(--color-rule); margin: 0; box-shadow: var(--shadow-bar); font-family: var(--font-text); }",
       ),
     ).toEqual([]);
+  });
+
+  it("AC-55: the rule scanner reads rules inside media blocks and ranks selectors by specificity", () => {
+    const rules = ruleSets(".a:hover { color: var(--color-on-spike); } @media (hover: hover) { main a:hover, .x { color: red; } }");
+    expect(rules.map((rule) => rule.selectors)).toEqual([[".a:hover"], ["main a:hover", ".x"]]);
+    expect(specificity(".primary:hover")).toEqual([0, 2, 0]);
+    expect(specificity("a:hover")).toEqual([0, 1, 1]);
+    expect(specificity(".content a:hover")).toEqual([0, 2, 1]);
+    expect(beats(specificity(".content a:hover"), specificity(".primary:hover"))).toBe(true);
+    expect(beats(specificity("a:hover"), specificity(".primary:hover"))).toBe(false);
   });
 
   it.each([
@@ -184,6 +242,32 @@ describe("the client's style sheets", () => {
       anyStyleProblems(readFileSync(file, "utf8")).map((problem) => `${relative(CLIENT_DIR, file)}: ${problem}`),
     );
     expect(problems).toEqual([]);
+  });
+
+  it("AC-55: the primary button keeps on-spike text on hover, and no link hover rule outranks it", () => {
+    const rules = [TOKENS_FILE, ...componentStyleSheets()].flatMap((file) =>
+      ruleSets(readFileSync(file, "utf8")).map((rule) => ({ ...rule, file: relative(CLIENT_DIR, file) })),
+    );
+    const primaryHover = rules.flatMap((rule) =>
+      rule.selectors
+        .filter((selector) => /primary/i.test(selector) && /:hover/.test(selector))
+        .map((selector) => ({ selector, colour: setsColour(rule.body), file: rule.file })),
+    );
+    expect(primaryHover.length, "a hover rule for the primary button variant").toBeGreaterThan(0);
+    for (const { selector, colour, file } of primaryHover) {
+      expect(colour, `${file}: ${selector}`).toBe("var(--color-on-spike)");
+    }
+
+    const weakest = primaryHover.map(({ selector }) => specificity(selector)).reduce((a, b) => (beats(a, b) ? b : a));
+    const linkHoverOverrides = rules.flatMap((rule) => {
+      const colour = setsColour(rule.body);
+      if (colour === undefined || colour === "var(--color-on-spike)") return [];
+      return rule.selectors
+        .filter((selector) => /(^|[\s>+~])a(?![-\w])[^\s>+~]*:hover/.test(selector) && !/primary/i.test(selector))
+        .filter((selector) => !beats(weakest, specificity(selector)))
+        .map((selector) => `${rule.file}: ${selector} { color: ${colour} }`);
+    });
+    expect(linkHoverOverrides).toEqual([]);
   });
 
   it("AC-55: the fonts come from the bundled Fontsource packages", () => {

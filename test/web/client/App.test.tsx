@@ -9,11 +9,13 @@ import { openSetlistFromList } from "./fixtures/flows";
 import {
   ARCTIC_MONKEYS_MBID,
   BOSTON_ID,
+  MADRID_ID,
   PEARL_JAM_MBID,
   PORTLAND_ID,
   arcticMonkeysCandidates,
   arcticMonkeysPage1,
   emptyPage,
+  madridResult,
   madridStatus,
   portlandCurrentStatus,
 } from "./fixtures/values";
@@ -134,6 +136,31 @@ describe("document titles and back links", () => {
   it("AC-2: the Setlist screen reached from a Setlist list links back to that list", async () => {
     await openSetlistFromList();
     const back = screen.getByRole("link", { name: "Setlists of Arctic Monkeys" });
+    expect(back.getAttribute("href")).toBe(`/artists/${ARCTIC_MONKEYS_MBID}`);
+    expect(screen.queryByRole("link", { name: "New search" })).toBeNull();
+  });
+
+  it("AC-2: the back link to the Setlist list survives activating a Misses jump link", async () => {
+    const { preview, user } = await openSetlistFromList();
+    await waitFor(() => expect(preview.calls).toHaveLength(1));
+    await preview.finish(madridResult());
+    await user.click(await screen.findByRole("link", { name: "5 505" }));
+
+    await waitFor(() => expect(window.location.hash).not.toBe(""));
+    expect(window.location.pathname).toBe(`/setlists/${MADRID_ID}`);
+    const back = await screen.findByRole("link", { name: "Setlists of Arctic Monkeys" });
+    expect(back.getAttribute("href")).toBe(`/artists/${ARCTIC_MONKEYS_MBID}`);
+    expect(screen.queryByRole("link", { name: "New search" })).toBeNull();
+  });
+
+  it("AC-2: the back link to the Setlist list survives Skip to content", async () => {
+    const { user } = await openSetlistFromList();
+    await screen.findByRole("heading", { level: 1, name: "Arctic Monkeys" });
+    await user.click(screen.getByRole("link", { name: "Skip to content" }));
+
+    await waitFor(() => expect(window.location.hash).toBe(`#${screen.getByRole("main").id}`));
+    expect(window.location.pathname).toBe(`/setlists/${MADRID_ID}`);
+    const back = await screen.findByRole("link", { name: "Setlists of Arctic Monkeys" });
     expect(back.getAttribute("href")).toBe(`/artists/${ARCTIC_MONKEYS_MBID}`);
     expect(screen.queryByRole("link", { name: "New search" })).toBeNull();
   });

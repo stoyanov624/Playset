@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
 import type { PreviewResult, PreviewRow } from "../../../src/web/shared/index.js";
 import {
+  expectFocusOn,
   getByLine,
   hasAccessibleText,
   isBefore,
@@ -376,6 +377,13 @@ describe("Misses jump list", () => {
     await user.click(screen.getByRole("button", { name: "Show all 23 Misses" }));
     await waitFor(() => expect(missLinks()).toHaveLength(23));
     expect(missLinks()).toEqual(Array.from({ length: 23 }, (_, i) => `${i + 3} Song ${i + 3}`));
+  });
+
+  it("AC-32: Show all 23 Misses moves focus to the first newly shown Miss link", async () => {
+    const { user } = await openFinishedPreview(madridStatus(), manyMissesResult());
+    await user.click(screen.getByRole("button", { name: "Show all 23 Misses" }));
+    await expectFocusOn(() => screen.getByRole("link", { name: "13 Song 13" }));
+    expect(screen.queryByRole("button", { name: "Show all 23 Misses" })).toBeNull();
   });
 
   it("AC-32: with no Misses there is no Misses heading", async () => {

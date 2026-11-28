@@ -76,16 +76,22 @@ export function announced(): string {
   return normalise(liveRegion().textContent);
 }
 
-/** Every non-empty text the live region shows from now on, in order. */
-export function recordAnnouncements(): string[] {
+/**
+ * Every non-empty text the live region shows from now on, in order. By default a text equal to
+ * the one before is one announcement; with `repeats`, the same text put into the region again
+ * (new content added, as a screen reader hears it a second time) is recorded again.
+ */
+export function recordAnnouncements(options: { repeats?: boolean } = {}): string[] {
   const seen: string[] = [];
   const region = liveRegion();
-  const note = () => {
+  const initial = normalise(region.textContent);
+  if (initial !== "") seen.push(initial);
+  new MutationObserver((mutations) => {
     const text = normalise(region.textContent);
-    if (text !== "" && seen.at(-1) !== text) seen.push(text);
-  };
-  note();
-  new MutationObserver(note).observe(region, { childList: true, subtree: true, characterData: true });
+    if (text === "") return;
+    const putInAgain = mutations.some((m) => m.type === "characterData" || m.addedNodes.length > 0);
+    if (seen.at(-1) !== text || (options.repeats === true && putInAgain)) seen.push(text);
+  }).observe(region, { childList: true, subtree: true, characterData: true });
   return seen;
 }
 

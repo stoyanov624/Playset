@@ -162,6 +162,39 @@ describe("search errors", () => {
     expect(api.searchArtists.mock.calls[1]?.[0]).toBe("arctic monkeys");
   });
 
+  it("AC-37: a new search for another name, while pending, no longer shows the failed search's alert", async () => {
+    const pending = deferred<ArtistsResponse>();
+    const api = fakeApi({ searchArtists: inTurn<ArtistsResponse>([OUR_SIDE, pending]) });
+    const { user } = openApp(api, "/?artist=arctic%20monkeys");
+    await screen.findByRole("heading", { level: 1, name: "Something went wrong on our side." });
+
+    const input = screen.getByLabelText("Artist");
+    await user.clear(input);
+    await user.type(input, "pearl jam{Enter}");
+    await screen.findByRole("button", { name: "Searching…" });
+    expect(api.searchArtists).toHaveBeenCalledTimes(2);
+    expect(api.searchArtists.mock.calls[1]?.[0]).toBe("pearl jam");
+
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Something went wrong on our side." })).toBeNull());
+    expect(queryByLine("Something went wrong on our side.")).toBeNull();
+    expect(queryByLine("Please try again in a minute.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    expect(screen.queryAllByRole("alert").filter((alert) => normalise(alert.textContent) !== "")).toEqual([]);
+  });
+
+  it("AC-7: searching the same name again after a search error sends the search again", async () => {
+    const api = fakeApi({ searchArtists: inTurn<ArtistsResponse>([OUR_SIDE, arcticMonkeysCandidates()]) });
+    const { user } = openApp(api, "/?artist=arctic%20monkeys");
+    await screen.findByRole("heading", { level: 1, name: "Something went wrong on our side." });
+    expect((screen.getByLabelText("Artist") as HTMLInputElement).value).toBe("arctic monkeys");
+
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByRole("heading", { level: 1, name: "Pick the Artist" });
+    expect(api.searchArtists).toHaveBeenCalledTimes(2);
+    expect(api.searchArtists.mock.calls[1]?.[0]).toBe("arctic monkeys");
+    expect(screen.queryByRole("heading", { name: "Something went wrong on our side." })).toBeNull();
+  });
+
   it("AC-52: the search rate-limit alert has no axe violations", async () => {
     const api = fakeApi({ searchArtists: inTurn<ArtistsResponse>([TOO_MANY_SEARCHES]) });
     const { container } = openApp(api, "/?artist=arctic%20monkeys");

@@ -5,7 +5,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
 import type { SetlistResponse } from "../../../src/web/shared/index.js";
 import { controlledPreview, deferred, fakeApi } from "./fixtures/fake-api";
-import { announced, expectFocusOn, getByLine, isBefore, normalise, openApp, queryByLine } from "./fixtures/dom";
+import {
+  announced,
+  expectFocusOn,
+  getByLine,
+  isBefore,
+  normalise,
+  openApp,
+  queryByLine,
+  recordAnnouncements,
+} from "./fixtures/dom";
 import { openSetlistScreen } from "./fixtures/flows";
 import {
   MADRID_ID,
@@ -129,6 +138,25 @@ describe("Setlist Playlist ready", () => {
       vi.advanceTimersByTime(600);
     });
     await screen.findByRole("button", { name: "Copy link" });
+  });
+
+  it("AC-23: copying the link a second time announces Link copied again", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { user } = openStatus(PORTLAND_ID, portlandCurrentStatus(), true);
+    const copy = await screen.findByRole("button", { name: "Copy link" });
+    const announcements = recordAnnouncements({ repeats: true });
+
+    await user.click(copy);
+    await screen.findByRole("button", { name: "Copied" });
+    await waitFor(() => expect(announcements).toEqual(["Link copied"]));
+    act(() => {
+      vi.advanceTimersByTime(2100);
+    });
+    await user.click(await screen.findByRole("button", { name: "Copy link" }));
+    await screen.findByRole("button", { name: "Copied" });
+
+    await waitFor(() => expect(announcements).toEqual(["Link copied", "Link copied"]));
+    expect(await navigator.clipboard.readText()).toBe(SHARE_URL);
   });
 
   it("AC-23: when the clipboard refuses, announces how to copy by hand and keeps Copy link", async () => {
