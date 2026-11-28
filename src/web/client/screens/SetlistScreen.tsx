@@ -156,7 +156,8 @@ export function SetlistScreen({ id }: { id: string }) {
     return (
       <>
         <div className={styles.flow}>
-          <Heading level={1} className={styles.heading} focusWhen={wantsPreview}>
+          {/* Also when a retried preview replaces its error alert: the focused Try again button goes with it. */}
+          <Heading level={1} className={styles.heading} focusWhen={wantsPreview && previewError === null}>
             {status.show.artist}
           </Heading>
           <ShowLine show={status.show} />
