@@ -1,7 +1,7 @@
 import { LogIn } from "lucide-react";
 import { ROUTES } from "../../shared/index.js";
 import { ServerLink } from "../components/ServerLink.js";
-import styles from "./AdminScreen.module.css";
+import styles from "./AdminLoggedOut.module.css";
 
 /** Nobody, or not the Host Account, is logged in: the only way on is the Spotify login. */
 export function AdminLoggedOut() {
