@@ -127,7 +127,7 @@ describe("leaving after Create", () => {
 
     await user.click(screen.getByRole("link", { name: "Setlists of Arctic Monkeys" }));
     await waitFor(() => expect(currentUrl()).toBe(`/artists/${ARCTIC_MONKEYS_MBID}`));
-    await screen.findByRole("link", { name: PAGE1_ROW_NAMES[0] });
+    await screen.findByRole("link", { name: PAGE1_ROW_NAMES[1] });
     const announcements = recordAnnouncements();
     const before = announcements.length;
 
