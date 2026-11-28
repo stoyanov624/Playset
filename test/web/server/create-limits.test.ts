@@ -314,3 +314,57 @@ describe("concurrent creates and the limits (AC-29, AC-30)", () => {
     expect((await h.post(NIRVANA_CREATE.path, NIRVANA_CREATE.body, loser)).status).toBe(200);
   }, 20_000);
 });
+
+// ---------------------------------------------------------------- finished creates and a failed daily count
+
+describe("the daily count and finished or failed creates (AC-30, AC-29)", () => {
+  it("AC-30: a create that has finished no longer holds a daily slot", async () => {
+    const h = makeHarness({ env: { PLAYSET_DAILY_LIMIT: "2" } });
+    const first = await h.post(H_V1_CREATE.path, H_V1_CREATE.body, A);
+    expect(first.status).toBe(200);
+    expect(first.body).toStrictEqual({ url: SHARE_URL, status: "created" });
+    expect(h.usage.recorded).toEqual([{ kind: "created", setlistId: H_ID, artist: "Pearl Jam", day: TODAY }]);
+
+    // One playlist made today, limit 2: B is admitted (the finished create is counted once, from its event).
+    const second = await h.post(MADRID_CREATE.path, MADRID_CREATE.body, B);
+    expect(second.status).toBe(200);
+    expect((second.body as { status: string }).status).toBe("created");
+    expect(await h.usage.events.countPlaylistsMade(TODAY)).toBe(2);
+    expect(h.hits.added).toEqual([]);
+
+    // Now two are made: the next one is refused.
+    expectCatalogueError(await h.post(NIRVANA_CREATE.path, NIRVANA_CREATE.body, C), "E-13", 34200);
+    expect(h.hits.added).toEqual([TODAY]);
+  });
+
+  it("AC-30: when the daily count can't be read, the answer is 500 and the address slot is given back", async () => {
+    const fake = makeFakeEvents();
+    let failuresLeft = 1;
+    const events = {
+      recordEvent: fake.events.recordEvent,
+      async countPlaylistsMade(day: string): Promise<number> {
+        if (failuresLeft > 0) {
+          failuresLeft--;
+          throw new Error("SQLITE_IOERR: disk I/O error");
+        }
+        return fake.events.countPlaylistsMade(day);
+      },
+    };
+    const h = makeHarness({ env: { PLAYSET_CREATE_LIMIT: "1" }, events });
+    h.clock.set("2026-11-28T14:00:00.000Z");
+    const failed = await h.post(H_V1_CREATE.path, H_V1_CREATE.body, A);
+    expectCatalogueError(failed, "E-25");
+    expectNoLeaks(failed);
+    expect(h.http.requests).toEqual([]);
+    expect(fake.recorded).toEqual([]);
+    expect(h.hits.added).toEqual([]);
+    expect(h.log.of("error")).toHaveLength(1);
+
+    // Ten minutes later, same address, create limit 1: the failed request took no slot.
+    h.clock.set("2026-11-28T14:10:00.000Z");
+    const retried = await h.post(H_V1_CREATE.path, H_V1_CREATE.body, A);
+    expect(retried.status).toBe(200);
+    expect(retried.body).toStrictEqual({ url: SHARE_URL, status: "created" });
+    expect(fake.recorded).toEqual([{ kind: "created", setlistId: H_ID, artist: "Pearl Jam", day: TODAY }]);
+  });
+});

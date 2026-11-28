@@ -7,6 +7,7 @@ import {
   TODAY,
   expectContract,
   expectNoLeaks,
+  makeFakeEvents,
   makeHarness,
   networkFailure,
   setlistFmNotFound,
@@ -238,5 +239,33 @@ describe("GET /api/setlists/:id — invalid input and errors (AC-17)", () => {
     const h = makeHarness();
     const res = await h.get(`/api/setlists/${H_ID}`);
     expect((res.body as { show: { url: string } }).show.url).toBe(H_URL);
+  });
+});
+
+describe("opens when saving the event fails (AC-16)", () => {
+  it("AC-16: when saving the opened event fails, the status answer is still 200 with the current link, and one warning is logged", async () => {
+    const fake = makeFakeEvents();
+    const events = {
+      async recordEvent(event: Parameters<typeof fake.events.recordEvent>[0]): Promise<void> {
+        if (event.kind === "opened") throw new Error("SQLITE_BUSY: database is locked");
+        return fake.events.recordEvent(event);
+      },
+      countPlaylistsMade: fake.events.countPlaylistsMade,
+    };
+    const h = makeHarness({ events });
+    await h.records.saveRecord(record(H_V1));
+    const res = await h.get(`/api/setlists/${H_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toStrictEqual({
+      show: H_V1_SHOW,
+      incompleteStatus: INCOMPLETE_1,
+      playlist: { status: "current", url: SHARE_URL },
+    });
+    expectContract(setlistResponseSchema, res.body);
+    expect(fake.recorded).toEqual([]);
+    expect(h.log.of("warn")).toHaveLength(1);
+    expect(h.log.of("error")).toEqual([]);
+    expectNoLeaks(res);
+    expectNoLeaks(h.log.allText());
   });
 });
