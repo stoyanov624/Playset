@@ -6,12 +6,12 @@
 // - a Host token source that is connected, not connected or failing;
 // - a settable clock and a logger that keeps every call.
 // Nothing here reaches the network: the only fetch is the routed fake one.
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { request as httpRequest, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import request from "supertest";
-import { expect } from "vitest";
+import { afterAll, expect } from "vitest";
 import {
   createMemorySetlistPlaylistRecords,
   createMemorySettingsStore,
@@ -228,6 +228,20 @@ export function makeFakeHits() {
 
 let defaultClientDir: string | undefined;
 
+/** Every temporary folder a test file made; removed once the file's tests have run. */
+const tempDirs: string[] = [];
+afterAll(() => {
+  while (tempDirs.length > 0) rmSync(tempDirs.pop()!, { recursive: true, force: true });
+  defaultClientDir = undefined;
+});
+
+/** An empty temporary folder (a client folder with no build in it), removed after the file's tests. */
+export function makeEmptyDir(): string {
+  const dir = mkdtempSync(join(tmpdir(), "playset-web-empty-"));
+  tempDirs.push(dir);
+  return dir;
+}
+
 export const INDEX_HTML =
   '<!doctype html><html><head><script type="module" src="/assets/index-4f2a9c1b.js"></script></head><body><div id="root"></div></body></html>';
 export const ASSET_JS = 'console.log("playset")';
@@ -235,6 +249,7 @@ export const ASSET_JS = 'console.log("playset")';
 /** A built client folder: index.html and assets/index-4f2a9c1b.js. */
 export function makeClientDir(): string {
   const dir = mkdtempSync(join(tmpdir(), "playset-web-client-"));
+  tempDirs.push(dir);
   writeFileSync(join(dir, "index.html"), INDEX_HTML);
   mkdirSync(join(dir, "assets"));
   writeFileSync(join(dir, "assets", "index-4f2a9c1b.js"), ASSET_JS);

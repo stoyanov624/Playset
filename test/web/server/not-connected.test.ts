@@ -117,6 +117,21 @@ describe("a failing Host token source (AC-18)", () => {
   });
 });
 
+describe("a Host token source that resolves undefined, in the log (AC-8, AC-18)", () => {
+  // AC-8: "a PLAYLISTS_UNAVAILABLE (E-23) [is] logged once through logger.warn"; it names no exception
+  // for "not connected", so every refused preview and create is one warning, never an error.
+  it("AC-8: each E-23 for a source resolving undefined (a preview, then a create) is logged once through logger.warn; nothing as an error", async () => {
+    const h = makeHarness({ host: absent });
+    expectCatalogueError(await h.get(`/api/setlists/${H_ID}/preview`), "E-23");
+    expect(h.log.of("warn")).toHaveLength(1);
+    expectCatalogueError(await h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V1 }), "E-23");
+    expect(h.log.of("warn")).toHaveLength(2);
+    expect(h.log.of("error")).toEqual([]);
+    expect(h.log.allText()).not.toContain(A);
+    expect(h.log.allText()).not.toContain(HOST_TOKEN);
+  });
+});
+
 describe("notConnectedHostTokenSource (AC-18)", () => {
   it("AC-18: it is never connected: getAccessToken resolves undefined", async () => {
     await expect(notConnectedHostTokenSource.getAccessToken()).resolves.toBeUndefined();

@@ -146,6 +146,14 @@ describe("GET /api/setlist-links — reading a link (AC-14)", () => {
       "a Setlist link with no id",
       "/api/setlist-links?url=https://www.setlist.fm/setlist/radiohead/2025/o2-arena-london-england.html",
     ],
+    [
+      "a Setlist .html link whose id is not hex",
+      "/api/setlist-links?url=https://www.setlist.fm/setlist/pearl-jam/2026/moda-center-portland-or-zq7xk9wy.html",
+    ],
+    [
+      "a Setlist .html link whose id ends in a non-hex letter",
+      "/api/setlist-links?url=https://www.setlist.fm/setlist/pearl-jam/2026/moda-center-portland-or-2bf1c8eg.html",
+    ],
     ["no url", "/api/setlist-links"],
     ["an empty url", "/api/setlist-links?url="],
     ["a url of 2049 characters", `/api/setlist-links?url=https://www.setlist.fm/setlist/${"a".repeat(2049 - 31 - 14)}-2bf1c8e4.html`],

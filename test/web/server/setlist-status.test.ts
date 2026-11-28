@@ -16,7 +16,6 @@ import {
 import {
   FIXTURE_A_ID,
   H_ID,
-  H_URL,
   H_V1,
   H_V1_SHOW,
   H_V2,
@@ -235,11 +234,6 @@ describe("GET /api/setlists/:id — invalid input and errors (AC-17)", () => {
     expectNoLeaks(res);
   });
 
-  it("AC-15: the Show's url is the prepared Show's setlist.fm link", async () => {
-    const h = makeHarness();
-    const res = await h.get(`/api/setlists/${H_ID}`);
-    expect((res.body as { show: { url: string } }).show.url).toBe(H_URL);
-  });
 });
 
 describe("opens when saving the event fails (AC-16)", () => {

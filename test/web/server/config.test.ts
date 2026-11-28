@@ -1,7 +1,7 @@
 // The web server's config, read from an env object (X1), and the entry file refusing to start
 // on a bad config. readWebConfig's result is what createApp is given.
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -188,13 +188,18 @@ const tsx = join(repoRoot, "node_modules", ".bin", "tsx");
 /** Runs the entry file in an empty folder with only `env` (and PATH); never waits more than 30 s. */
 function runEntry(env: Record<string, string>, dotEnv?: string) {
   const cwd = mkdtempSync(join(tmpdir(), "playset-web-entry-"));
-  if (dotEnv !== undefined) writeFileSync(join(cwd, ".env"), dotEnv);
-  const result = spawnSync(tsx, [entryFile], {
-    cwd,
-    env: { PATH: process.env.PATH ?? "", HOME: cwd, ...env },
-    encoding: "utf8",
-    timeout: 30_000,
-  });
+  let result: SpawnSyncReturns<string>;
+  try {
+    if (dotEnv !== undefined) writeFileSync(join(cwd, ".env"), dotEnv);
+    result = spawnSync(tsx, [entryFile], {
+      cwd,
+      env: { PATH: process.env.PATH ?? "", HOME: cwd, ...env },
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
   return { status: result.status, output: `${result.stdout}\n${result.stderr}`, stderr: result.stderr };
 }
 

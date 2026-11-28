@@ -1,5 +1,5 @@
 // Create/update limits (X13): per address per hour, per day, and the rate-limit hit counter.
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { expectCatalogueError } from "./fixtures/catalogue";
 import {
   A,
@@ -17,6 +17,18 @@ import {
   type Gate,
 } from "./fixtures/harness";
 import { H_ID, H_V1, H_V2, MADRID_ID, MADRID_VERSION, NIRVANA_ID, NIRVANA_VERSION, SHARE_URL, fixtureHv2 } from "./fixtures/setlists";
+
+/** Every gate a test made; each is released after the test, so a failing assertion never leaves a create hanging. */
+const gates: Gate[] = [];
+const heldGate = (): Gate => {
+  const gate = makeGate();
+  gates.push(gate);
+  return gate;
+};
+
+afterEach(() => {
+  while (gates.length > 0) gates.pop()!.release();
+});
 
 const create = (id: string, versionId: string) => ({ path: `/api/setlists/${id}/playlist`, body: { versionId } });
 const H_V1_CREATE = create(H_ID, H_V1);
@@ -259,7 +271,7 @@ async function allAtOnce(gate: Gate, start: Array<() => PromiseLike<Posted>>): P
 
 describe("concurrent creates and the limits (AC-29, AC-30)", () => {
   it("AC-29: 5 creates from A at once with a create limit of 2 → at most 2 admitted, the rest E-12", async () => {
-    const gate = makeGate();
+    const gate = heldGate();
     const usage = eventsWithGatedCount(gate);
     const h = makeHarness({ env: { PLAYSET_CREATE_LIMIT: "2" }, events: usage.events });
     const targets = [H_V1_CREATE, MADRID_CREATE, NIRVANA_CREATE, H_V1_CREATE, MADRID_CREATE];
@@ -278,7 +290,7 @@ describe("concurrent creates and the limits (AC-29, AC-30)", () => {
   }, 20_000);
 
   it("AC-30: 3 creates from 3 addresses at once with a daily limit of 1 → exactly one admitted, the others E-13", async () => {
-    const gate = makeGate();
+    const gate = heldGate();
     const usage = eventsWithGatedCount(gate);
     const h = makeHarness({ env: { PLAYSET_DAILY_LIMIT: "1" }, events: usage.events });
     const answers = await allAtOnce(gate, [
@@ -296,7 +308,7 @@ describe("concurrent creates and the limits (AC-29, AC-30)", () => {
   }, 20_000);
 
   it("AC-30: an address refused by the daily limit in a concurrent race is not counted against its address", async () => {
-    const gate = makeGate();
+    const gate = heldGate();
     const usage = eventsWithGatedCount(gate);
     const h = makeHarness({ env: { PLAYSET_CREATE_LIMIT: "1", PLAYSET_DAILY_LIMIT: "1" }, events: usage.events });
     h.clock.set("2026-11-28T23:30:00.000Z");
@@ -374,7 +386,7 @@ describe("the daily count and finished or failed creates (AC-30, AC-29)", () => 
 describe("a create that joins a running one and the daily limit (AC-30, AC-31)", () => {
   it("AC-30: a create that only shares a queued run for the same version holds no daily slot", async () => {
     const h = makeHarness({ env: { PLAYSET_DAILY_LIMIT: "2" } });
-    const gate = makeGate();
+    const gate = heldGate();
     h.spotify.createGate = gate;
 
     // A's create for 2bf1c8e4 g4bd1a2f6 holds one daily slot while its Spotify create waits.
@@ -383,7 +395,8 @@ describe("a create that joins a running one and the daily limit (AC-30, AC-31)",
 
     // B posts the same Setlist and version: it joins A's run and makes no playlist of its own.
     const fromB = Promise.resolve(h.post(H_V1_CREATE.path, H_V1_CREATE.body, B));
-    await flush(100);
+    await waitUntil(() => h.host.asked === 2, "B's request to reach the server");
+    await flush();
     expect(gate.state.waiting).toBe(1);
 
     // C posts another Setlist while both wait: one slot is still free, so C is admitted.

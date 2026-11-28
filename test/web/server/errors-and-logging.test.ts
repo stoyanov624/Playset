@@ -1,7 +1,13 @@
 // Errors, logging and leaks (X3): Visitor wording only, every secret redacted in the log, no
 // Visitor address in the log, and answers the contract rejects turned into INTERNAL.
+import request from "supertest";
 import { describe, expect, it } from "vitest";
-import type { Match } from "../../../src/core/index.js";
+import {
+  createMemorySetlistPlaylistRecords,
+  createOrUpdateSetlistPlaylist,
+  prepareSetlist,
+  type Match,
+} from "../../../src/core/index.js";
 import { bareError, expectCatalogueError } from "./fixtures/catalogue";
 import {
   A,
@@ -18,9 +24,27 @@ import {
   networkFailure,
   parseSse,
   setlistFmRateLimited,
+  spotifyRateLimited,
   spotifyStatus,
+  type Harness,
 } from "./fixtures/harness";
-import { H_ID, H_URL, H_V1, H_V2, MADRID_ID, MADRID_VERSION, PLAYLIST_ID, SHARE_URL, fixtureHv1, fixtureHv2, variant } from "./fixtures/setlists";
+import type { CatalogueId } from "./fixtures/catalogue";
+import {
+  FIXTURE_A_ID,
+  H_ID,
+  H_URL,
+  H_V1,
+  H_V2,
+  MADRID_ID,
+  MADRID_VERSION,
+  PLAYLIST_ID,
+  SHARE_URL,
+  fixtureHv1,
+  fixtureHv2,
+  madridSetlist,
+  tooLongDescription,
+  variant,
+} from "./fixtures/setlists";
 
 async function captureError(promise: Promise<unknown>): Promise<Error> {
   try {
@@ -97,6 +121,49 @@ describe("error answers carry the catalogue only (AC-7)", () => {
   });
 });
 
+describe("a core error's own words never reach the Visitor (AC-7)", () => {
+  const leaveOutTapes = { keepTape: async () => false };
+  const hostOptions = () => ({ accessToken: HOST_TOKEN, records: createMemorySetlistPlaylistRecords(), now: () => Date.parse("2026-11-28T14:30:00.000Z") });
+
+  /** The answer holds neither the core error's message nor its hint. */
+  function expectNoCoreWords(res: { text: string }, coreError: Error) {
+    expect(coreError.message.length).toBeGreaterThan(0);
+    expect(res.text).not.toContain(coreError.message);
+    const hint = (coreError as { hint?: unknown }).hint;
+    if (typeof hint === "string" && hint !== "") expect(res.text).not.toContain(hint);
+  }
+
+  it("AC-7: E-7 (nothing to add) sends the catalogue's words, not the core's", async () => {
+    const h = makeHarness();
+    h.spotify.tracks = {};
+    const res = await h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V1 });
+    expectCatalogueError(res, "E-7");
+    const coreError = await captureError(createOrUpdateSetlistPlaylist(h.core, fixtureHv1(), H_V1, hostOptions()));
+    expect(coreError.constructor.name).toBe("NothingToAddError");
+    expectNoCoreWords(res, coreError);
+  });
+
+  it("AC-7: E-8 (description too long) sends the catalogue's words, not the core's", async () => {
+    const h = makeHarness({ setlists: { [FIXTURE_A_ID]: tooLongDescription() } });
+    const res = await h.get(`/api/setlists/${FIXTURE_A_ID}`);
+    expectCatalogueError(res, "E-8");
+    const coreError = await captureError(prepareSetlist(tooLongDescription(), leaveOutTapes));
+    expect(coreError.constructor.name).toBe("DescriptionTooLongError");
+    expectNoCoreWords(res, coreError);
+  });
+
+  it("AC-7: E-20 (no version) on a create sends the catalogue's words, not the core's", async () => {
+    const h = makeHarness();
+    const res = await h.post(`/api/setlists/${FIXTURE_A_ID}/playlist`, { versionId: "g6bd2a6f2" });
+    expectCatalogueError(res, "E-20");
+    const fixtureA = await h.core.getSetlist(FIXTURE_A_ID);
+    const coreError = await captureError(createOrUpdateSetlistPlaylist(h.core, fixtureA, "g6bd2a6f2", hostOptions()));
+    expect(coreError.constructor.name).toBe("MissingSetlistVersionError");
+    expectNoCoreWords(res, coreError);
+    expect(res.text).not.toContain(FIXTURE_A_ID);
+  });
+});
+
 describe("the core's generic request error (AC-7)", () => {
   it.each([
     ["rate-limited", "E-21"],
@@ -121,14 +188,22 @@ describe("the core's generic request error (AC-7)", () => {
     }
   });
 
-  it("AC-7: a generic request error on create → the same catalogue rows, no event", async () => {
-    const error = await httpError("status");
+  it.each([
+    ["rate-limited", "E-21"],
+    ["status", "E-22"],
+    ["network", "E-22"],
+  ] as const)("AC-7: a generic request error of kind %s on a create → %s, no event, nothing counted against the limits", async (kind, id) => {
+    const error = await httpError(kind);
     const h = makeHarness();
     h.overrides.getSetlist = async () => {
       throw error;
     };
-    expectCatalogueError(await h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V1 }), "E-22");
+    const res = await h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V1 });
+    expectCatalogueError(res, id);
+    expect(res.text).not.toContain(error.message);
     expect(h.usage.recorded).toEqual([]);
+    expect(h.hits.added).toEqual([]);
+    expectNoLeaks(res);
   });
 });
 
@@ -206,6 +281,118 @@ describe("logging (AC-8)", () => {
     const res = await h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V1 });
     expect(res.status).toBe(502);
     expect(h.log.of("error")).toHaveLength(1);
+  });
+
+  // One row per catalogue entry the AC names a log level for, on the route that most often meets it.
+  const levelCases: Array<[string, CatalogueId, "warn" | "error", (h: Harness) => Promise<{ status: number; body: unknown; headers: Record<string, string | string[] | undefined> }>, Partial<Parameters<typeof makeHarness>[0]>?]> = [
+    ["setlist.fm busy on a create", "E-14", "warn", (h) => h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V1 }), { setlists: { [H_ID]: setlistFmRateLimited } }],
+    [
+      "Spotify busy on a create (the replace answers 429 four times)",
+      "E-15",
+      "warn",
+      async (h) => {
+        await h.records.saveRecord({ setlistId: H_ID, playlistId: PLAYLIST_ID, shareUrl: SHARE_URL, versionId: H_V1, createdAt: "2026-11-27T18:04:05.000Z" });
+        for (let i = 0; i < 4; i++) h.spotify.playlistAnswers[i] = spotifyRateLimited;
+        return h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V2 });
+      },
+      { setlists: { [H_ID]: fixtureHv2() } },
+    ],
+    ["setlist.fm down on a create", "E-16", "error", (h) => h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V1 }), { setlists: { [H_ID]: networkFailure } }],
+    [
+      "Spotify down on a create (403)",
+      "E-17",
+      "error",
+      (h) => {
+        h.spotify.playlistAnswers[0] = spotifyStatus(403, "Insufficient client scope");
+        return h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V1 });
+      },
+    ],
+    [
+      "partly updated on a create (the rename answers 404)",
+      "E-19",
+      "error",
+      async (h) => {
+        await h.records.saveRecord({ setlistId: H_ID, playlistId: PLAYLIST_ID, shareUrl: SHARE_URL, versionId: H_V1, createdAt: "2026-11-27T18:04:05.000Z" });
+        h.spotify.playlistAnswers[1] = spotifyStatus(404, "Resource not found");
+        return h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V2 });
+      },
+      { setlists: { [H_ID]: fixtureHv2() } },
+    ],
+    ["no version on a create (Fixture A)", "E-20", "error", (h) => h.post(`/api/setlists/${FIXTURE_A_ID}/playlist`, { versionId: "g6bd2a6f2" })],
+    ["no version on a preview (Madrid)", "E-20", "error", (h) => h.get(`/api/setlists/${MADRID_ID}/preview`), { setlists: { [MADRID_ID]: madridSetlist(null) } }],
+    [
+      "a music service busy on a create",
+      "E-21",
+      "warn",
+      async (h) => {
+        const error = await httpError("rate-limited");
+        h.overrides.getSetlist = async () => {
+          throw error;
+        };
+        return h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V1 });
+      },
+    ],
+    [
+      "a music service down on a create",
+      "E-22",
+      "error",
+      async (h) => {
+        const error = await httpError("network");
+        h.overrides.getSetlist = async () => {
+          throw error;
+        };
+        return h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V1 });
+      },
+    ],
+    [
+      "an unknown error on a create",
+      "E-25",
+      "error",
+      (h) => {
+        h.overrides.getSetlist = async () => {
+          throw new Error(`boom ${SETLISTFM_KEY}`);
+        };
+        return h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V1 });
+      },
+    ],
+  ];
+
+  it.each(levelCases)("AC-8: %s (%s) is logged once through logger.%s, and at no other level", async (_why, id, level, act, opts) => {
+    const h = makeHarness(opts);
+    const atBuild = h.log.calls.length;
+    expectCatalogueError(await act(h), id);
+    const calls = h.log.calls.slice(atBuild);
+    expect(calls.map((c) => c.level)).toEqual([level]);
+    const all = h.log.allText();
+    for (const secret of SECRETS) expect(all).not.toContain(secret);
+    expect(all).not.toContain(A);
+  });
+
+  it("AC-8: the logged line carries the core error's message and its cause (a music service down on a create)", async () => {
+    const error = await httpError("network");
+    const h = makeHarness();
+    h.overrides.getSetlist = async () => {
+      throw error;
+    };
+    expectCatalogueError(await h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V1 }), "E-22");
+    const text = h.log.textOf(h.log.of("error")[0]!);
+    expect(text).toContain(error.message);
+    const cause = (error as { cause?: unknown }).cause;
+    if (cause instanceof Error) expect(text).toContain(cause.message);
+  });
+
+  it("AC-8: E-6 (too large), E-8 (description too long) and E-13 (daily limit) are not logged at all", async () => {
+    const h = makeHarness({ env: { PLAYSET_DAILY_LIMIT: "1" }, setlists: { [FIXTURE_A_ID]: tooLongDescription() } });
+    const atBuild = h.log.calls.length;
+    const big = `{"versionId":"g4bd1a2f6","pad":"${"x".repeat(10_300)}"}`;
+    expectCatalogueError(
+      await request(h.app).post(`/api/setlists/${H_ID}/playlist`).set("X-Forwarded-For", A).set("Content-Type", "application/json").send(big),
+      "E-6",
+    );
+    expectCatalogueError(await h.get(`/api/setlists/${FIXTURE_A_ID}`), "E-8");
+    expect((await h.post(`/api/setlists/${H_ID}/playlist`, { versionId: H_V1 })).status).toBe(200);
+    expectCatalogueError(await h.post(`/api/setlists/${MADRID_ID}/playlist`, { versionId: MADRID_VERSION }, "198.51.100.4"), "E-13", 34200);
+    expect(h.log.calls.slice(atBuild)).toEqual([]);
   });
 
   it("AC-8: Visitor errors E-1 to E-13 and E-24 are not logged as errors", async () => {

@@ -1,11 +1,8 @@
 // Every answer's headers, the body limit, unknown /api paths and the built client files (X2).
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { expectCatalogueError } from "./fixtures/catalogue";
-import { A, ASSET_JS, INDEX_HTML, expectNoLeaks, makeClientDir, makeHarness } from "./fixtures/harness";
+import { A, ASSET_JS, INDEX_HTML, expectNoLeaks, makeClientDir, makeEmptyDir, makeHarness } from "./fixtures/harness";
 import { genesisSearchPayload } from "./fixtures/setlists";
 
 const CSP_DIRECTIVES: Record<string, string> = {
@@ -214,7 +211,7 @@ describe("the built client (AC-6)", () => {
   });
 
   it("AC-6: a client folder without index.html → 503 text/plain for pages; one warning when the app was built", async () => {
-    const empty = mkdtempSync(join(tmpdir(), "playset-web-empty-"));
+    const empty = makeEmptyDir();
     const h = makeHarness({ clientDir: empty });
     expect(h.log.of("warn")).toHaveLength(1);
     for (const path of ["/", "/setlists/2bf1c8e4", "/admin"]) {
@@ -229,7 +226,7 @@ describe("the built client (AC-6)", () => {
   });
 
   it("AC-6: without index.html the /api routes still answer", async () => {
-    const h = makeHarness({ clientDir: mkdtempSync(join(tmpdir(), "playset-web-empty-")) });
+    const h = makeHarness({ clientDir: makeEmptyDir() });
     const res = await h.get("/api/setlist-links?url=https://www.setlist.fm/setlist/pearl-jam/2026/moda-center-portland-or-2bf1c8e4.html");
     expect(res.status).toBe(200);
     expect(res.body).toStrictEqual({ setlistId: "2bf1c8e4" });
@@ -246,5 +243,69 @@ describe("a malformed asset path (AC-6)", () => {
     expect(res.text).toBe("Not found.");
     expect(h.log.calls.slice(atBuild).filter((c) => c.level !== "info")).toEqual([]);
     expectNoLeaks(res);
+  });
+});
+
+describe("headers on body errors (AC-3, AC-4)", () => {
+  it.each([
+    ["a body over 10 kB (E-6)", `{"versionId":"g4bd1a2f6","pad":"${"x".repeat(10_300)}"}`, "E-6"],
+    ["malformed JSON (E-5)", '{"versionId":', "E-5"],
+  ] as const)("AC-3: %s still carries the strict CSP, nosniff, no-referrer and no-store", async (_why, body, id) => {
+    const h = makeHarness();
+    const res = await request(h.app)
+      .post("/api/setlists/2bf1c8e4/playlist")
+      .set("X-Forwarded-For", A)
+      .set("Origin", "https://evil.example")
+      .set("Content-Type", "application/json")
+      .send(body);
+    expectCatalogueError(res, id);
+    expectSecurityHeaders(res);
+    expect(res.headers["cache-control"]).toBe("no-store");
+  });
+});
+
+describe("paths that try to leave the client folder (AC-6)", () => {
+  it.each([
+    "/assets/..%2f..%2fpackage.json",
+    "/assets/..%2findex.html",
+    "/assets/%2e%2e/%2e%2e/package.json",
+  ])("AC-6: GET %s → 404 text/plain, no file outside assets/, nothing logged", async (path) => {
+    const h = makeHarness({ clientDir: makeClientDir() });
+    const atBuild = h.log.calls.length;
+    const res = await h.get(path);
+    expect(res.status).toBe(404);
+    expect(String(res.headers["content-type"])).toMatch(/^text\/plain/);
+    expect(res.text).toBe("Not found.");
+    expect(res.text).not.toContain("<div id=\"root\">");
+    expect(res.text).not.toContain('"name"');
+    expectSecurityHeaders(res);
+    expect(h.log.calls.slice(atBuild)).toEqual([]);
+  });
+});
+
+describe("HEAD and OPTIONS on /api (AC-3, AC-5)", () => {
+  it("AC-5: HEAD on a GET route is answered as that GET (200, no body), with the same headers", async () => {
+    const h = makeHarness();
+    const res = await request(h.app)
+      .head("/api/setlist-links?url=https://www.setlist.fm/setlist/pearl-jam/2026/moda-center-portland-or-2bf1c8e4.html")
+      .set("X-Forwarded-For", A);
+    expect(res.status).toBe(200);
+    expect(String(res.headers["content-type"])).toMatch(/^application\/json/);
+    expect(res.text ?? "").toBe("");
+    expectSecurityHeaders(res);
+    expect(res.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("AC-5: OPTIONS on an /api route is a method no route answers → 404 E-10, no Allow or CORS headers", async () => {
+    const h = makeHarness();
+    const res = await request(h.app)
+      .options("/api/artists?name=Genesis")
+      .set("Origin", "https://evil.example")
+      .set("Access-Control-Request-Method", "GET")
+      .set("X-Forwarded-For", A);
+    expectCatalogueError(res, "E-10");
+    expectSecurityHeaders(res);
+    expect(res.headers["access-control-allow-methods"]).toBeUndefined();
+    expect(h.http.requests).toEqual([]);
   });
 });

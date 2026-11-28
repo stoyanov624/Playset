@@ -1,7 +1,7 @@
 // Shared preview runs, disconnects and error events (X11). The app listens on a free local port so
 // the test can read each stream as it comes and close a connection mid-run; the Match search is
 // held at a gate until the test releases it.
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PlaysetError, createMemorySetlistPlaylistRecords, type SetlistPlaylistRecords } from "../../../src/core/index.js";
 import { previewResultSchema } from "../../../src/web/shared/index.js";
 import { bareError } from "./fixtures/catalogue";
@@ -23,6 +23,7 @@ import {
   makeHarness,
   listen,
   openStream,
+  parseSse,
   progressNames,
   spotifyRateLimited,
   spotifyStatus,
@@ -31,12 +32,13 @@ import {
   type Harness,
   type HarnessOptions,
 } from "./fixtures/harness";
-import { H_ID, H_V1, H_V2, fixtureHv1, fixtureHv2 } from "./fixtures/setlists";
+import { H_ID, H_V1, H_V2, MADRID_ID, fixtureHv1, fixtureHv2 } from "./fixtures/setlists";
 
 const PATH = `/api/setlists/${H_ID}/preview`;
 const closers: Array<() => Promise<void>> = [];
 
 afterEach(async () => {
+  vi.useRealTimers();
   while (closers.length > 0) await closers.pop()!();
 });
 
@@ -123,6 +125,85 @@ describe("joining a run in flight (AC-24)", () => {
   });
 });
 
+describe("joining is free, also at the limit (AC-24, AC-23)", () => {
+  it("AC-24: B, already at its preview limit, still joins A's run in flight: every event, nothing counted, no hit", async () => {
+    const { h, gate, port } = await setup(2, { env: { PLAYSET_PREVIEW_LIMIT: "1" } });
+    // B uses its one preview on Madrid (its own run, which ends at once: the gate holds H v2's searches only).
+    h.matching.gateFrom = 99;
+    const madrid = openStream(port, `/api/setlists/${MADRID_ID}/preview`, B);
+    await madrid.waitForEnd();
+    expect(madrid.names()).toEqual([...progressNames(5), "preview"]);
+    h.matching.gateFrom = h.matchSearches.length + 2;
+
+    const a = openStream(port, PATH, A);
+    await a.waitForFrames(2);
+    await waitUntil(() => gate.state.waiting === 1, "search 2 to wait");
+    const b = openStream(port, PATH, B);
+    await b.waitForFrames(2);
+    expect(b.status()).toBe(200);
+    expect(b.names()).toEqual(progressNames(5, 2));
+
+    gate.release();
+    await a.waitForEnd();
+    await b.waitForEnd();
+    expect(b.names()).toEqual([...progressNames(5), "preview"]);
+    expect(b.frames().at(-1)!.data).toStrictEqual(a.frames().at(-1)!.data);
+    expect(h.matchSearches).toHaveLength(5 + 5);
+    expect(h.hits.added).toEqual([]);
+
+    // B is still at its limit: an uncached preview of another version is refused.
+    h.setlists[H_ID] = fixtureHv1();
+    const refused = openStream(port, PATH, B);
+    await refused.waitForEnd();
+    expect(refused.status()).toBe(429);
+  });
+
+  it("AC-23: two uncached previews of different Setlists from one address at once, limit 1 → exactly one admitted, the other E-11", async () => {
+    const { h, gate, port } = await setup(99, { env: { PLAYSET_PREVIEW_LIMIT: "1" } });
+    gate.release();
+    const tokenGate = makeGate();
+    h.host.gate = tokenGate;
+    const first = openStream(port, PATH, A);
+    const second = openStream(port, `/api/setlists/${MADRID_ID}/preview`, A);
+    await waitUntil(() => tokenGate.state.waiting === 2, "both previews to wait for the Host token");
+    tokenGate.release();
+    await first.waitForEnd();
+    await second.waitForEnd();
+    const statuses = [first.status(), second.status()].sort();
+    expect(statuses).toEqual([200, 429]);
+    const refused = first.status() === 429 ? first : second;
+    expect(JSON.parse(refused.raw())).toStrictEqual({ error: bareError("E-11") });
+    expect(refused.headers()["retry-after"]).toBe("3600");
+    expect(h.hits.added).toEqual(["2026-11-28"]);
+  });
+});
+
+describe("keep-alive comments (AC-20)", () => {
+  it("AC-20: while a Match search waits, a ': keep-alive' comment is sent every 15 seconds; the events stay well formed", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const { gate, port } = await setup(1);
+    const a = openStream(port, PATH, A);
+    await a.waitForFrames(1);
+    await waitUntil(() => gate.state.waiting === 1, "search 1 to wait");
+    expect(a.raw()).not.toContain(": keep-alive");
+
+    vi.advanceTimersByTime(14_999);
+    await flush();
+    expect(a.raw()).not.toContain(": keep-alive");
+
+    vi.advanceTimersByTime(1);
+    await waitUntil(() => a.raw().includes(": keep-alive"), "the first keep-alive comment");
+    vi.advanceTimersByTime(15_000);
+    await waitUntil(() => a.raw().split(": keep-alive").length === 3, "the second keep-alive comment");
+
+    gate.release();
+    await a.waitForEnd();
+    const { frames, comments } = parseSse(a.raw());
+    expect(comments).toEqual([": keep-alive", ": keep-alive"]);
+    expect(frames.map((f) => f.event)).toEqual(["progress", "progress", "progress", "progress", "progress", "preview"]);
+  });
+});
+
 // ---------------------------------------------------------------- AC-25
 
 describe("listeners leaving (AC-25)", () => {
@@ -134,7 +215,8 @@ describe("listeners leaving (AC-25)", () => {
     a.close();
     await waitUntil(() => h.log.of("info").length > 0, "the cancelled run to be logged");
     gate.release();
-    await flush(100);
+    await waitUntil(() => gate.state.passed === 1, "search 2 to be let through");
+    await flush();
     expect(h.matchSearches.map((s) => s.title)).toEqual(["Release", "Even Flow"]);
     expect(await h.records.findPreview(H_ID, H_V2)).toBeUndefined();
     expect(h.log.of("info")).toHaveLength(1);
@@ -151,7 +233,7 @@ describe("listeners leaving (AC-25)", () => {
     first.close();
     await waitUntil(() => h.log.of("info").length > 0, "the cancelled run to be logged");
     gate.release();
-    await flush(50);
+    await waitUntil(() => gate.state.passed === 1, "search 2 to be let through");
 
     const again = openStream(port, PATH, A);
     await again.waitForEnd();
@@ -293,7 +375,8 @@ describe("a Visitor leaving before the stream opens (AC-25)", () => {
       a.close();
       await flush(50);
       gate.release();
-      await flush(150);
+      await waitUntil(() => gate.state.passed === 1, `${where} to be let through`);
+      await flush(50);
 
       expect(h.matchSearches).toEqual([]);
       expect(await cachedPreviews.findPreview(H_ID, H_V2)).toBeUndefined();
@@ -363,7 +446,8 @@ async function leaveThenFail(where: FailingStep, failure: () => Promise<unknown>
   a.close();
   await flush(50);
   setup.gate.release();
-  await flush(150);
+  await waitUntil(() => setup.gate.state.passed === 1, `${where} to be let through`);
+  await flush(50);
   return { ...setup, a };
 }
 

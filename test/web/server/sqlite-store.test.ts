@@ -2,16 +2,16 @@
 // hit counter. Records behave as the core's in-memory records do.
 import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
-import type { SetlistPlaylistRecord } from "../../../src/core/index.js";
-import { prepareSetlist, previewMatches } from "../../../src/core/run/index.js";
+import { prepareSetlist, previewMatches, type SetlistPlaylistRecord } from "../../../src/core/index.js";
 import {
   createMemoryUsageEvents,
   createRateLimitHitCounter,
   createSqliteStore,
 } from "../../../src/web/server/index.js";
-import { HOST_TOKEN, fakeMatchSearch, fixtureHv1, fixtureHv2, hostOutcomes } from "../../run/fixtures/host-setlists";
-import { makeHarness, progressNames, parseSse, frameNames } from "./fixtures/harness";
-import { MADRID_ID, MADRID_VERSION } from "./fixtures/setlists";
+// The run tests' fake Match search and its outcomes are the shared fixture for Fixture H's preview (PRD 0012 M1).
+import { fakeMatchSearch, hostOutcomes } from "../../run/fixtures/host-setlists";
+import { HOST_TOKEN, makeHarness, progressNames, parseSse, frameNames } from "./fixtures/harness";
+import { MADRID_ID, MADRID_VERSION, fixtureHv1, fixtureHv2 } from "./fixtures/setlists";
 
 const r1Record: SetlistPlaylistRecord = {
   setlistId: "2bf1c8e4",
