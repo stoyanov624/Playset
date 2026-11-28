@@ -159,6 +159,39 @@ describe("another version waits and holds its own daily slot (AC-31, AC-30)", ()
     expect(h.playlistCalls()).toEqual(["POST /v1/me/playlists", `POST /v1/playlists/${PLAYLIST_ID}/items`]);
     expect(h.usage.recorded.map((e) => e.kind)).toEqual(["created"]);
   }, 20_000);
+
+  it("AC-31: at the daily limit, a create that joins a running one for the same Setlist and version waits and gets the same answer", async () => {
+    const h = makeHarness({ env: { PLAYSET_DAILY_LIMIT: "1" } });
+    const gate = heldGate();
+    h.spotify.createGate = gate;
+
+    // A's create for H v1 holds the only daily slot while its Spotify create waits.
+    const fromA = start(h.post(H_PATH, { versionId: H_V1 }, A));
+    await waitUntil(() => gate.state.waiting === 1, "A's create to wait");
+
+    // B only shares A's run, so it holds no slot of its own and is not refused.
+    const fromB = start(h.post(H_PATH, { versionId: H_V1 }, B));
+    await waitUntil(() => h.host.asked === 2, "B's request to reach the server");
+    await flush();
+    expect(h.hits.added).toEqual([]);
+    expect(gate.state.waiting).toBe(1);
+    expect(createRequests(h)).toHaveLength(1);
+
+    gate.release();
+    const [a, b] = await Promise.all([fromA, fromB]);
+    for (const res of [a, b]) {
+      expect(res.status).toBe(200);
+      expect(res.body).toStrictEqual({ url: SHARE_URL, status: "created" });
+    }
+    expect(createRequests(h)).toHaveLength(1);
+    expect(h.usage.recorded).toEqual([{ kind: "created", setlistId: H_ID, artist: "Pearl Jam", day: TODAY }]);
+    expect(h.hits.added).toEqual([]);
+
+    // The one Setlist Playlist made today uses the daily limit: a create for another Setlist is refused.
+    const fromC = await h.post(`/api/setlists/${NIRVANA_ID}/playlist`, { versionId: NIRVANA_VERSION }, C);
+    expectCatalogueError(fromC, "E-13", 34200);
+    expect(h.hits.added).toEqual([TODAY]);
+  }, 20_000);
 });
 
 describe("different Setlists at once (AC-31)", () => {
