@@ -694,4 +694,37 @@ describe("focus on Try again", () => {
     await screen.findByRole("button", { name: "Create playlist" });
     expect(screen.queryByRole("heading", { name: "Spotify isn't answering right now." })).toBeNull();
   });
+
+  it("AC-39: when the retried preview starts, focus moves from Trying again… to the Show's h1", async () => {
+    const { preview, user } = openSetlistScreen();
+    await waitFor(() => expect(preview.calls).toHaveLength(1));
+    await preview.fail(SPOTIFY_DOWN);
+    await user.click(await screen.findByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(preview.calls).toHaveLength(2));
+    await expectFocusOn(() => screen.getByRole("button", { name: "Trying again…" }));
+
+    // The button that held focus goes away with the alert; focus must land on the Show line, not the page body.
+    preview.progress(1, 5);
+    await waitFor(() => getByLine("Matching 1 of 5 Performances"));
+    expect(screen.queryByRole("heading", { name: "Spotify isn't answering right now." })).toBeNull();
+    await expectFocusOn(() => screen.getByRole("heading", { level: 1, name: "Arctic Monkeys" }));
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
+  it("AC-44: Try again after a preview failed mid-way keeps the alert with Trying again… until the new stream sends progress", async () => {
+    const { preview, user } = openSetlistScreen();
+    await waitFor(() => expect(preview.calls).toHaveLength(1));
+    preview.progress(2, 5);
+    await waitFor(() => getByLine("Matching 2 of 5 Performances"));
+    await preview.fail(SPOTIFY_DOWN);
+    await user.click(await screen.findByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(preview.calls).toHaveLength(2));
+
+    // The new preview stream is pending with no progress yet: the failed stream's progress must not come back.
+    screen.getByRole("heading", { level: 2, name: "Spotify isn't answering right now." });
+    const tryingAgain = screen.getByRole("button", { name: "Trying again…" });
+    expect(tryingAgain.getAttribute("aria-disabled")).toBe("true");
+    expect(queryByLine("Matching 2 of 5 Performances")).toBeNull();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
 });
