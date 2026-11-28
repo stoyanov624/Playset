@@ -737,3 +737,9 @@ For the orchestrator (this Slice does not edit shared files):
 ## Open questions
 
 (none)
+
+## Notes added during review (2026-11-28)
+
+- **setlist.fm links are checked against an allowlist.** After the host, only ASCII URL characters (RFC 3986 unreserved and reserved, plus `%`) may follow, and no single quote. This is tighter than "`/` and anything" above. Review found that a growing deny-list kept missing characters that are unsafe in an href or the playlist description. A real check of 60 setlist.fm links (Björk, Mötley Crüe, Beyoncé) showed setlist.fm sends plain ASCII slugs, so no real link is rejected.
+- **An admin callback carrying both `code` and `error` is rejected, even when one of them is empty** (AC-20).
+
