@@ -1,0 +1,50 @@
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+  padding: var(--space-1) var(--space-2);
+  text-align: end;
+}
+
+.table th:first-child {
+  text-align: start;
+}
+
+.table thead th {
+  color: var(--color-ink);
+  font-weight: 700;
+  border-bottom: var(--border-hair);
+}
+
+.table tbody th {
+  font-weight: 400;
+}
+
+.table tbody tr:nth-child(even) {
+  background: var(--color-sunk);
+}
+
+/* At phone width the four numbers fit without scrolling; the bar joins on wider screens. */
+.barCell {
+  display: none;
+}
+
+@media (min-width: 48rem) {
+  .barCell {
+    display: table-cell;
+    inline-size: 40%;
+    text-align: start;
+  }
+}
+
+.bar {
+  display: block;
+  block-size: var(--space-3);
+  background: var(--color-spike);
+}

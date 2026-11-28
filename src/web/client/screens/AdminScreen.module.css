@@ -1,0 +1,8 @@
+.screen {
+  max-inline-size: var(--page-max);
+}
+
+.heading {
+  composes: screenTitle from "../styles/type.module.css";
+  margin: var(--space-6) 0 var(--space-4);
+}

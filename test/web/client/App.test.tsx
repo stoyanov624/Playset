@@ -74,7 +74,7 @@ describe("page shell", () => {
   it.each([
     ["Start", "/", "Hear the Setlist before the Show"],
     ["Terms", "/terms", "Terms and Privacy"],
-    ["Page not found", "/admin", "Page not found"],
+    ["Page not found", "/admin/settings", "Page not found"],
   ])("AC-1: the %s screen has exactly one h1", async (_screen, path, h1) => {
     openApp(fakeApi(), path);
     await screen.findByRole("heading", { level: 1, name: h1 });
@@ -262,7 +262,7 @@ describe("Back through the steps", () => {
 
 describe("Page not found", () => {
   it.each([
-    "/admin",
+    "/admin/settings",
     "/setlist/73a1b2c5",
     "/artists",
     "/artists/not-an-mbid",
@@ -277,9 +277,9 @@ describe("Page not found", () => {
     noCallsMade(api);
   });
 
-  it("AC-5: with an in-memory start path, /admin shows Page not found and sends no request", async () => {
+  it("AC-5: with an in-memory start path, /admin/settings shows Page not found and sends no request", async () => {
     const api = fakeApi();
-    render(<App api={api} initialPath="/admin" />);
+    render(<App api={api} initialPath="/admin/settings" />);
     await screen.findByRole("heading", { level: 1, name: "Page not found" });
     getByLine("There's nothing at this address.");
     noCallsMade(api);

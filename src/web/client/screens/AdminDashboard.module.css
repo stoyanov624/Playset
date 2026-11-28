@@ -1,0 +1,80 @@
+/* Host Account and Config on the left, Usage on the right, once there is room for both. */
+@media (min-width: 64rem) {
+  .overview {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: var(--space-7);
+  }
+}
+
+.overview > div {
+  min-inline-size: 0;
+}
+
+.config,
+.artists {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.config {
+  padding: 0;
+  list-style: none;
+}
+
+.configItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+  border-bottom: var(--border-hair);
+}
+
+.configName {
+  flex: 1;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.missing {
+  color: var(--color-caution);
+  font-weight: 700;
+}
+
+.usage {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-block: var(--space-2);
+  border-bottom: var(--border-hair);
+}
+
+.usage dd {
+  margin: 0;
+  text-align: end;
+}
+
+.artists {
+  padding-inline-start: var(--space-5);
+  font-variant-numeric: tabular-nums;
+}
+
+.artists li {
+  padding-block: var(--space-1);
+}
+
+.artist {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-ink-soft);
+}

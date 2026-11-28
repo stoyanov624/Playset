@@ -23,6 +23,8 @@ export function fakeApi(answers: Partial<PlaysetApi> = {}): FakeApi {
     getSetlist: vi.fn<PlaysetApi["getSetlist"]>(answers.getSetlist ?? unexpected("getSetlist")),
     streamPreview: vi.fn<PlaysetApi["streamPreview"]>(answers.streamPreview ?? unexpected("streamPreview")),
     createPlaylist: vi.fn<PlaysetApi["createPlaylist"]>(answers.createPlaylist ?? unexpected("createPlaylist")),
+    getAdminStatus: vi.fn<PlaysetApi["getAdminStatus"]>(answers.getAdminStatus ?? unexpected("getAdminStatus")),
+    logOut: vi.fn<PlaysetApi["logOut"]>(answers.logOut ?? unexpected("logOut")),
   };
 }
 

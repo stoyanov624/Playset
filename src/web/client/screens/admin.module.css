@@ -1,0 +1,9 @@
+/* Shared by the admin dashboard and its Host Account block, which sit in one column. */
+.section {
+  composes: sectionTitle from "../styles/type.module.css";
+  margin: var(--space-6) 0 var(--space-3);
+}
+
+.icon {
+  flex-shrink: 0;
+}

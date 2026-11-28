@@ -296,7 +296,7 @@ const STATES: Array<[string, () => Promise<ScreenState | void>]> = [
     await screen.findByRole("heading", { level: 1, name: "Terms and Privacy" });
   }],
   ["Page not found", async () => {
-    openApp(fakeApi(), "/admin");
+    openApp(fakeApi(), "/admin/settings");
     await screen.findByRole("heading", { level: 1, name: "Page not found" });
   }],
 ];

@@ -145,7 +145,7 @@ describe("icons", () => {
   });
 
   it("AC-52: Page not found has no axe violations", async () => {
-    const { container } = openApp(fakeApi(), "/admin");
+    const { container } = openApp(fakeApi(), "/admin/settings");
     await screen.findByRole("heading", { level: 1, name: "Page not found" });
     expectIconRules();
     expect(await axe(container)).toHaveNoViolations();

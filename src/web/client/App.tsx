@@ -4,6 +4,7 @@ import { BrowserRouter, MemoryRouter, Route, Routes } from "react-router";
 import type { PlaysetApi } from "./api/index.js";
 import { Layout } from "./components/Layout.js";
 import { ApiContext } from "./context/api.js";
+import { AdminScreen } from "./screens/AdminScreen.js";
 import { ArtistSetlistsRoute } from "./screens/ArtistSetlistsRoute.js";
 import { NotFoundScreen } from "./screens/NotFoundScreen.js";
 import { SetlistRoute } from "./screens/SetlistRoute.js";
@@ -37,7 +38,7 @@ function Router({ initialPath, children }: { initialPath: string | undefined; ch
   );
 }
 
-/** The visitor web app. */
+/** The web app: the Visitor screens and the admin page. */
 export function App({ api, initialPath }: AppProps) {
   const [queryClient] = useState(createQueryClient);
   return (
@@ -50,6 +51,7 @@ export function App({ api, initialPath }: AppProps) {
               <Route path="artists/:mbid" element={<ArtistSetlistsRoute />} />
               <Route path="setlists/:id" element={<SetlistRoute />} />
               <Route path="terms" element={<TermsScreen />} />
+              <Route path="admin" element={<AdminScreen />} />
               <Route path="*" element={<NotFoundScreen />} />
             </Route>
           </Routes>
