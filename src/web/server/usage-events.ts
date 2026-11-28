@@ -31,11 +31,22 @@ export function usageDays(today: string): string[] {
   return Array.from({ length: LIMITS.usageDays }, (_, i) => new Date(start - i * DAY_MS).toISOString().slice(0, 10));
 }
 
+/** Orders strings by Unicode code point (`<` on strings compares UTF-16 units, which puts astral characters before U+E000 and up). */
+function compareCodePoints(a: string, b: string): number {
+  const x = Array.from(a);
+  const y = Array.from(b);
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    const d = x[i]!.codePointAt(0)! - y[i]!.codePointAt(0)!;
+    if (d !== 0) return d;
+  }
+  return x.length - y.length;
+}
+
 /** Most Setlist Playlists first; a tie goes by the Artist name as stored, in code-point order. */
 export function topArtistsOf(setlistsPerArtist: Map<string, number>): Usage["topArtists"] {
   return [...setlistsPerArtist]
     .map(([artist, playlistCount]) => ({ artist, playlistCount }))
-    .sort((x, y) => y.playlistCount - x.playlistCount || (x.artist < y.artist ? -1 : x.artist > y.artist ? 1 : 0))
+    .sort((x, y) => y.playlistCount - x.playlistCount || compareCodePoints(x.artist, y.artist))
     .slice(0, LIMITS.topArtistsMax);
 }
 
