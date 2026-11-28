@@ -92,13 +92,23 @@ export function createHostTokenSource(deps: {
       grant = await login.refresh(stored.refreshToken);
     } catch (error) {
       if (!loginEnded(error)) throw error;
+      const newLogin = await loginSavedMeanwhile(stored);
+      if (newLogin) return newLogin.accessToken;
       await store.clear();
       logger.warn(LOGIN_ENDED_WARNING);
       return undefined;
     }
+    const newLogin = await loginSavedMeanwhile(stored);
+    if (newLogin) return newLogin.accessToken;
     const { accessToken, refreshToken, expiresAt } = grant;
     await store.save({ ...stored, accessToken, refreshToken, expiresAt });
     return grant.accessToken;
+  }
+
+  /** A new Host login the admin saved while the refresh waited on Spotify; it wins over the old login. */
+  async function loginSavedMeanwhile(refreshed: StoredHostToken): Promise<StoredHostToken | undefined> {
+    const current = usable(await store.read());
+    return current !== undefined && current.refreshToken !== refreshed.refreshToken ? current : undefined;
   }
 
   return {
