@@ -73,6 +73,15 @@ Before starting any phase or round, **re-read the state file**.
 ### Re-anchoring
 At each phase boundary and each Ralph Loop round, re-read the relevant section of this skill. State the Slice, phase, round, clean counter and next action before continuing.
 
+### Context Budget
+Your context is the scarcest resource of a Wave: everything an agent returns and everything you write into a prompt stays in it. Agents hand work over through files, not through you.
+- **Handoff files** live in `<Worktree>/.ralph/` (gitignored): `round-N/review-<BE|FE>-<A|B>.md`, `round-N/triage.md`, `test-gate.md`, `code-review-N.md`, `ci.md`, `design-review.md`, `pr-body.md`. The writing agent saves its full output there.
+- **Agent replies are short:** at most 5 lines — verdict, counts by severity, the file path, and anything that needs your decision (a suspected wrong test, a missing test, a shared-file request, an escalation). Say this at the end of every prompt.
+- **Prompts point, never paste:** give paths (PRD, brief, rules, state file, handoff files) instead of their text. Never relay one agent's output into another agent's prompt — name the file.
+- **Your own checks stay quiet:** run them as `npm test 2>&1 | tail -n 15`, and print a diff with `--stat` unless you need the lines. Open a full log or handoff file only when the summary shows a problem or you must decide on it.
+- **PR text** is written to `.ralph/pr-body.md` and sent with `gh pr create --body-file` / `gh pr merge --body-file`; commit bodies over a few lines go through `git commit -F <file>`.
+- **One Wave per session:** at the end of a Wave, tell the user to start the next one in a fresh session.
+
 ### Parallel Slices
 Slices of a Wave run independently, each in its own Worktree with its own state file: never wait for one Slice to advance another. Agent prompts always start with: `WORKTREE: <absolute path>. Work only inside this directory; run every command with it as cwd; never touch the main checkout.` Setup per Slice:
 ```
@@ -143,7 +152,7 @@ The Ralph Loop compensates for the probabilistic nature of LLM reviews: repeat r
 ### Step 1: Review (fresh agents in parallel, model: sonnet)
 Re-read the state file. Increment the round. State round and clean counter, then spawn fresh `general-purpose` reviewers (read-only use: they must not edit files). Fresh context prevents anchoring bias. Every reviewer loads its domain's rules, works on `git diff main...HEAD` only, and may read surrounding code for context.
 
-**Cross-round context (Round 2+):** give each reviewer the triage summaries of the **last 2 rounds**, the **full** dismissed list and the Finding Tracker table, framed as: "Recent fixes: […]. Dismissed findings: […]. Finding status: […]. Do not re-flag dismissed items unless you have NEW evidence. Focus on verifying recent fixes and finding genuinely new issues."
+**Cross-round context (Round 2+):** point each reviewer at the state file (Dismissed Findings, Finding Tracker) and the `triage.md` of the **last 2 rounds** — paths, not pasted text — framed as: "Recent fixes: […]. Dismissed findings: […]. Finding status: […]. Do not re-flag dismissed items unless you have NEW evidence. Focus on verifying recent fixes and finding genuinely new issues."
 
 **Diff scope rule:** only flag newly added or modified lines. Pre-existing issues go under "Pre-existing (out of scope)" and don't count for convergence. **Cross-cutting:** BE reviewers may read the client's API layer and FE reviewers the server routes and `src/web/shared/` to verify contract alignment; mismatches go under "Cross-cutting".
 
@@ -184,11 +193,12 @@ With 2 reviewers per domain: A = correctness (bugs, security, tests, contract), 
 ### Pre-existing (out of scope)
 ```
 No issues → "No issues found." Cross-cutting findings count toward convergence at their severity.
+Each reviewer writes this report to `.ralph/round-N/review-<BE|FE>-<A|B>.md` and replies only with the counts per severity and the path.
 
 **FE Slices, every round:** also run the `web-design-guidelines` skill on the changed client files and add its findings to the FE review (Important if it breaks `web-client.md`, else Minor).
 
 ### Step 2: Fix + Triage (model: opus)
-If any non-pre-existing finding exists, spawn a fresh `implementer` (the fix agent) with all reviewer outputs and the state file. It owns triage → fix:
+If any non-pre-existing finding exists, spawn a fresh `implementer` (the fix agent) with the paths of this round's review files and the state file (it reads them itself). It writes its triage to `.ralph/round-N/triage.md` and replies with: fixed / dismissed / recurred counts, missing tests to write first, anything for the user. It owns triage → fix:
 
 **Triage (before any code):**
 1. Read all reviews of this round and the state file.
@@ -230,14 +240,14 @@ Round 5 with zero consecutive clean rounds → pause; diagnose with the Finding 
 
 ## Phase 2.5: Test Quality Gate
 Update the state file: Phase 2.5.
-1. **Inspect** (fresh agent per domain touched, model: sonnet): read every test file in `git diff main...HEAD --name-only -- test/` **in full** plus the code it tests, and `.claude/rules/tests.md`. Score each file on: correctness (specific assertions that would catch real bugs), coverage (happy, error, boundary, empty; every AC), isolation (no shared mutable state, no order dependence), fakes (only injected services faked, realistic shapes, no testing the fake), naming (`AC-n: …`, behaviour in words), anti-patterns (tautologies, snapshot-only, `toBeTruthy`/`toBeInTheDocument` without value checks, `data-testid` where a role works, missing negative paths, implementation-detail tests). Output per file: tests, grade A–F, issues `[Critical/Important/Minor] [file:line]`, strengths; then an overall report with what is NOT tested.
+1. **Inspect** (fresh agent per domain touched, model: sonnet): read every test file in `git diff main...HEAD --name-only -- test/` **in full** plus the code it tests, and `.claude/rules/tests.md`. Score each file on: correctness (specific assertions that would catch real bugs), coverage (happy, error, boundary, empty; every AC), isolation (no shared mutable state, no order dependence), fakes (only injected services faked, realistic shapes, no testing the fake), naming (`AC-n: …`, behaviour in words), anti-patterns (tautologies, snapshot-only, `toBeTruthy`/`toBeInTheDocument` without value checks, `data-testid` where a role works, missing negative paths, implementation-detail tests). Output per file: tests, grade A–F, issues `[Critical/Important/Minor] [file:line]`, strengths; then an overall report with what is NOT tested. It writes this to `.ralph/test-gate.md` and replies with the overall grade, issue counts and the path; the `test-writer` in step 2 reads the file.
 2. **Fix all findings** — `test-writer` (it owns `test/`), model: opus. Critical, Important and Minor; no dismissals, no deferrals. It may now read the code under test to strengthen tests but must not change `src/`. If a stronger test fails, that's a real bug → `implementer` fixes it (Phase 2 fix rules).
 3. You verify green and commit `test(PRD-NNNN): strengthen tests — …`. List every changed existing test in the Feature Report.
 
 ## Phase 3: Code Review Gate
 Update the state file: Phase 3.
-1. Run the `code-review` skill on the Worktree against `main` (Standards = `CLAUDE.md` + the domain's rules files; Spec = the PRD). Review only; read the findings, don't act yet.
-2. Findings → fresh `implementer` with the Phase 2 Step 2 triage discipline in full (dedupe, recurrence vs the tracker, dismissals with evidence, Critical/Important fixed, Minor at discretion, tests via `test-writer` first). Severity calibration and the > 50 % guardrail apply.
+1. Spawn one `general-purpose` agent (model: sonnet) that runs the `code-review` skill on the Worktree against `main` (Standards = `CLAUDE.md` + the domain's rules files; Spec = the PRD), review only, writes the aggregated report to `.ralph/code-review-N.md` and replies with counts per axis and severity. Don't run the skill in your own context.
+2. Findings → fresh `implementer` (given the report path) with the Phase 2 Step 2 triage discipline in full (dedupe, recurrence vs the tracker, dismissals with evidence, Critical/Important fixed, Minor at discretion, tests via `test-writer` first). Severity calibration and the > 50 % guardrail apply.
 3. Re-run `code-review`. Critical or Important left → one more pass. **Cap: 3 passes**, then record the rest as debt in the state file.
 4. Commit `refactor(PRD-NNNN): address code review — …` if anything changed.
 
@@ -246,7 +256,7 @@ Update the state file: Phase 4. Spawn an agent to run, in the Worktree:
 ```
 npm ci && npm run typecheck && npm run lint && npm test && npm run build
 ```
-Fix failures (trivial → that agent via `implementer` rules; non-trivial → opus `implementer`) and re-run until fully green. **FE Slices:** then start the app on a free port (`PLAYSET_WEB_PORT`, from 3100), spawn `design-review` (Worktree, URL, PRD), stop the app; Blocker/High findings → `implementer` and re-run this phase; Medium/Nit go to the Feature Report.
+Fix failures (trivial → that agent via `implementer` rules; non-trivial → opus `implementer`) and re-run until fully green; the agent writes failures to `.ralph/ci.md` and replies only "green" or what failed. **FE Slices:** then start the app on a free port (`PLAYSET_WEB_PORT`, from 3100), spawn `design-review` (Worktree, URL, PRD; full findings to `.ralph/design-review.md`, reply with counts per severity), stop the app; Blocker/High findings → `implementer` and re-run this phase; Medium/Nit go to the Feature Report.
 **Flaky rule:** a test that passes on re-run without code changes is flaky — re-run up to 2 times to confirm, and list it in the report.
 
 ## Phase 5: Final Report → push → merge
@@ -262,10 +272,10 @@ Report to the user per Slice:
 7. **Flaky tests**
 8. **Confidence** — 2 hard clean = high; hard + soft = acceptable; 3 soft = adequate; 10 rounds = flag debt
 
-**GATE — ask the user to approve the push and the PR text.** On approval: `git push -u origin feat/<Id>`, `gh pr create --base main` with title = squash subject and body = What / How / Result + Feature Report (per `committing`).
+**GATE — ask the user to approve the push and the PR text.** On approval: `git push -u origin feat/<Id>`, `gh pr create --base main --body-file .ralph/pr-body.md` with title = squash subject and body = What / How / Result + Feature Report (per `committing`). Write the body file yourself from the state file and handoff files; don't echo it in chat — give the user a short summary and the path.
 
-**GATE — merge, one PR at a time** (suggest fewest dependents first). On approval: `gh pr merge <n> --squash --delete-branch --subject … --body …` (per `committing`); `git switch main && git pull --ff-only`. Then for every other open Slice of the Wave, in its Worktree: `git fetch origin && git rebase origin/main`, `npm ci` if the lockfile changed, `npm test`, `npm run typecheck`, `npm run lint`.
+**GATE — merge, one PR at a time** (suggest fewest dependents first). On approval: `gh pr merge <n> --squash --delete-branch --subject … --body-file <file>` (per `committing`); `git switch main && git pull --ff-only`. Then for every other open Slice of the Wave, in its Worktree: `git fetch origin && git rebase origin/main`, `npm ci` if the lockfile changed, `npm test`, `npm run typecheck`, `npm run lint`.
 - Clean and green → `git push --force-with-lease` if already pushed.
 - Conflict or newly failing checks → spawn `conflict-resolver` (Worktree, git state or failing output, Feature Reports via `gh pr view <n> --json body`, both PRD paths). `RESOLVED` → verify green yourself, push with lease. `ESCALATED` → push notification `Real conflict: <Id> vs <Id> — needs your decision`, present `.conflict-brief.md`, plan the fix with the user (PRD change → user approves → test-writer → implementer).
 
-After a merge: `git worktree remove .claude/worktrees/<Id>` and `git branch -D feat/<Id>`. When the Wave is done, report merged and parked Slices and the next Wave (`node scripts/wave.mjs`). If a PRD changed a dependency, update `docs/PLAN.md` in a `chore` PR.
+After a merge: `git worktree remove .claude/worktrees/<Id>` and `git branch -D feat/<Id>`. When the Wave is done, report merged and parked Slices and the next Wave (`node scripts/wave.mjs`), and suggest starting it in a fresh session. If a PRD changed a dependency, update `docs/PLAN.md` in a `chore` PR.
