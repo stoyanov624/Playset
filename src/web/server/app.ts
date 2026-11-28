@@ -1,6 +1,7 @@
-// The web app: the Visitor routes of the contract, the admin's Host login and status, and the built client. Each route checks its input with
-// the contract, calls the core's steps and answers in the contract's shapes; the server adds only what
-// HTTP needs (limits, shared runs, one create per Setlist at a time, usage events, error wording).
+// The web app: the Visitor routes of the contract, the admin's Host login and status, and the built
+// client. Each route checks its input with the contract, calls the core's steps and answers in the
+// contract's shapes; the server adds only what HTTP needs (limits, shared runs, one create per Setlist
+// at a time, usage events, error wording).
 // Every in-memory state belongs to the app built here, so two apps share nothing.
 import express from "express";
 import helmet from "helmet";

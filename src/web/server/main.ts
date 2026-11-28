@@ -7,8 +7,13 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 import Database from "better-sqlite3";
-import { createMemorySettingsStore, createRunServices } from "../../core/index.js";
-import { exchangeAuthorizationCode, fetchSpotifyAccount, refreshAccessToken } from "../../core/index.js";
+import {
+  createMemorySettingsStore,
+  createRunServices,
+  exchangeAuthorizationCode,
+  fetchSpotifyAccount,
+  refreshAccessToken,
+} from "../../core/index.js";
 import {
   WebConfigError,
   createApp,
@@ -20,8 +25,8 @@ import {
   type Logger,
   type WebConfig,
 } from "./index.js";
+import { LISTEN_HOST } from "./config.js";
 
-const HOST = "127.0.0.1";
 const CLIENT_DIR = fileURLToPath(new URL("../../../dist/web/", import.meta.url));
 
 function environment(): Record<string, string | undefined> {
@@ -87,14 +92,14 @@ function start(config: WebConfig): void {
   });
   // Express hands a listen failure to this callback too. A port already in use is a setup problem, so it
   // gets one clear line instead of a stack.
-  const server = app.listen(config.port, HOST, (error?: NodeJS.ErrnoException) => {
+  const server = app.listen(config.port, LISTEN_HOST, (error?: NodeJS.ErrnoException) => {
     if (error !== undefined) {
       const reason = error.code === "EADDRINUSE" ? `port ${config.port} is already in use` : error.message;
       logger.error(`Playset can't start: ${reason}.`);
       process.exitCode = 1;
       return;
     }
-    logger.info(`Playset web is running at http://${HOST}:${config.port}`);
+    logger.info(`Playset web is running at http://${LISTEN_HOST}:${config.port}`);
   });
   // A service manager stops the server with SIGTERM: let running requests finish, then exit.
   process.once("SIGTERM", () => {

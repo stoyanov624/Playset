@@ -1,6 +1,6 @@
 // Where the server gets the Host Account's Spotify access token: the one stored Host token, refreshed by
 // the server when it is about to expire. Only the Host Account's own login is ever used.
-import type { SpotifyAccount, TokenGrant } from "../../core/index.js";
+import { TokenError, type SpotifyAccount, type TokenGrant } from "../../core/index.js";
 import type { Logger } from "./logging.js";
 
 export interface HostTokenSource {
@@ -63,8 +63,7 @@ const EXPIRY_MARGIN_MS = 60_000;
 const LOGIN_ENDED_WARNING = "The Host Account's Spotify login has ended. Log in again at /admin.";
 
 /** Spotify said the refresh token no longer works, so only a new Host login helps. */
-const loginEnded = (error: unknown): boolean =>
-  (error as { spotifyError?: unknown } | null)?.spotifyError === "invalid_grant";
+const loginEnded = (error: unknown): boolean => error instanceof TokenError && error.spotifyError === "invalid_grant";
 
 export function createHostTokenSource(deps: {
   store: HostTokenStore;

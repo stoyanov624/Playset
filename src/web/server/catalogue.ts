@@ -1,6 +1,6 @@
-// The server's fixed error catalogue: every error a Visitor (or the admin) can get, with its code, HTTP status and
-// wording written for a Visitor. A core error's own message is written for the CLI (env names,
-// commands), so it is never sent; each core error kind maps to one entry here.
+// The server's fixed error catalogue: every error a Visitor (or the admin) can get, with its code,
+// HTTP status and wording written for a Visitor. A core error's own message is written for the CLI
+// (env names, commands), so it is never sent; each core error kind maps to one entry here.
 import {
   DescriptionTooLongError,
   HttpError,

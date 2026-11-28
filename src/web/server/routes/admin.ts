@@ -2,9 +2,12 @@
 // `/admin/callback`), the admin status and logout. Only the Host Account can log in; any other account
 // is turned away with nothing of it kept, answered or logged.
 import { Router, type Request, type Response } from "express";
-import { HttpError, RateLimitError, TokenError } from "../../../core/index.js";
+import { timingSafeEqual } from "node:crypto";
 import {
+  HttpError,
+  RateLimitError,
   SpotifyAccountError,
+  TokenError,
   buildAuthorizeUrl,
   computeCodeChallenge,
   generateCodeVerifier,
@@ -22,7 +25,7 @@ import {
 } from "../../shared/index.js";
 import { ADMIN_COOKIE, LOGIN_COOKIE, type AdminCookies } from "../admin-cookies.js";
 import { CATALOGUE, VisitorError } from "../catalogue.js";
-import type { WebConfig } from "../config.js";
+import { LISTEN_HOST, type WebConfig } from "../config.js";
 import type { HostLogin, HostTokenStore } from "../host-tokens.js";
 import { utcDay, type RateLimitHitCounter } from "../limits.js";
 import { createFailureLog, type Logger } from "../logging.js";
@@ -79,13 +82,21 @@ function accountFailure(error: unknown): LoginStopped {
   return new LoginStopped("INTERNAL", "error", { cause: error });
 }
 
+/** Compared in constant time, so the answer's timing says nothing about the expected state. */
+function sameText(given: string, expected: string): boolean {
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 /** Whether a body was sent at all (an empty one counts as none). */
 const hasBody = (req: Request): boolean =>
   req.headers["transfer-encoding"] !== undefined || Number(req.headers["content-length"] ?? 0) > 0;
 
 export function adminRoutes(context: AdminContext): Router {
   const { config, cookies, hostTokenStore, hostLogin, events, rateLimitHits, now, logger } = context;
-  const redirectUri = `http://127.0.0.1:${config.port}${ROUTES.adminCallback}`;
+  // Spotify sends the admin back to the address the server listens on.
+  const redirectUri = `http://${LISTEN_HOST}:${config.port}${ROUTES.adminCallback}`;
   const router = Router();
 
   const redirect = (res: Response, location: string) => {
@@ -117,7 +128,7 @@ export function adminRoutes(context: AdminContext): Router {
       const { code, state } = query.data;
       secrets.push(login.codeVerifier, login.state, ...(code === undefined ? [] : [code]));
       // A declined consent (an error instead of a code) is the admin's own doing, as is a stale login.
-      if (state !== login.state || code === undefined) throw new LoginStopped("INVALID_INPUT");
+      if (!sameText(state, login.state) || code === undefined) throw new LoginStopped("INVALID_INPUT");
 
       const grant: TokenGrant = await hostLogin
         .exchangeCode({ code, codeVerifier: login.codeVerifier, redirectUri })

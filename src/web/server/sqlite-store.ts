@@ -1,6 +1,6 @@
-// The SQLite adapter of the records, cached previews, usage events and the stored Host token: the only place with SQL, and
-// every value goes in as a parameter. Cached previews are stored whole, Match URIs and Miss queries
-// included, because create-or-update puts exactly the previewed Matches in.
+// The SQLite adapter of the records, cached previews, usage events and the stored Host token: the only
+// place with SQL, and every value goes in as a parameter. Cached previews are stored whole, Match URIs
+// and Miss queries included, because create-or-update puts exactly the previewed Matches in.
 import type { Database } from "better-sqlite3";
 import type { MatchPreview, SetlistPlaylistRecord, SetlistPlaylistRecords } from "../../core/index.js";
 import { z } from "zod";
@@ -120,11 +120,11 @@ export function createSqliteStore(db: Database): {
     "INSERT INTO usage_events (kind, setlist_id, artist, day) VALUES (?, ?, ?, ?)",
   );
   // The same kinds as the memory adapter counts (isPlaylistMade), one parameter per kind.
+  const madeKinds = PLAYLIST_MADE_KINDS.map(() => "?").join(", ");
   const countPlaylistsMade = db.prepare<[string, ...string[]], { made: number }>(
-    `SELECT COUNT(*) AS made FROM usage_events WHERE day = ? AND kind IN (${PLAYLIST_MADE_KINDS.map(() => "?").join(", ")})`,
+    `SELECT COUNT(*) AS made FROM usage_events WHERE day = ? AND kind IN (${madeKinds})`,
   );
 
-  const madeKinds = PLAYLIST_MADE_KINDS.map(() => "?").join(", ");
   const countByKind = db.prepare<[], { kind: UsageEventKind; n: number }>(
     "SELECT kind, COUNT(*) AS n FROM usage_events GROUP BY kind",
   );

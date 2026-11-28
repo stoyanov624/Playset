@@ -1,5 +1,6 @@
-// The web server: the Express app for Visitors and the admin (built with injected services, never listening by itself),
-// its config, the SQLite store and the in-memory parts tests and the entry file wire together.
+// The web server: the Express app for Visitors and the admin (built with injected services, never
+// listening by itself), its config, the SQLite store and the in-memory parts tests and the entry file
+// wire together.
 export { createApp, type AppDeps, type WebServices } from "./app.js";
 export { WebConfigError, readWebConfig, type WebConfig } from "./config.js";
 export {
