@@ -1,6 +1,6 @@
 # PRD 0015 — Web API contract
 
-Status: Approved
+Status: Implemented
 Slice: 15
 Depends on: 0012, 0014
 Module: src/web/shared
