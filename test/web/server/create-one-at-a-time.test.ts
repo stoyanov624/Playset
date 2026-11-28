@@ -1,9 +1,9 @@
 // One create/update per Setlist at a time (X14). The fake Spotify holds every create request
 // (POST /v1/me/playlists) at a gate until the test releases it.
 import { describe, expect, it } from "vitest";
-import { bareError } from "./fixtures/catalogue";
-import { A, B, TODAY, flush, makeGate, makeHarness, spotifyStatus, waitUntil } from "./fixtures/harness";
-import { H_ID, H_V1, H_V2, MADRID_ID, MADRID_VERSION, PLAYLIST_ID, SHARE_URL, fixtureHv2 } from "./fixtures/setlists";
+import { bareError, expectCatalogueError } from "./fixtures/catalogue";
+import { A, B, C, TODAY, flush, makeGate, makeHarness, spotifyStatus, waitUntil } from "./fixtures/harness";
+import { H_ID, H_V1, H_V2, MADRID_ID, MADRID_VERSION, NIRVANA_ID, NIRVANA_VERSION, PLAYLIST_ID, SHARE_URL, fixtureHv2 } from "./fixtures/setlists";
 
 const H_PATH = `/api/setlists/${H_ID}/playlist`;
 
@@ -90,6 +90,59 @@ describe("the same Setlist, another version (AC-31)", () => {
     expect(h.usage.recorded.map((e) => e.kind)).toEqual(["created", "updated"]);
     expect((await h.records.findRecord(H_ID))?.versionId).toBe(H_V2);
   });
+});
+
+describe("another version waits and holds its own daily slot (AC-31, AC-30)", () => {
+  it("AC-31: a create for another version waits and then holds its own slot", async () => {
+    const h = makeHarness({ env: { PLAYSET_DAILY_LIMIT: "2" } });
+    const gate = makeGate();
+    h.spotify.createGate = gate;
+
+    // A's create for v1 holds one daily slot while its Spotify create waits.
+    const fromA = start(h.post(H_PATH, { versionId: H_V1 }, A));
+    await waitUntil(() => gate.state.waiting === 1, "A's create to wait");
+
+    // B posts another version: the daily limit is checked when it arrives (one slot free), so it is
+    // admitted, then waits for A's run without calling Spotify.
+    h.setlists[H_ID] = fixtureHv2();
+    const fromB = start(h.post(H_PATH, { versionId: H_V2 }, B));
+    await flush(100);
+    expect(h.playlistCalls()).toEqual(["POST /v1/me/playlists"]);
+    expect(h.hits.added).toEqual([]);
+
+    // B holds the second slot while it waits: C's create for another Setlist is refused at once.
+    const fromC = await h.post(`/api/setlists/${NIRVANA_ID}/playlist`, { versionId: NIRVANA_VERSION }, C);
+    expectCatalogueError(fromC, "E-13", 34200);
+    expect(h.hits.added).toEqual([TODAY]);
+
+    gate.release();
+    const a = await fromA;
+    const b = await fromB;
+    expect(a.status).toBe(200);
+    expect(a.body).toStrictEqual({ url: SHARE_URL, status: "created" });
+    expect(b.status).toBe(200);
+    expect(b.body).toStrictEqual({ url: SHARE_URL, status: "updated" });
+    expect(h.usage.recorded.map((e) => e.kind)).toEqual(["created", "updated"]);
+    expect(await h.usage.events.countPlaylistsMade(TODAY)).toBe(2);
+  }, 20_000);
+
+  it("AC-31: with a daily limit of 1, a create for another version while the first runs is refused at once (E-13)", async () => {
+    const h = makeHarness({ env: { PLAYSET_DAILY_LIMIT: "1" } });
+    const gate = makeGate();
+    h.spotify.createGate = gate;
+    const fromA = start(h.post(H_PATH, { versionId: H_V1 }, A));
+    await waitUntil(() => gate.state.waiting === 1, "A's create to wait");
+    h.setlists[H_ID] = fixtureHv2();
+    const fromB = await h.post(H_PATH, { versionId: H_V2 }, B);
+    expectCatalogueError(fromB, "E-13", 34200);
+    expect(gate.state.waiting).toBe(1);
+    gate.release();
+    const a = await fromA;
+    expect(a.status).toBe(200);
+    expect(a.body).toStrictEqual({ url: SHARE_URL, status: "created" });
+    expect(h.playlistCalls()).toEqual(["POST /v1/me/playlists", `POST /v1/playlists/${PLAYLIST_ID}/items`]);
+    expect(h.usage.recorded.map((e) => e.kind)).toEqual(["created"]);
+  }, 20_000);
 });
 
 describe("different Setlists at once (AC-31)", () => {

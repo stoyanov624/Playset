@@ -368,3 +368,47 @@ describe("the daily count and finished or failed creates (AC-30, AC-29)", () => 
     expect(fake.recorded).toEqual([{ kind: "created", setlistId: H_ID, artist: "Pearl Jam", day: TODAY }]);
   });
 });
+
+// ---------------------------------------------------------------- a create that joins a queued run
+
+describe("a create that joins a running one and the daily limit (AC-30, AC-31)", () => {
+  it("AC-30: a create that only shares a queued run for the same version holds no daily slot", async () => {
+    const h = makeHarness({ env: { PLAYSET_DAILY_LIMIT: "2" } });
+    const gate = makeGate();
+    h.spotify.createGate = gate;
+
+    // A's create for 2bf1c8e4 g4bd1a2f6 holds one daily slot while its Spotify create waits.
+    const fromA = Promise.resolve(h.post(H_V1_CREATE.path, H_V1_CREATE.body, A));
+    await waitUntil(() => gate.state.waiting === 1, "A's create to wait");
+
+    // B posts the same Setlist and version: it joins A's run and makes no playlist of its own.
+    const fromB = Promise.resolve(h.post(H_V1_CREATE.path, H_V1_CREATE.body, B));
+    await flush(100);
+    expect(gate.state.waiting).toBe(1);
+
+    // C posts another Setlist while both wait: one slot is still free, so C is admitted.
+    let cSettled = false;
+    const fromC = Promise.resolve(h.post(MADRID_CREATE.path, MADRID_CREATE.body, C)).then((res) => {
+      cSettled = true;
+      return res;
+    });
+    await waitUntil(() => gate.state.waiting === 2 || cSettled, "C's create to wait or be answered");
+    expect(cSettled).toBe(false);
+    expect(gate.state.waiting).toBe(2);
+    expect(h.hits.added).toEqual([]);
+
+    gate.release();
+    const [a, b, c] = await Promise.all([fromA, fromB, fromC]);
+    expect(a.status).toBe(200);
+    expect(a.body).toStrictEqual({ url: SHARE_URL, status: "created" });
+    expect(b.status).toBe(200);
+    expect(b.body).toStrictEqual({ url: SHARE_URL, status: "created" });
+    expect(c.status).toBe(200);
+    expect((c.body as { status: string }).status).toBe("created");
+    expect(h.usage.recorded.filter((e) => e.kind === "created").map((e) => e.setlistId).sort()).toEqual([H_ID, MADRID_ID].sort());
+    expect(await h.usage.events.countPlaylistsMade(TODAY)).toBe(2);
+
+    // Two playlists made today, limit 2: the next one is refused.
+    expectCatalogueError(await h.post(NIRVANA_CREATE.path, NIRVANA_CREATE.body, A), "E-13", 34200);
+  }, 20_000);
+});
