@@ -8,6 +8,8 @@ Before a concert, run `playset` with a setlist.fm link or an Artist name and get
 
 Phase 2: a web front-end on the same core — direction in `docs/phases/web-ui.md`.
 
+Phase 3: the web app is the only front-end (CLI removed, ADR 0003) and the Artist field suggests Artists while typing, with MusicBrainz as a typo fallback — direction in `docs/phases/artist-suggestions.md`.
+
 ## Slices
 
 | # | Slice | Id | Depends on |
@@ -31,6 +33,11 @@ Phase 2: a web front-end on the same core — direction in `docs/phases/web-ui.m
 | 17 | Admin server (Spotify login as the Host Account, Host token, usage) | `0017-web-admin-server` | 16 |
 | 18 | Visitor web app (search, Setlist list, preview, create, Terms) | `0018-web-client` | 13, 15 |
 | 19 | Admin page | `0019-web-admin-client` | 13, 15, 18 |
+| 20 | Remove the CLI and the core code only it uses; port web-relevant rule tests to the steps | `0020-remove-cli` | — |
+| 21 | Suggest Artists in core: setlist.fm first, MusicBrainz typo fallback (client, throttle, Lucene query) | `0021-artist-suggestions-core` | 20 |
+| 22 | Artist suggestions in the web contract (route, schemas, limits, MusicBrainz contact label) | `0022-artist-suggestions-contract` | 20 |
+| 23 | Serve Artist suggestions (route, cache, per-IP limit, MusicBrainz contact config) | `0023-artist-suggestions-server` | 21, 22 |
+| 24 | Artist suggestions while typing (combobox) and the "no Setlists on setlist.fm" state | `0024-artist-suggestions-client` | 22 |
 
 ## Waves (history)
 
