@@ -2,16 +2,23 @@
 // the test can read each stream as it comes and close a connection mid-run; the Match search is
 // held at a gate until the test releases it.
 import { afterEach, describe, expect, it } from "vitest";
-import { createMemorySetlistPlaylistRecords, type SetlistPlaylistRecords } from "../../../src/core/index.js";
+import { PlaysetError, createMemorySetlistPlaylistRecords, type SetlistPlaylistRecords } from "../../../src/core/index.js";
 import { previewResultSchema } from "../../../src/web/shared/index.js";
 import { bareError } from "./fixtures/catalogue";
 import {
   A,
   B,
+  CLIENT_ID,
+  COOKIE_SECRET,
+  HOST_ID,
   HOST_TOKEN,
+  SECRETS,
+  SETLISTFM_KEY,
+  answer,
   expectContract,
   expectNoLeaks,
   flush,
+  httpError,
   makeGate,
   makeHarness,
   listen,
@@ -304,4 +311,136 @@ describe("a Visitor leaving before the stream opens (AC-25)", () => {
       expect(h.log.of("error")).toEqual([]);
     },
   );
+});
+
+// ---------------------------------------------------------------- AC-25, AC-8: a step failing after the Visitor left
+
+type FailingStep = "the Host token" | "the setlist.fm fetch" | "the cached-preview lookup";
+
+/**
+ * H v2 served; the preview request is held at `where` until the test releases the gate, and then that
+ * step fails with `failure()` instead of answering.
+ */
+async function setupFailingStep(where: FailingStep, failure: () => Promise<unknown>) {
+  const gate = makeGate();
+  const inner = createMemorySetlistPlaylistRecords();
+  const records =
+    where === "the cached-preview lookup"
+      ? (new Proxy(inner as object, {
+          get(target, prop) {
+            if (prop === "findPreview") {
+              return async () => {
+                await gate.pass();
+                throw await failure();
+              };
+            }
+            const value: unknown = Reflect.get(target, prop, target);
+            return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+          },
+        }) as SetlistPlaylistRecords)
+      : inner;
+  const h: Harness = makeHarness({ setlists: { [H_ID]: fixtureHv2() }, records });
+  if (where === "the Host token") {
+    h.host.gate = gate;
+    h.host.mode = { kind: "rejects", error: await failure() };
+  }
+  if (where === "the setlist.fm fetch") {
+    h.overrides.getSetlist = async () => {
+      await gate.pass();
+      throw await failure();
+    };
+  }
+  const server = await listen(h.app);
+  closers.push(server.close);
+  return { h, gate, port: server.port, cachedPreviews: inner };
+}
+
+/** Opens A's preview, closes it while `where` waits, then lets that step fail. */
+async function leaveThenFail(where: FailingStep, failure: () => Promise<unknown>) {
+  const setup = await setupFailingStep(where, failure);
+  const a = openStream(setup.port, PATH, A);
+  await waitUntil(() => setup.gate.state.waiting === 1, `${where} to wait`);
+  a.close();
+  await flush(50);
+  setup.gate.release();
+  await flush(150);
+  return { ...setup, a };
+}
+
+/** A fault Playset didn't expect, naming every secret the server knows (so redaction shows). */
+const unexpectedFault = async () =>
+  new Error(`store broke near ${SETLISTFM_KEY} ${CLIENT_ID} ${COOKIE_SECRET} ${HOST_ID} ${HOST_TOKEN}`);
+
+describe("a step failing after the Visitor left (AC-25, AC-8)", () => {
+  // A Host token source that rejects is "not connected" (an expected answer), not a fault, so it is not here.
+  it.each(["the setlist.fm fetch", "the cached-preview lookup"] as const)(
+    "AC-25, AC-8: A closes while %s is pending, then it throws a plain Error → exactly one logger.warn ('failed after the Visitor left', secrets redacted), no logger.error, no 500 logged, nothing written",
+    async (where) => {
+      const { h, a, cachedPreviews } = await leaveThenFail(where, unexpectedFault);
+
+      expect(h.log.of("warn")).toHaveLength(1);
+      expect(h.log.of("error")).toEqual([]);
+      expect(h.log.of("info")).toEqual([]);
+      const warning = h.log.of("warn")[0]!;
+      expect(warning.message).toContain("failed after the Visitor left");
+      expect(warning.message).toContain("store broke near");
+      const text = h.log.textOf(warning);
+      for (const secret of SECRETS) expect(h.log.allText()).not.toContain(secret);
+      expect(text).toContain("[redacted]");
+      // No answer was attempted: nothing logged as an answered INTERNAL error, nothing on the wire.
+      expect(h.log.allText()).not.toContain("INTERNAL");
+      expect(h.log.allText()).not.toContain("Answered");
+      expect(h.log.allText()).not.toContain(A);
+      expect(a.status()).toBeUndefined();
+      expect(a.raw()).toBe("");
+      expect(h.matchSearches).toEqual([]);
+      expect(await cachedPreviews.findPreview(H_ID, H_V2)).toBeUndefined();
+    },
+  );
+
+  it.each(["the Host token", "the setlist.fm fetch"] as const)(
+    "AC-25, AC-8: A closes while %s is pending, then it throws a PlaysetError (a request error) → one logger.info only, no warn or error",
+    async (where) => {
+      const requestError = () => httpError("status", 503);
+      const playsetError = await requestError();
+      expect(playsetError).toBeInstanceOf(PlaysetError);
+
+      const { h, a } = await leaveThenFail(where, requestError);
+
+      expect(h.log.of("info")).toHaveLength(1);
+      expect(h.log.of("warn")).toEqual([]);
+      expect(h.log.of("error")).toEqual([]);
+      expect(h.log.allText()).not.toContain("Answered");
+      expect(h.log.allText()).not.toContain(A);
+      for (const secret of SECRETS) expect(h.log.allText()).not.toContain(secret);
+      expect(a.status()).toBeUndefined();
+      expect(a.raw()).toBe("");
+      expect(h.matchSearches).toEqual([]);
+    },
+  );
+
+  it("AC-25, AC-8: A closes while the setlist.fm fetch is pending, then setlist.fm answers 503 → one logger.info only, no warn or error", async () => {
+    const gate = makeGate();
+    const h = makeHarness({ setlists: { [H_ID]: answer(503, { code: 503, status: "Service Unavailable" }) } });
+    h.overrides.getSetlist = async (setlistId: string) => {
+      await gate.pass();
+      return h.core.getSetlist(setlistId);
+    };
+    const server = await listen(h.app);
+    closers.push(server.close);
+    const a = openStream(server.port, PATH, A);
+    await waitUntil(() => gate.state.waiting === 1, "the setlist.fm fetch to wait");
+    a.close();
+    await flush(50);
+    gate.release();
+    await waitUntil(() => h.log.calls.length > 0, "the failure to be logged");
+    await flush(100);
+
+    expect(h.setlistFmRequests().length).toBeGreaterThan(0);
+    expect(h.log.of("info")).toHaveLength(1);
+    expect(h.log.of("warn")).toEqual([]);
+    expect(h.log.of("error")).toEqual([]);
+    expect(h.log.allText()).not.toContain(SETLISTFM_KEY);
+    expect(a.raw()).toBe("");
+  });
 });

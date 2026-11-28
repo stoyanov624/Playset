@@ -412,3 +412,33 @@ describe("a create that joins a running one and the daily limit (AC-30, AC-31)",
     expectCatalogueError(await h.post(NIRVANA_CREATE.path, NIRVANA_CREATE.body, A), "E-13", 34200);
   }, 20_000);
 });
+
+// ---------------------------------------------------------------- quiet addresses swept out
+
+describe("addresses that went quiet (AC-29)", () => {
+  // The sweep itself (at most once a minute) has no public seam; this pins what a Visitor sees around it.
+  const D = "198.51.100.23";
+
+  it("AC-29: A and B counted at 14:00 then quiet; C's request at 15:00:30 and D's 30 s later are admitted, and A and B each get a fresh window", async () => {
+    const h = makeHarness({ env: { PLAYSET_CREATE_LIMIT: "1" } });
+    h.clock.set("2026-11-28T14:00:00.000Z");
+    expect((await h.post(H_V1_CREATE.path, H_V1_CREATE.body, A)).status).toBe(200);
+    expect((await h.post(MADRID_CREATE.path, MADRID_CREATE.body, B)).status).toBe(200);
+
+    h.clock.set("2026-11-28T14:59:59.500Z");
+    expectCatalogueError(await h.post(NIRVANA_CREATE.path, NIRVANA_CREATE.body, A), "E-12", 1);
+
+    h.clock.set("2026-11-28T15:00:30.000Z");
+    expect((await h.post(NIRVANA_CREATE.path, NIRVANA_CREATE.body, C)).status).toBe(200);
+
+    h.clock.set("2026-11-28T15:01:00.000Z");
+    expect((await h.post(H_V1_CREATE.path, H_V1_CREATE.body, D)).status).toBe(200);
+    expectCatalogueError(await h.post(MADRID_CREATE.path, MADRID_CREATE.body, C), "E-12", 3570);
+
+    expect((await h.post(NIRVANA_CREATE.path, NIRVANA_CREATE.body, A)).status).toBe(200);
+    expectCatalogueError(await h.post(MADRID_CREATE.path, MADRID_CREATE.body, A), "E-12", 3600);
+    expect((await h.post(H_V1_CREATE.path, H_V1_CREATE.body, B)).status).toBe(200);
+    expectCatalogueError(await h.post(NIRVANA_CREATE.path, NIRVANA_CREATE.body, B), "E-12", 3600);
+    expect(h.log.allText()).not.toContain(D);
+  });
+});
