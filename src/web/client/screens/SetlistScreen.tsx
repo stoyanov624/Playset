@@ -132,7 +132,17 @@ export function SetlistScreen({ id }: { id: string }) {
         </div>
       );
     }
-    if (status === undefined) return <LoadingLine text="Loading the Setlist…" />;
+    if (status === undefined) {
+      // The Show's Artist isn't known yet, but the screen still has its one `h1`.
+      return (
+        <>
+          <Heading level={1} visuallyHidden>
+            Setlist
+          </Heading>
+          <LoadingLine text="Loading the Setlist…" />
+        </>
+      );
+    }
     return (
       <>
         <div className={styles.flow}>

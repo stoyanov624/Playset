@@ -32,6 +32,13 @@ export function StartScreen() {
 
   const home = artist === "";
 
+  // Until candidates or an alert take its place, the search still names itself as the screen's one `h1`.
+  const searchedHeading = (
+    <Heading level={1} visuallyHidden>
+      Artists for "{artist}"
+    </Heading>
+  );
+
   /** Home offers the link form; a search shows its error (unless it is on the field) or its candidates. */
   function belowForm() {
     if (home) {
@@ -43,7 +50,7 @@ export function StartScreen() {
       );
     }
     if (shown !== null) {
-      if (fieldError !== null) return null;
+      if (fieldError !== null) return searchedHeading;
       return (
         <ScreenError
           key={shown.key}
@@ -54,7 +61,7 @@ export function StartScreen() {
         />
       );
     }
-    if (search.data === undefined) return null;
+    if (search.data === undefined) return searchedHeading;
     return <ArtistResults name={search.data.name} artists={search.data.answer.artists} />;
   }
 

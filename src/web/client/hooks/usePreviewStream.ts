@@ -23,11 +23,13 @@ export function usePreviewStream(id: string, round: number, enabled: boolean) {
       // Each attempt, a retry included, starts counting from nothing.
       setProgress(null);
       lastAnnouncement.current = null;
+      // Once the preview result is in, Matching is done: a late progress neither moves nor speaks.
+      let done = false;
       return api.streamPreview(id, {
         signal,
         onProgress: (next) => {
           // A stream the Visitor already left says nothing more.
-          if (signal.aborted) return;
+          if (signal.aborted || done) return;
           setProgress(next);
           const now = Date.now();
           const last = lastAnnouncement.current;
@@ -39,6 +41,9 @@ export function usePreviewStream(id: string, round: number, enabled: boolean) {
             lastAnnouncement.current = now;
           }
         },
+      }).then((result) => {
+        done = true;
+        return result;
       });
     },
     enabled,
