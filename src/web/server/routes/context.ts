@@ -1,6 +1,6 @@
 // What every Visitor route shares within one app: the injected services and stores, the failure log, the
 // Host token, Playset's refusals, and how a route reads its input and sends its answer.
-import type { Request, Response } from "express";
+import type { ErrorRequestHandler, Request, Response } from "express";
 import type {
   HostPlaylistServices,
   RunServices,
@@ -44,3 +44,13 @@ export function sendJson<T>(res: Response, schema: Schema<T>, what: string, valu
 
 /** The Visitor address: the connection's, or the one the trusted proxy forwarded (Express's `trust proxy`). */
 export const addressOf = (req: Request): string => req.ip ?? req.socket.remoteAddress ?? "";
+
+/**
+ * A path parameter whose percent-encoding can't be decoded is the Visitor's bad input: Express rejects it
+ * before any handler runs, so the router that owns the parameter answers it as its own rejected input.
+ */
+export function undecodableParamIs(entry: CatalogueEntry): ErrorRequestHandler {
+  return (error: unknown, _req, _res, next) => {
+    next(error instanceof URIError ? new VisitorError(entry) : error);
+  };
+}

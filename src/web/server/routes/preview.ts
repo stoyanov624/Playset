@@ -13,7 +13,7 @@ import { CATALOGUE, isKnownFailure } from "../catalogue.js";
 import { createAddressWindow } from "../limits.js";
 import { createPreviewRuns, eventFrame, openEventStream } from "../preview-stream.js";
 import { checked, previewResultOf } from "../shapes.js";
-import { addressOf, parsed, type RouteContext } from "./context.js";
+import { addressOf, parsed, undecodableParamIs, type RouteContext } from "./context.js";
 import { LEAVE_OUT_TAPES } from "./tapes.js";
 
 /** Whether the Visitor's connection has closed since now, before any answer was sent. */
@@ -86,5 +86,6 @@ export function previewRoutes({ config, services, records, now, log, hostToken, 
     run.listen(openEventStream(res));
   }
 
+  router.use(undecodableParamIs(CATALOGUE.setlistIdInvalid));
   return router;
 }

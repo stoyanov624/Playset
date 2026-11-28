@@ -20,7 +20,7 @@ import {
 import { CATALOGUE, VisitorError } from "../catalogue.js";
 import { utcDay } from "../limits.js";
 import { checked, incompleteStatusOf, showOf } from "../shapes.js";
-import { parsed, sendJson, type RouteContext } from "./context.js";
+import { parsed, sendJson, undecodableParamIs, type RouteContext } from "./context.js";
 import { LEAVE_OUT_TAPES } from "./tapes.js";
 
 /** The setlist id in a setlist.fm link, only read, never fetched: the Setlist is asked of setlist.fm by its id. */
@@ -78,5 +78,6 @@ export function setlistRoutes({ services, records, events, now, log }: RouteCont
     res.json(answer);
   });
 
+  router.use(undecodableParamIs(CATALOGUE.setlistIdInvalid));
   return router;
 }

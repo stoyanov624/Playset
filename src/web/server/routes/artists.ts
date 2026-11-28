@@ -11,7 +11,7 @@ import {
 } from "../../shared/index.js";
 import { CATALOGUE } from "../catalogue.js";
 import { artistSetlistsResponseOf, artistsResponseOf } from "../shapes.js";
-import { parsed, sendJson, type RouteContext } from "./context.js";
+import { parsed, sendJson, undecodableParamIs, type RouteContext } from "./context.js";
 
 export function artistRoutes({ services }: RouteContext): Router {
   const router = Router();
@@ -36,5 +36,6 @@ export function artistRoutes({ services }: RouteContext): Router {
     sendJson(res, artistSetlistsResponseSchema, "Setlist page answer", artistSetlistsResponseOf(mbid, setlists));
   });
 
+  router.use(undecodableParamIs(CATALOGUE.setlistPageInvalid));
   return router;
 }

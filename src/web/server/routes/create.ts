@@ -16,7 +16,7 @@ import {
 import { CATALOGUE, VisitorError } from "../catalogue.js";
 import { createSetlistQueue } from "../create-queue.js";
 import { createAddressWindow, createDailyLimit, secondsUntilNextUtcDay, utcDay } from "../limits.js";
-import { addressOf, parsed, sendJson, type RouteContext } from "./context.js";
+import { addressOf, parsed, sendJson, undecodableParamIs, type RouteContext } from "./context.js";
 import { LEAVE_OUT_TAPES } from "./tapes.js";
 
 /** 10 kB: a create body is a version id; nothing a Visitor sends needs more. */
@@ -97,5 +97,6 @@ export function createRoutes({ config, services, records, events, now, log, host
     sendJson(res, createPlaylistResponseSchema, "create answer", { url: playlist.shareUrl, status });
   });
 
+  router.use(undecodableParamIs(CATALOGUE.setlistIdInvalid));
   return router;
 }
