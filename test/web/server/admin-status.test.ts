@@ -3,7 +3,7 @@
 // and logout drops the admin cookie but never the Host token.
 import request from "supertest";
 import { describe, expect, it } from "vitest";
-import { CONFIG_ITEMS, adminStatusResponseSchema } from "../../../src/web/shared/index.js";
+import { CONFIG_ITEMS, adminStatusResponseSchema, type AdminStatusResponse } from "../../../src/web/shared/index.js";
 import { createMemoryUsageEvents } from "../../../src/web/server/index.js";
 import { expectCatalogueError } from "./fixtures/catalogue";
 import {
@@ -23,6 +23,13 @@ import { A, HOST_TOKEN, expectContract, makeFakeHits } from "./fixtures/harness"
 import { MADRID_ID } from "./fixtures/setlists";
 
 type Kind = "created" | "updated" | "opened";
+
+/** A 200 status answer, read through the shared contract (so a body the contract rejects fails here). */
+function statusOf(res: request.Response): AdminStatusResponse {
+  expect(res.status).toBe(200);
+  return adminStatusResponseSchema.parse(res.body);
+}
+
 type Events = ReturnType<typeof createMemoryUsageEvents>;
 
 const X7_EVENTS: Array<[string, Kind, string, string]> = [
@@ -174,7 +181,7 @@ describe("GET /api/admin/status (AC-22 to AC-25)", () => {
   it("AC-22: config is the four contract labels in contract order, each present", async () => {
     const { a, admin } = await x7Harness();
     const res = await a.status(admin);
-    expect((res.body as { config: unknown }).config).toStrictEqual([
+    expect(statusOf(res).config).toStrictEqual([
       { name: "setlist.fm API key", present: true },
       { name: "Spotify client id", present: true },
       { name: "Host Account id", present: true },
@@ -186,7 +193,7 @@ describe("GET /api/admin/status (AC-22 to AC-25)", () => {
     const { a, admin } = await x7Harness();
     await a.store.clear();
     const res = await a.status(admin);
-    expect((res.body as { hostAccount: unknown }).hostAccount).toStrictEqual({ connected: false });
+    expect(statusOf(res).hostAccount).toStrictEqual({ connected: false });
   });
 
   it("AC-22: a stored Host token without displayName → { connected: true } with no displayName key", async () => {
@@ -194,14 +201,14 @@ describe("GET /api/admin/status (AC-22 to AC-25)", () => {
     const { displayName: _dropped, ...noName } = T;
     await a.store.save(noName);
     const res = await a.status(admin);
-    expect((res.body as { hostAccount: unknown }).hostAccount).toStrictEqual({ connected: true });
+    expect(statusOf(res).hostAccount).toStrictEqual({ connected: true });
   });
 
   it("AC-22: a stored Host token of another account → { connected: false }, and the id is not in the answer", async () => {
     const { a, admin } = await x7Harness();
     await a.store.save({ ...T, accountId: "jane.doe.music", displayName: "Jane Doe" });
     const res = await a.status(admin);
-    expect((res.body as { hostAccount: unknown }).hostAccount).toStrictEqual({ connected: false });
+    expect(statusOf(res).hostAccount).toStrictEqual({ connected: false });
     expect(res.text).not.toContain("jane.doe.music");
   });
 
@@ -209,7 +216,7 @@ describe("GET /api/admin/status (AC-22 to AC-25)", () => {
     const { a, admin } = await x7Harness();
     await a.store.save({ ...T, expiresAt: 1795870000000 });
     const res = await a.status(admin);
-    expect((res.body as { hostAccount: unknown }).hostAccount).toStrictEqual({ connected: true, displayName: "playset-host" });
+    expect(statusOf(res).hostAccount).toStrictEqual({ connected: true, displayName: "playset-host" });
     expect(a.login.state.refreshCalls).toEqual([]);
     expect(a.sourceState.asked).toBe(0);
   });
@@ -219,13 +226,13 @@ describe("GET /api/admin/status (AC-22 to AC-25)", () => {
     const admin = await a.loginAsHost();
     const res = await a.status(admin);
     expect(res.status).toBe(200);
-    expect((res.body as { usage: unknown }).usage).toStrictEqual({
+    expect(statusOf(res).usage).toStrictEqual({
       playlistsMade: 0,
       opens: 0,
       perDay: zeroDays("2026-11-28"),
       topArtists: [],
     });
-    expect((res.body as { rateLimitHitsToday: unknown }).rateLimitHitsToday).toBe(0);
+    expect(statusOf(res).rateLimitHitsToday).toBe(0);
     expect(zeroDays("2026-11-28")[29]!.date).toBe("2026-10-30");
   });
 
@@ -237,7 +244,7 @@ describe("GET /api/admin/status (AC-22 to AC-25)", () => {
     ]);
     const a = makeAdminHarness({ usageEvents });
     const admin = await a.loginAsHost();
-    const body = (await a.status(admin)).body as { usage: { playlistsMade: number; opens: number; perDay: unknown } };
+    const body = statusOf(await a.status(admin));
     expect(body.usage.playlistsMade).toBe(1);
     expect(body.usage.opens).toBe(1);
     expect(body.usage.perDay).toStrictEqual(zeroDays("2026-11-28"));
@@ -246,10 +253,7 @@ describe("GET /api/admin/status (AC-22 to AC-25)", () => {
   it("AC-23, AC-25: at 2026-11-29T00:00Z perDay starts with 2026-11-29 (zeros), then 2026-11-28; rateLimitHitsToday 0", async () => {
     const { a, admin } = await x7Harness();
     a.clock.set("2026-11-29T00:00:00.000Z");
-    const body = (await a.status(admin)).body as {
-      usage: { perDay: Array<{ date: string }> };
-      rateLimitHitsToday: number;
-    };
+    const body = statusOf(await a.status(admin));
     expect(body.usage.perDay).toHaveLength(30);
     expect(body.usage.perDay[0]).toStrictEqual({ date: "2026-11-29", created: 0, updated: 0, opened: 0 });
     expect(body.usage.perDay[1]).toStrictEqual({ date: "2026-11-28", created: 2, updated: 1, opened: 3 });
@@ -266,7 +270,7 @@ describe("GET /api/admin/status (AC-22 to AC-25)", () => {
     );
     const a = makeAdminHarness({ usageEvents });
     const admin = await a.loginAsHost();
-    const body = (await a.status(admin)).body as { usage: { topArtists: unknown } };
+    const body = statusOf(await a.status(admin));
     expect(body.usage.topArtists).toStrictEqual(
       ["ABBA", "Bjork", "Coldplay", "Daft Punk", "Elbow", "Feist", "Genesis", "Haim", "Interpol", "Jamiroquai"].map((artist) => ({
         artist,
@@ -287,7 +291,7 @@ describe("GET /api/admin/status (AC-22 to AC-25)", () => {
     ]);
     const a = makeAdminHarness({ usageEvents });
     const admin = await a.loginAsHost();
-    const body = (await a.status(admin)).body as { usage: { topArtists: unknown } };
+    const body = statusOf(await a.status(admin));
     expect(body.usage.topArtists).toStrictEqual([
       { artist: "Zed", playlistCount: 2 },
       { artist: "Alpha", playlistCount: 1 },
@@ -308,7 +312,7 @@ describe("GET /api/admin/status (AC-22 to AC-25)", () => {
     const { a, admin } = await x7Harness();
     await a.status(admin);
     await a.status(admin);
-    const body = (await a.status(admin)).body as { usage: { playlistsMade: number; opens: number } };
+    const body = statusOf(await a.status(admin));
     expect(body.usage.playlistsMade).toBe(6);
     expect(body.usage.opens).toBe(5);
   });
@@ -357,6 +361,13 @@ describe("POST /api/admin/logout (AC-26)", () => {
     const a = makeAdminHarness();
     const admin = await a.loginAsHost();
     expectCleared(await logout(a, admin).set("X-Forwarded-Proto", "https"), true);
+  });
+
+  it("AC-19, AC-26: with PLAYSET_TRUST_PROXY=0 the cleared cookie has no Secure whatever the header says", async () => {
+    const a = makeAdminHarness({ env: { PLAYSET_TRUST_PROXY: "0" } });
+    const admin = await a.loginAsHost();
+    expectCleared(await logout(a, admin).set("X-Forwarded-Proto", "https"), false);
+    expect(await a.store.read()).toStrictEqual(T);
   });
 
   it("AC-26: {\"all\":true} → 400 E-27, nothing cleared, the Host token unchanged", async () => {

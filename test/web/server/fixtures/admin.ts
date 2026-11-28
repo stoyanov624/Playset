@@ -171,6 +171,8 @@ export interface AdminHarnessOptions extends HarnessOptions {
 export function makeAdminHarness(opts: AdminHarnessOptions = {}) {
   const h = makeHarness(opts);
   const inner: HostTokenStoreLike = opts.hostTokenStore ?? createMemoryHostTokenStore();
+  // A thin spy around the real store: it counts saves and clears and can make one save fail. What the
+  // store keeps is checked on the real adapters (memory and SQLite) in host-token-store.test.ts.
   const storeState = { saves: 0, clears: 0, saveFails: undefined as unknown };
   const store: HostTokenStoreLike = {
     read: () => inner.read(),
@@ -193,6 +195,7 @@ export function makeAdminHarness(opts: AdminHarnessOptions = {}) {
     now: () => h.clock.ms,
     logger: h.log.logger,
   });
+  // Counts the asks to the real Host token source; the source itself is not replaced.
   const sourceState = { asked: 0 };
   const hostTokens = {
     getAccessToken(): Promise<string | undefined> {

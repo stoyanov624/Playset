@@ -131,8 +131,27 @@ describe("exchangeAuthorizationCode (AC-1, AC-2)", () => {
     const { deps } = setup([grantWithoutRefresh]);
     const err = await captureError(exchange(deps));
     expect(err).toBeInstanceOf(TokenError);
+    expect((err as TokenError).spotifyError).toBeUndefined();
+    expect(errorText(err)).not.toMatch(/invalid_(grant|client|request)/);
     expectNoSecrets(err);
   });
+
+  for (const [label, answer] of [
+    ["a non-JSON body", () => new Response("<html>oops</html>", { status: 200 })],
+    ["an empty body", () => new Response("", { status: 200 })],
+    ["no access_token", jsonResponse(200, { token_type: "Bearer", expires_in: 3600, refresh_token: HOST_REFRESH_TOKEN })],
+    ["an empty access_token", jsonResponse(200, { access_token: "", expires_in: 3600, refresh_token: HOST_REFRESH_TOKEN })],
+    ["no expires_in", jsonResponse(200, { access_token: HOST_ACCESS_TOKEN, refresh_token: HOST_REFRESH_TOKEN })],
+  ] as const) {
+    it(`AC-2: a 200 with ${label} rejects with a token error naming no Spotify error`, async () => {
+      const { deps } = setup([answer]);
+      const err = await captureError(exchange(deps));
+      expect(err).toBeInstanceOf(TokenError);
+      expect((err as TokenError).spotifyError).toBeUndefined();
+      expect(errorText(err)).not.toMatch(/invalid_(grant|client|request)/);
+      expectNoSecrets(err);
+    });
+  }
 
   it("AC-2: a 400 OAuth error rejects with a token error naming invalid_grant and its description", async () => {
     const { deps } = setup([invalidCode]);
@@ -177,10 +196,11 @@ describe("exchangeAuthorizationCode (AC-1, AC-2)", () => {
   });
 
   it("AC-2: 429 three times → the core's rate-limit error after exactly 3 requests", async () => {
-    const { deps, fetch } = setup([rateLimited(1), rateLimited(1), rateLimited(1), hostGrantAnswer]);
+    const { deps, fetch, sleep } = setup([rateLimited(1), rateLimited(1), rateLimited(1), hostGrantAnswer]);
     const err = await captureError(exchange(deps));
     expect(err).toBeInstanceOf(RateLimitError);
     expect(fetch).toHaveBeenCalledTimes(3);
+    expect(sleep.mock.calls).toEqual([[1000], [1000]]);
     expectNoSecrets(err);
   });
 });
@@ -254,16 +274,27 @@ describe("refreshAccessToken (AC-3, AC-4)", () => {
     });
   }
 
-  it("AC-4: 429 Retry-After: 2 then 200 → waits 2 s and resolves; 429 three times → rate-limit error after 3 requests", async () => {
-    const first = setup([rateLimited(2), refreshedKept]);
-    expect((await refresh(first.deps)).accessToken).toBe("BQDhost-refreshed");
-    expect(first.sleep).toHaveBeenCalledWith(2000);
-    expect(first.fetch).toHaveBeenCalledTimes(2);
+  it("AC-4: 429 Retry-After: 2 then 200 → waits 2 s once and resolves", async () => {
+    const { deps, fetch, sleep } = setup([rateLimited(2), refreshedKept]);
+    expect((await refresh(deps)).accessToken).toBe("BQDhost-refreshed");
+    expect(sleep.mock.calls).toEqual([[2000]]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
 
-    const second = setup([rateLimited(1), rateLimited(1), rateLimited(1), refreshedKept]);
-    const err = await captureError(refresh(second.deps));
+  it("AC-4: 429 three times → rate-limit error after 3 requests and exactly 2 waits", async () => {
+    const { deps, fetch, sleep } = setup([rateLimited(1), rateLimited(1), rateLimited(1), refreshedKept]);
+    const err = await captureError(refresh(deps));
     expect(err).toBeInstanceOf(RateLimitError);
-    expect(second.fetch).toHaveBeenCalledTimes(3);
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(sleep.mock.calls).toEqual([[1000], [1000]]);
+    expectNoSecrets(err);
+  });
+
+  it("AC-4: a 200 with a non-JSON body rejects with a token error naming no Spotify error", async () => {
+    const { deps } = setup([() => new Response("not json", { status: 200 })]);
+    const err = await captureError(refresh(deps));
+    expect(err).toBeInstanceOf(TokenError);
+    expect((err as TokenError).spotifyError).toBeUndefined();
     expectNoSecrets(err);
   });
 });
@@ -335,7 +366,7 @@ describe("fetchSpotifyAccount (AC-5, AC-6)", () => {
     expect(err).toBeInstanceOf(SpotifyAccountError);
     expect((err as SpotifyAccountError).status).toBe(429);
     expect(fetch).toHaveBeenCalledTimes(3);
-    expect(sleep).toHaveBeenCalledWith(2000);
+    expect(sleep.mock.calls).toEqual([[2000], [2000]]);
     expectNoSecrets(err);
   });
 
@@ -346,8 +377,22 @@ describe("fetchSpotifyAccount (AC-5, AC-6)", () => {
       displayName: "playset-host",
     });
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(sleep).toHaveBeenCalledWith(2000);
+    expect(sleep.mock.calls).toEqual([[2000]]);
   });
+
+  for (const [label, answer] of [
+    ["a non-JSON body", () => new Response("<html>oops</html>", { status: 200 })],
+    ["an empty body", () => new Response("", { status: 200 })],
+    ["a JSON null body", jsonResponse(200, null)],
+  ] as const) {
+    it(`AC-5: a 200 /me with ${label} rejects with a SpotifyAccountError without status`, async () => {
+      const { deps } = setup([answer]);
+      const err = await captureError(fetchSpotifyAccount(deps, HOST_ACCESS_TOKEN));
+      expect(err).toBeInstanceOf(SpotifyAccountError);
+      expect((err as SpotifyAccountError).status).toBeUndefined();
+      expectNoSecrets(err);
+    });
+  }
 
   it("AC-6: a network failure rejects with a SpotifyAccountError without status", async () => {
     const { deps } = setup([networkFailure]);

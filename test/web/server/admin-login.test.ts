@@ -1,7 +1,9 @@
 // The Host login (X4, X5, X9): /admin/login sends the admin to Spotify with a signed login cookie;
 // /admin/callback checks the query, the cookie, the state and the account, then keeps the Host token
 // and sets the admin cookie. Every failure is a redirect code; no id, token or secret leaves the server.
+import request from "supertest";
 import { describe, expect, it } from "vitest";
+import type { TokenGrant } from "../../../src/core/spotify-auth";
 import {
   ADMIN_NEVER,
   AUTHORIZE_ENDPOINT,
@@ -122,7 +124,6 @@ describe("GET /admin/login (AC-13, AC-19)", () => {
   it("AC-13: an existing admin cookie is left as it is (no admin cookie set or cleared)", async () => {
     const a = makeAdminHarness();
     const admin = await a.loginAsHost();
-    const { default: request } = await import("supertest");
     const res = await request(a.app).get("/admin/login").set("X-Forwarded-For", A).set("Cookie", admin);
     expect(res.status).toBe(302);
     expect(cookieNamed(res, "playset_admin")).toBeUndefined();
@@ -389,6 +390,13 @@ describe("GET /admin/callback for another account (AC-17, AC-27)", () => {
 // ---------------------------------------------------------------- /admin/callback: upstream and internal
 
 describe("GET /admin/callback when Spotify or the store fails (AC-18, AC-27)", () => {
+  /** The message of the one failure the test arranged (exchange, account fetch or store save). */
+  const causeMessage = (a: AdminHarness): string => {
+    const cause = a.login.state.exchangeFails ?? a.login.state.accountFails ?? a.storeState.saveFails;
+    expect(cause).toBeInstanceOf(Error);
+    return (cause as Error).message;
+  };
+
   const upstream: Array<[string, (a: AdminHarness) => Promise<void>]> = [
     ["exchangeCode rejects with a network token error", async (a) => void (a.login.state.exchangeFails = await tokenError("network"))],
     ["exchangeCode rejects with a 503 token error", async (a) => void (a.login.state.exchangeFails = await tokenError("503"))],
@@ -408,7 +416,9 @@ describe("GET /admin/callback when Spotify or the store fails (AC-18, AC-27)", (
       expectCallbackAnswer(res, "/admin?login=UPSTREAM_UNAVAILABLE");
       expectNoAdminCookie(res);
       expect(await a.store.read()).toBeUndefined();
-      expect(a.log.of("warn")).toHaveLength(1);
+      const warnings = a.log.of("warn");
+      expect(warnings).toHaveLength(1);
+      expect(a.log.textOf(warnings[0]!)).toContain(causeMessage(a));
       expect(a.log.of("error")).toEqual([]);
       expect(a.log.of("info").filter((c) => c.message === CONNECTED)).toEqual([]);
       expectNoAdminLeaks(res);
@@ -432,7 +442,9 @@ describe("GET /admin/callback when Spotify or the store fails (AC-18, AC-27)", (
       expectCallbackAnswer(res, "/admin?login=INTERNAL");
       expectNoAdminCookie(res);
       expect(await a.store.read()).toBeUndefined();
-      expect(a.log.of("error")).toHaveLength(1);
+      const errors = a.log.of("error");
+      expect(errors).toHaveLength(1);
+      expect(a.log.textOf(errors[0]!)).toContain(causeMessage(a));
       expect(a.log.of("warn")).toEqual([]);
       expect(a.log.of("info").filter((c) => c.message === CONNECTED)).toEqual([]);
       expectNoAdminLeaks(res);
@@ -470,5 +482,52 @@ describe("GET /admin/callback when Spotify or the store fails (AC-18, AC-27)", (
     const text = a.log.textOf(a.log.of("error")[0]!);
     expect(text).toContain("me failed for [redacted] ([redacted]) refresh [redacted] cookie [redacted]");
     expectLogsClean(a, [s.loginCookie.value, a.login.state.exchangeCalls[0]!.codeVerifier]);
+  });
+});
+
+// ---------------------------------------------------------------- callbacks at the same time
+
+describe("GET /admin/callback twice at the same time (AC-14, AC-15, AC-18)", () => {
+  it("AC-14, AC-18: the same callback sent twice at once → one /admin, the other INTERNAL (Spotify's code is single-use), the Host token kept", async () => {
+    const a = makeAdminHarness();
+    const s = await a.startLogin();
+    // Spotify takes a code once: the second exchange of it answers invalid_grant.
+    const codeUsed = await tokenError("invalid_grant");
+    const realExchange = a.login.hostLogin.exchangeCode;
+    let exchanges = 0;
+    a.login.hostLogin.exchangeCode = async (args) => {
+      exchanges++;
+      if (exchanges > 1) throw codeUsed;
+      return realExchange(args);
+    };
+    const [one, two] = await Promise.all([a.callback(good(s), s.cookie), a.callback(good(s), s.cookie)]);
+    expect([one.headers.location, two.headers.location].sort()).toEqual(["/admin", "/admin?login=INTERNAL"]);
+    const winner = one.headers.location === "/admin" ? one : two;
+    const loser = winner === one ? two : one;
+    expect(cookieNamed(winner, "playset_admin")).not.toBeUndefined();
+    expectNoAdminCookie(loser);
+    expect(await a.store.read()).toStrictEqual(T);
+    expect(a.log.of("error")).toHaveLength(1);
+    expect(a.log.of("info").filter((c) => c.message === CONNECTED)).toHaveLength(1);
+    expectNoAdminLeaks(one);
+    expectNoAdminLeaks(two);
+  });
+
+  it("AC-15: two Host logins finishing at once → the store holds exactly one of the two Host tokens, whole", async () => {
+    const a = makeAdminHarness();
+    const first = await a.startLogin();
+    const second = await a.startLogin();
+    const grants: TokenGrant[] = [
+      { accessToken: "BQDhost-login-one", refreshToken: "AQChost-login-one", expiresAt: 1795879800001 },
+      { accessToken: "BQDhost-login-two", refreshToken: "AQChost-login-two", expiresAt: 1795879800002 },
+    ];
+    let next = 0;
+    a.login.hostLogin.exchangeCode = async () => ({ ...grants[next++]! });
+    const answers = await Promise.all([a.callback(good(first), first.cookie), a.callback(good(second), second.cookie)]);
+    expect(answers.map((r) => r.headers.location)).toEqual(["/admin", "/admin"]);
+    const stored = await a.store.read();
+    const asStored = grants.map((g) => ({ ...T, ...g }));
+    expect(asStored).toContainEqual(stored);
+    expect(a.log.of("info").filter((c) => c.message === CONNECTED)).toHaveLength(2);
   });
 });

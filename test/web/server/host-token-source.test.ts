@@ -224,8 +224,9 @@ describe("the source through the app (AC-9, AC-15)", () => {
     const names = frameNames(parseSse(own.body as string).frames);
     expect(names.slice(-1)).toEqual(["preview"]);
     expect(names.slice(0, -1)).toEqual(progressNames(5));
-    expect(a.sourceState.asked).toBeGreaterThanOrEqual(1);
-    expect(a.matchSearches.length).toBeGreaterThanOrEqual(5);
+    // One ask per preview; one Match search per Performance, the repeated Brianstorm searched twice.
+    expect(a.sourceState.asked).toBe(1);
+    expect(a.matchSearches.map((s) => s.title)).toEqual(["Brianstorm", "Do I Wanna Know?", "R U Mine?", "Brianstorm", "505"]);
     expect(new Set(a.matchSearches.map((s) => s.accessToken))).toEqual(new Set([HOST_TOKEN]));
     expect(a.login.calls()).toBe(0);
   });

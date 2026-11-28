@@ -125,14 +125,50 @@ describe("the SQLite Host token store (AC-7, AC-8)", () => {
     expect(all).not.toContain(HOST_TOKEN);
   });
 
-  it("AC-8: the tables hold no column for an address", () => {
+  it("AC-8: after many saves straight to the SQLite store, one row in one table holds a token: the last one", async () => {
     const db = new Database(":memory:");
-    createSqliteStore(db);
-    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>;
-    for (const table of tables) {
-      const columns = db.prepare(`PRAGMA table_info("${table.name}")`).all() as Array<{ name: string }>;
-      for (const column of columns) expect(column.name.toLowerCase()).not.toMatch(/(^|_)ip($|_)|address/);
+    const store = createSqliteStore(db).hostTokenStore;
+    for (let i = 1; i <= 5; i++) {
+      await store.save({ ...T, accessToken: `BQDhost-save-${i}`, refreshToken: `AQChost-save-${i}`, expiresAt: T.expiresAt + i });
     }
+    const dump = dumpTables(db);
+    const withToken = dump.filter((t) => JSON.stringify(t.rows).includes("BQDhost-") || JSON.stringify(t.rows).includes("AQChost-"));
+    expect(withToken).toHaveLength(1);
+    expect(withToken[0]!.rows).toHaveLength(1);
+    const all = JSON.stringify(dump);
+    for (let i = 1; i <= 4; i++) {
+      expect(all).not.toContain(`BQDhost-save-${i}"`);
+      expect(all).not.toContain(`AQChost-save-${i}"`);
+    }
+    expect(await store.read()).toStrictEqual({
+      ...T,
+      accessToken: "BQDhost-save-5",
+      refreshToken: "AQChost-save-5",
+      expiresAt: T.expiresAt + 5,
+    });
+  });
+
+  it("AC-8: after a clear no table holds a token at all", async () => {
+    const db = new Database(":memory:");
+    const store = createSqliteStore(db).hostTokenStore;
+    await store.save(T);
+    await store.clear();
+    const all = JSON.stringify(dumpTables(db));
+    expect(all).not.toContain(HOST_TOKEN);
+    expect(all).not.toContain(T.refreshToken);
+  });
+
+  it("AC-7: the stored Host token survives a restart (the database's bytes reopened as a new connection)", async () => {
+    const db = new Database(":memory:");
+    await createSqliteStore(db).hostTokenStore.save(T);
+    // A restart without a file on disk: the whole database, copied into a fresh connection.
+    const reopened = new Database(db.serialize());
+    db.close();
+    const after = createSqliteStore(reopened).hostTokenStore;
+    expect(await after.read()).toStrictEqual(T);
+    await after.clear();
+    const again = new Database(reopened.serialize());
+    expect(await createSqliteStore(again).hostTokenStore.read()).toBeUndefined();
   });
 });
 
@@ -198,11 +234,14 @@ describe("readUsage (AC-23, AC-24)", () => {
     ]);
   });
 
-  it("AC-23: readUsage leaves the events unchanged (countPlaylistsMade before and after)", async () => {
-    const sqlite = createSqliteStore(new Database(":memory:")).events;
+  it("AC-23: readUsage leaves the stored events unchanged and gives the same usage when read again", async () => {
+    const db = new Database(":memory:");
+    const sqlite: UsageEventsLike = createSqliteStore(db).events;
     await recordAll(sqlite);
-    const before = await sqlite.countPlaylistsMade("2026-11-28");
-    await sqlite.readUsage("2026-11-28");
-    expect(await sqlite.countPlaylistsMade("2026-11-28")).toBe(before);
+    const before = dumpTables(db);
+    const first = await sqlite.readUsage("2026-11-28");
+    await sqlite.readUsage("2026-11-29");
+    expect(dumpTables(db)).toStrictEqual(before);
+    expect(await sqlite.readUsage("2026-11-28")).toStrictEqual(first);
   });
 });
