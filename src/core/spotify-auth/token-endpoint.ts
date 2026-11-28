@@ -14,7 +14,8 @@ export interface TokenEndpointDeps {
   now: () => number;
 }
 
-export interface TokenGrant {
+/** What the token endpoint gave: a code exchange always carries a refresh token, a refresh may not. */
+export interface TokenAnswer {
   accessToken: string;
   refreshToken?: string;
   /** Absolute expiry, epoch ms: time of response + expires_in. */
@@ -25,7 +26,7 @@ export interface TokenGrant {
  * One form-encoded POST to Spotify's token endpoint (no client secret, no Authorization header).
  * Retries on 429 honouring Retry-After, at most MAX_TOKEN_ATTEMPTS in total.
  */
-export async function requestToken(deps: TokenEndpointDeps, form: Record<string, string>): Promise<TokenGrant> {
+export async function requestToken(deps: TokenEndpointDeps, form: Record<string, string>): Promise<TokenAnswer> {
   const request = createRequester(
     {
       name: "Spotify's token endpoint",
@@ -78,13 +79,13 @@ function tokenErrorFrom(status: number, payload: Record<string, unknown> | null,
   });
 }
 
-function toGrant(payload: Record<string, unknown> | null, receivedAt: number): TokenGrant {
+function toGrant(payload: Record<string, unknown> | null, receivedAt: number): TokenAnswer {
   const accessToken = payload?.access_token;
   const expiresIn = payload?.expires_in;
   if (typeof accessToken !== "string" || accessToken === "" || typeof expiresIn !== "number") {
     throw new TokenError("Spotify's token endpoint sent an unexpected response.");
   }
-  const grant: TokenGrant = { accessToken, expiresAt: receivedAt + expiresIn * 1000 };
+  const grant: TokenAnswer = { accessToken, expiresAt: receivedAt + expiresIn * 1000 };
   if (typeof payload?.refresh_token === "string" && payload.refresh_token !== "") {
     grant.refreshToken = payload.refresh_token;
   }

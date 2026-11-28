@@ -1,13 +1,13 @@
 // What every Visitor route shares within one app: the injected services and stores, the failure log, the
 // Host token, Playset's refusals, usage events, and how a route reads its input and sends its answer.
-import type { ErrorRequestHandler, Request, Response } from "express";
+import express, { type ErrorRequestHandler, type Request, type Response } from "express";
 import type {
   HostPlaylistServices,
   RunServices,
   SetlistBrowsingServices,
   SetlistPlaylistRecords,
 } from "../../../core/index.js";
-import { VisitorError, type CatalogueEntry } from "../catalogue.js";
+import { CATALOGUE, VisitorError, type CatalogueEntry } from "../catalogue.js";
 import type { WebConfig } from "../config.js";
 import type { FailureLog } from "../logging.js";
 import { checked, type Schema } from "../shapes.js";
@@ -40,6 +40,28 @@ export function parsed<T>(schema: Schema<T>, value: unknown, entry: CatalogueEnt
   const result = schema.safeParse(value);
   if (!result.success) throw new VisitorError(entry);
   return result.data;
+}
+
+/** 10 kB: no body a Visitor or the admin sends needs more. */
+const BODY_LIMIT_BYTES = 10 * 1024;
+
+const jsonBody = express.json({ limit: BODY_LIMIT_BYTES });
+
+/**
+ * Reads a JSON body into `req.body` (left undefined when none is sent). A body too large, or not JSON, is
+ * the sender's error (`invalid`), never logged.
+ */
+export function readJsonBody(req: Request, res: Response, invalid: CatalogueEntry): Promise<void> {
+  return new Promise((resolve, reject) => {
+    jsonBody(req, res, (error?: unknown) => {
+      if (error === undefined) {
+        resolve();
+        return;
+      }
+      const tooLarge = (error as { type?: unknown }).type === "entity.too.large";
+      reject(new VisitorError(tooLarge ? CATALOGUE.bodyTooLarge : invalid));
+    });
+  });
 }
 
 /** Answers with `value` once the contract's response schema accepts it. */

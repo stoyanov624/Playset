@@ -56,3 +56,13 @@ export class PortInUseError extends PlaysetError {
     });
   }
 }
+
+/** Asking Spotify who logged in (`/me`) failed. */
+export class SpotifyAccountError extends PlaysetError {
+  /** Spotify's HTTP status; absent when Spotify couldn't be reached or sent no account id. */
+  readonly status?: number;
+  constructor(message: string, options: { status?: number | undefined; cause?: unknown } = {}) {
+    super(message, { cause: options.cause });
+    if (options.status !== undefined) this.status = options.status;
+  }
+}

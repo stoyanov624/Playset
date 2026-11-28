@@ -2,6 +2,9 @@
 // reads the environment. A bad config stops startup with every problem named, never a value.
 import { z } from "zod";
 
+/** The server listens on the loopback address only; the Host login's redirect URI uses it too. */
+export const LISTEN_HOST = "127.0.0.1";
+
 export interface WebConfig {
   setlistFmApiKey: string;
   spotifyClientId: string;

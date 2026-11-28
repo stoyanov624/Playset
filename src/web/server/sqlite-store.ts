@@ -1,10 +1,11 @@
-// The SQLite adapter of the records, cached previews and usage events: the only place with SQL, and
-// every value goes in as a parameter. Cached previews are stored whole, Match URIs and Miss queries
-// included, because create-or-update puts exactly the previewed Matches in.
+// The SQLite adapter of the records, cached previews, usage events and the stored Host token: the only
+// place with SQL, and every value goes in as a parameter. Cached previews are stored whole, Match URIs
+// and Miss queries included, because create-or-update puts exactly the previewed Matches in.
 import type { Database } from "better-sqlite3";
 import type { MatchPreview, SetlistPlaylistRecord, SetlistPlaylistRecords } from "../../core/index.js";
 import { z } from "zod";
-import { PLAYLIST_MADE_KINDS, type UsageEvents } from "./usage-events.js";
+import type { HostTokenStore, StoredHostToken } from "./host-tokens.js";
+import { PLAYLIST_MADE_KINDS, topArtistsOf, usageDays, type UsageEventKind, type UsageEvents } from "./usage-events.js";
 
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS setlist_playlists (
@@ -29,6 +30,15 @@ const SCHEMA = `
     day TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS usage_events_by_day ON usage_events (day, kind);
+  -- One row at most: only the Host Account's one login is ever kept.
+  CREATE TABLE IF NOT EXISTS host_token (
+    slot INTEGER PRIMARY KEY CHECK (slot = 1),
+    account_id TEXT NOT NULL,
+    display_name TEXT,
+    access_token TEXT NOT NULL,
+    refresh_token TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
 `;
 
 const matchShape = z.object({ kind: z.literal("match"), uri: z.string(), name: z.string(), artists: z.array(z.string()) });
@@ -78,8 +88,20 @@ interface RecordRow {
   created_at: string;
 }
 
+interface HostTokenRow {
+  account_id: string;
+  display_name: string | null;
+  access_token: string;
+  refresh_token: string;
+  expires_at: number;
+}
+
 /** Creates the tables if missing (an existing database keeps every row) and gives its stores. */
-export function createSqliteStore(db: Database): { records: SetlistPlaylistRecords; events: UsageEvents } {
+export function createSqliteStore(db: Database): {
+  records: SetlistPlaylistRecords;
+  events: UsageEvents;
+  hostTokenStore: HostTokenStore;
+} {
   db.exec(SCHEMA);
 
   const findRecord = db.prepare<[string], RecordRow>(
@@ -98,9 +120,27 @@ export function createSqliteStore(db: Database): { records: SetlistPlaylistRecor
     "INSERT INTO usage_events (kind, setlist_id, artist, day) VALUES (?, ?, ?, ?)",
   );
   // The same kinds as the memory adapter counts (isPlaylistMade), one parameter per kind.
+  const madeKinds = PLAYLIST_MADE_KINDS.map(() => "?").join(", ");
   const countPlaylistsMade = db.prepare<[string, ...string[]], { made: number }>(
-    `SELECT COUNT(*) AS made FROM usage_events WHERE day = ? AND kind IN (${PLAYLIST_MADE_KINDS.map(() => "?").join(", ")})`,
+    `SELECT COUNT(*) AS made FROM usage_events WHERE day = ? AND kind IN (${madeKinds})`,
   );
+
+  const countByKind = db.prepare<[], { kind: UsageEventKind; n: number }>(
+    "SELECT kind, COUNT(*) AS n FROM usage_events GROUP BY kind",
+  );
+  const countByDayAndKind = db.prepare<[string, string], { day: string; kind: UsageEventKind; n: number }>(
+    "SELECT day, kind, COUNT(*) AS n FROM usage_events WHERE day BETWEEN ? AND ? GROUP BY day, kind",
+  );
+  const setlistsPerArtist = db.prepare<string[], { artist: string; n: number }>(
+    `SELECT artist, COUNT(DISTINCT setlist_id) AS n FROM usage_events WHERE kind IN (${madeKinds}) GROUP BY artist`,
+  );
+  const readHostToken = db.prepare<[], HostTokenRow>(
+    "SELECT account_id, display_name, access_token, refresh_token, expires_at FROM host_token WHERE slot = 1",
+  );
+  const saveHostToken = db.prepare<[string, string | null, string, string, number]>(
+    "INSERT OR REPLACE INTO host_token (slot, account_id, display_name, access_token, refresh_token, expires_at) VALUES (1, ?, ?, ?, ?, ?)",
+  );
+  const clearHostToken = db.prepare("DELETE FROM host_token");
 
   const records: SetlistPlaylistRecords = {
     findRecord: async (setlistId) => {
@@ -131,7 +171,48 @@ export function createSqliteStore(db: Database): { records: SetlistPlaylistRecor
       recordEvent.run(kind, setlistId, artist, day);
     },
     countPlaylistsMade: async (day) => countPlaylistsMade.get(day, ...PLAYLIST_MADE_KINDS)?.made ?? 0,
+    readUsage: async (today) => {
+      const days = usageDays(today);
+      const totals = new Map(countByKind.all().map(({ kind, n }) => [kind, n]));
+      const counted = new Map(
+        countByDayAndKind.all(days.at(-1)!, days[0]!).map(({ day, kind, n }) => [`${day} ${kind}`, n]),
+      );
+      const count = (date: string, kind: UsageEventKind) => counted.get(`${date} ${kind}`) ?? 0;
+      return {
+        playlistsMade: PLAYLIST_MADE_KINDS.reduce((sum, kind) => sum + (totals.get(kind) ?? 0), 0),
+        opens: totals.get("opened") ?? 0,
+        perDay: days.map((date) => ({
+          date,
+          created: count(date, "created"),
+          updated: count(date, "updated"),
+          opened: count(date, "opened"),
+        })),
+        topArtists: topArtistsOf(
+          new Map(setlistsPerArtist.all(...PLAYLIST_MADE_KINDS).map(({ artist, n }) => [artist, n])),
+        ),
+      };
+    },
   };
 
-  return { records, events };
+  const hostTokenStore: HostTokenStore = {
+    read: async () => {
+      const row = readHostToken.get();
+      if (row === undefined) return undefined;
+      return {
+        accountId: row.account_id,
+        ...(row.display_name === null ? {} : { displayName: row.display_name }),
+        accessToken: row.access_token,
+        refreshToken: row.refresh_token,
+        expiresAt: row.expires_at,
+      } satisfies StoredHostToken;
+    },
+    save: async ({ accountId, displayName, accessToken, refreshToken, expiresAt }) => {
+      saveHostToken.run(accountId, displayName ?? null, accessToken, refreshToken, expiresAt);
+    },
+    clear: async () => {
+      clearHostToken.run();
+    },
+  };
+
+  return { records, events, hostTokenStore };
 }

@@ -1,6 +1,6 @@
 import { AccessDeniedError, AuthorizationError, StateMismatchError, TokenError } from "./errors.js";
 import { buildAuthorizeUrl, computeCodeChallenge, generateCodeVerifier, generateState } from "./pkce.js";
-import { requestToken, type TokenEndpointDeps, type TokenGrant } from "./token-endpoint.js";
+import { requestToken, type TokenEndpointDeps, type TokenAnswer } from "./token-endpoint.js";
 
 /** What the redirect URI received from Spotify. */
 export interface AuthorizationResult {
@@ -23,7 +23,7 @@ export interface LoginDeps extends TokenEndpointDeps {
 }
 
 /** Full Authorization Code + PKCE login: start receiver → show authorize URL → await callback → exchange code. */
-export async function runLogin(deps: LoginDeps, clientId: string, redirectUri: string): Promise<TokenGrant> {
+export async function runLogin(deps: LoginDeps, clientId: string, redirectUri: string): Promise<TokenAnswer> {
   const codeVerifier = (deps.generateCodeVerifier ?? generateCodeVerifier)();
   const state = (deps.generateState ?? generateState)();
   const authorizeUrl = buildAuthorizeUrl({

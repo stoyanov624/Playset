@@ -1,24 +1,32 @@
 // Starts the web server: reads the config (from `.env` in the working directory too, where a variable
 // already set and not empty wins), opens the SQLite file, builds the core's services once so every Visitor shares
-// setlist.fm's and Spotify's request spacing, and listens on 127.0.0.1 only.
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+// setlist.fm's and Spotify's request spacing, gives every preview and create the Host token kept in the
+// SQLite file, and listens on 127.0.0.1 only.
+import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 import Database from "better-sqlite3";
-import { createMemorySettingsStore, createRunServices } from "../../core/index.js";
 import {
+  createMemorySettingsStore,
+  createRunServices,
+  exchangeAuthorizationCode,
+  fetchSpotifyAccount,
+  refreshAccessToken,
+} from "../../core/index.js";
+import {
+  LISTEN_HOST,
   WebConfigError,
   createApp,
+  createHostTokenSource,
   createRateLimitHitCounter,
   createSqliteStore,
-  notConnectedHostTokenSource,
   readWebConfig,
+  type HostLogin,
   type Logger,
   type WebConfig,
 } from "./index.js";
 
-const HOST = "127.0.0.1";
 const CLIENT_DIR = fileURLToPath(new URL("../../../dist/web/", import.meta.url));
 
 function environment(): Record<string, string | undefined> {
@@ -38,7 +46,24 @@ const logger: Logger = {
 
 function start(config: WebConfig): void {
   mkdirSync(dirname(resolve(config.dataFile)), { recursive: true });
-  const { records, events } = createSqliteStore(new Database(config.dataFile));
+  // The file holds the Host Account's refresh token: readable and writable by its owner only. A new file
+  // is created owner-only before SQLite opens it, so it is never wider for a moment; a file kept from an
+  // older run is narrowed too. SQLite gives its journal and WAL files the same mode as the file.
+  closeSync(openSync(config.dataFile, "a", 0o600));
+  chmodSync(config.dataFile, 0o600);
+  const { records, events, hostTokenStore } = createSqliteStore(new Database(config.dataFile));
+  const spotify = {
+    fetch: (input: string, init?: RequestInit) => fetch(input, init),
+    sleep: (ms: number) => new Promise<void>((done) => setTimeout(done, ms)),
+    now: Date.now,
+  };
+  const clientId = config.spotifyClientId;
+  const hostLogin: HostLogin = {
+    exchangeCode: ({ code, codeVerifier, redirectUri }) =>
+      exchangeAuthorizationCode(spotify, { clientId, redirectUri, code, codeVerifier }),
+    fetchAccount: (accessToken) => fetchSpotifyAccount(spotify, accessToken),
+    refresh: (refreshToken) => refreshAccessToken(spotify, { clientId, refreshToken }),
+  };
   const services = createRunServices({
     env: {},
     settings: createMemorySettingsStore({
@@ -54,22 +79,30 @@ function start(config: WebConfig): void {
     services,
     records,
     events,
-    hostTokens: notConnectedHostTokenSource,
+    hostTokens: createHostTokenSource({
+      store: hostTokenStore,
+      login: hostLogin,
+      hostAccountId: config.hostSpotifyId,
+      now: Date.now,
+      logger,
+    }),
     rateLimitHits: createRateLimitHitCounter(),
     now: Date.now,
     logger,
     clientDir: CLIENT_DIR,
+    hostTokenStore,
+    hostLogin,
   });
   // Express hands a listen failure to this callback too. A port already in use is a setup problem, so it
   // gets one clear line instead of a stack.
-  const server = app.listen(config.port, HOST, (error?: NodeJS.ErrnoException) => {
+  const server = app.listen(config.port, LISTEN_HOST, (error?: NodeJS.ErrnoException) => {
     if (error !== undefined) {
       const reason = error.code === "EADDRINUSE" ? `port ${config.port} is already in use` : error.message;
       logger.error(`Playset can't start: ${reason}.`);
       process.exitCode = 1;
       return;
     }
-    logger.info(`Playset web is running at http://${HOST}:${config.port}`);
+    logger.info(`Playset web is running at http://${LISTEN_HOST}:${config.port}`);
   });
   // A service manager stops the server with SIGTERM: let running requests finish, then exit.
   process.once("SIGTERM", () => {

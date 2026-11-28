@@ -22,7 +22,7 @@ import {
   type SetlistPlaylistRecords,
 } from "../../../../src/core/index.js";
 import { HttpError, createRequester, type RequestPolicy } from "../../../../src/core/http/index.js";
-import { createApp, readWebConfig, type WebServices } from "../../../../src/web/server/index.js";
+import { createApp, readWebConfig, type Usage, type WebServices } from "../../../../src/web/server/index.js";
 import { makeFakeClock, makeRoutedFetch, type RecordedRequest } from "../../../run/fixtures/real-service-fakes";
 import {
   PARTLY_ID,
@@ -207,9 +207,19 @@ export function makeFakeEvents() {
       async countPlaylistsMade(day: string): Promise<number> {
         return recorded.filter((e) => e.day === day && (e.kind === "created" || e.kind === "updated")).length;
       },
+      /**
+       * The admin status numbers are checked only through the admin harness, which uses the server's real
+       * usage events (memory and SQLite, compared in host-token-store.test.ts). This fake only records, so
+       * the Visitor-route tests depend on no server code here; reading usage through it is a test mistake.
+       */
+      async readUsage(_today: string): Promise<Usage> {
+        throw new Error("the fake usage events don't read usage: use makeAdminHarness and the real usage events");
+      },
     },
   };
 }
+
+type FakeEvents = ReturnType<typeof makeFakeEvents>["events"];
 
 export function makeFakeHits() {
   const added: string[] = [];
@@ -263,6 +273,31 @@ export function sharedClientDir(): string {
 
 // ---------------------------------------------------------------- the harness
 
+/** A Host token store in memory, for apps whose Visitor routes get the Host token from a fake source. */
+export function memoryHostTokenStore() {
+  type Stored = { accountId: string; displayName?: string; accessToken: string; refreshToken: string; expiresAt: number };
+  let stored: Stored | undefined;
+  return {
+    async read(): Promise<Stored | undefined> {
+      return stored === undefined ? undefined : { ...stored };
+    },
+    async save(token: Stored): Promise<void> {
+      stored = { ...token };
+    },
+    async clear(): Promise<void> {
+      stored = undefined;
+    },
+  };
+}
+
+/** A Host login no Visitor route may use: every call fails the test. */
+export function neverCalledHostLogin() {
+  const fail = async (): Promise<never> => {
+    throw new Error("no Host login expected on a Visitor route");
+  };
+  return { exchangeCode: fail, fetchAccount: fail, refresh: fail };
+}
+
 export type HostMode = { kind: "connected"; token: string } | { kind: "absent" } | { kind: "rejects"; error: unknown };
 
 type SetlistSource = SetlistFmSetlist | Answer;
@@ -272,7 +307,8 @@ export interface HarnessOptions {
   env?: Record<string, string>;
   setlists?: Record<string, SetlistSource>;
   records?: SetlistPlaylistRecords;
-  events?: ReturnType<typeof makeFakeEvents>["events"];
+  /** Usage events; a hand-built fake may leave out `readUsage`, then the harness reads usage from what it recorded. */
+  events?: Omit<FakeEvents, "readUsage"> & Partial<Pick<FakeEvents, "readUsage">>;
   now?: string;
   clientDir?: string;
   /** null: the core's services have no setlist.fm key. */
@@ -458,7 +494,9 @@ export function makeHarness(opts: HarnessOptions = {}) {
 
   const records = opts.records ?? createMemorySetlistPlaylistRecords();
   const fakeEvents = makeFakeEvents();
-  const events = opts.events ?? fakeEvents.events;
+  const events: FakeEvents = opts.events
+    ? { readUsage: fakeEvents.events.readUsage, ...opts.events }
+    : fakeEvents.events;
   const hits = makeFakeHits();
   const log = makeLogger();
   const clientDir = opts.clientDir ?? sharedClientDir();
@@ -473,6 +511,8 @@ export function makeHarness(opts: HarnessOptions = {}) {
     now: () => clock.ms,
     logger: log.logger,
     clientDir,
+    hostTokenStore: memoryHostTokenStore(),
+    hostLogin: neverCalledHostLogin(),
   });
 
   const isSetlistFm = (r: RecordedRequest) => r.url.hostname === "api.setlist.fm";
