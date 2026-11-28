@@ -1,0 +1,28 @@
+/* The display headings every screen shares; each screen's own sheet adds only its margins. */
+.screenTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
+  font-weight: 800;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+/* The Start headline and the Artist on the Setlist screen grow on wide screens. */
+.leadTitle {
+  composes: screenTitle;
+}
+
+@media (min-width: 64rem) {
+  .leadTitle {
+    font-size: var(--text-3xl);
+    line-height: var(--leading-3xl);
+  }
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: 800;
+}

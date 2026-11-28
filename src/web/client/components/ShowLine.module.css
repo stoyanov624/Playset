@@ -1,0 +1,19 @@
+.line {
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  overflow-wrap: anywhere;
+}
+
+/* On desktop the Show reads as one comma-separated line; it stays a list for screen readers. */
+@media (min-width: 64rem) {
+  .line > li {
+    display: inline;
+  }
+
+  .line > li:not(:last-child)::after {
+    content: ", ";
+  }
+}

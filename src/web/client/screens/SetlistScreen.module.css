@@ -1,0 +1,8 @@
+.flow {
+  max-inline-size: var(--flow-max);
+}
+
+.heading {
+  composes: leadTitle from "../styles/type.module.css";
+  margin: var(--space-6) 0 var(--space-2);
+}

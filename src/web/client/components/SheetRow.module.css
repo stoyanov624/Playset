@@ -1,0 +1,82 @@
+/* One sheet row: the number column, then the title line and the Match or Miss line. */
+.row {
+  display: grid;
+  grid-template-columns: var(--col-number) minmax(0, 1fr);
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  scroll-margin-top: var(--space-8);
+}
+
+.missRow {
+  margin-block: var(--space-1);
+  padding-inline: var(--space-2);
+  background: var(--color-caution-tint);
+  border: 1px solid var(--color-caution);
+}
+
+.number {
+  color: var(--color-ink-soft);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: 600;
+  text-align: end;
+}
+
+.body {
+  min-inline-size: 0;
+}
+
+.titleLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.title {
+  min-inline-size: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+.outcomeLine {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  overflow-wrap: anywhere;
+}
+
+.matchLine {
+  composes: outcomeLine;
+  color: var(--color-ink-soft);
+  animation: ink-in var(--dur-reveal) var(--ease-out);
+}
+
+.track {
+  color: var(--color-ink);
+}
+
+.missLine {
+  composes: outcomeLine;
+  color: var(--color-caution);
+  font-weight: 700;
+}
+
+@keyframes ink-in {
+  from {
+    opacity: 0.35;
+  }
+}

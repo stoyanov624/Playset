@@ -1,0 +1,36 @@
+.progress {
+  max-inline-size: var(--flow-max);
+  margin-block: var(--space-5);
+}
+
+.label {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.bar {
+  display: block;
+  inline-size: 100%;
+  block-size: var(--progress-h);
+  border: 0;
+  border-radius: var(--radius-none);
+  background: var(--color-sunk);
+  accent-color: var(--color-spike);
+  appearance: none;
+}
+
+.bar::-webkit-progress-bar {
+  background: var(--color-sunk);
+}
+
+.bar::-webkit-progress-value {
+  background: var(--color-spike);
+  transition: inline-size var(--dur-reveal) var(--ease-out);
+}
+
+.bar::-moz-progress-bar {
+  background: var(--color-spike);
+}

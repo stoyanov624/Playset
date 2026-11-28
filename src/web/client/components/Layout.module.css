@@ -1,0 +1,90 @@
+.container {
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: var(--page-max);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+@media (min-width: 48rem) {
+  .container {
+    padding-inline: var(--gutter-wide);
+  }
+}
+
+.skip {
+  position: absolute;
+  inset-inline-start: var(--space-4);
+  top: var(--space-2);
+  z-index: 10;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  transform: translateY(-200%);
+}
+
+.skip:focus-visible {
+  transform: none;
+}
+
+.header {
+  border-bottom: var(--border-hair);
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target);
+  padding-block: var(--space-2);
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+@media (hover: hover) {
+  /* The wordmark is the way home, not a primary action: it keeps ink on hover. */
+  .wordmark:hover {
+    color: var(--color-ink);
+  }
+}
+
+.main {
+  display: block;
+  min-block-size: var(--main-min-h);
+  padding-block-end: var(--space-7);
+}
+
+.main:focus {
+  outline: 0;
+}
+
+.footer {
+  margin-block-start: var(--space-7);
+  padding-block: var(--space-5);
+  border-top: var(--border-hair);
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.footerItems p {
+  margin: 0 0 var(--space-2);
+}
+
+.target {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target);
+}
+
+@media (min-width: 64rem) {
+  .footerItems {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: var(--space-6);
+  }
+}

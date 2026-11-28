@@ -1,0 +1,106 @@
+/* The design tokens of docs/design.md: the only place raw colours, sizes and durations are written. */
+:root {
+  color-scheme: light dark;
+
+  --color-paper: #F2F4F7;
+  --color-ink: #1A2233;
+  --color-ink-soft: #4B5568;
+  --color-rule: #C9CFD8;
+  --color-spike: #B5135F;
+  --color-caution: #8A5300;
+  --color-on-spike: #FFFFFF;
+  --color-spike-hover: #961656;
+  --color-sunk: #E7E9ED;
+  --color-caution-tint: #E8E4DE;
+  --color-spike-tint: #EDE2EB;
+
+  --font-display: 'Big Shoulders Display Variable', 'Arial Narrow', sans-serif;
+  --font-text: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif;
+
+  --text-xs: 0.8125rem;
+  --leading-xs: 1.25rem;
+  --text-sm: 0.9375rem;
+  --leading-sm: 1.375rem;
+  --text-base: 1.0625rem;
+  --leading-base: 1.625rem;
+  --text-lg: 1.5rem;
+  --leading-lg: 1.625rem;
+  --text-xl: 2rem;
+  --leading-xl: 2.125rem;
+  --text-2xl: 2.75rem;
+  --leading-2xl: 2.75rem;
+  --text-3xl: 4rem;
+  --leading-3xl: 3.75rem;
+  --measure: 68ch;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  --gutter: var(--space-4);
+  --gutter-wide: var(--space-6);
+  --page-max: 72rem;
+  --flow-max: 44rem;
+  --rail: 20rem;
+  --target: 2.75rem;
+  --control-h: 3rem;
+  --row-h: 4.5rem;
+  --row-h-artist: 3.5rem;
+  --main-min-h: 60vh;
+  --col-number: 3ch;
+  --col-date: 3.5rem;
+  --col-date-wide: 4.5rem;
+
+  --radius-none: 0;
+  --radius-control: 4px;
+  --radius-badge: 2px;
+
+  --border-hair: 1px solid var(--color-rule);
+  --border-control: 1px solid var(--color-ink-soft);
+  --border-strong: 2px solid var(--color-ink);
+  --border-invalid: 2px solid var(--color-caution);
+
+  --underline: 1px;
+  --underline-hover: 2px;
+  --underline-offset: 0.18em;
+  --focus-ring-width: 3px;
+  --focus-ring-offset: 2px;
+  --progress-h: 8px;
+
+  --shadow-bar: 0 -2px 12px #1A22331F;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-quick: 120ms;
+  --dur-reveal: 240ms;
+  --dur-spin: 900ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-paper: #1B2130;
+    --color-ink: #E9EDF3;
+    --color-ink-soft: #A9B2C1;
+    --color-rule: #3A4356;
+    --color-spike: #FF7EB8;
+    --color-caution: #F2B455;
+    --color-on-spike: #1B2130;
+    --color-spike-hover: #FF9ECA;
+    --color-sunk: #252B3A;
+    --color-caution-tint: #303034;
+    --color-spike-tint: #2D283B;
+
+    --shadow-bar: 0 -2px 12px #0000004D;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-quick: 0ms;
+    --dur-reveal: 0ms;
+  }
+}

@@ -1,0 +1,73 @@
+/* The Start screen's two forms: a visible label above, then the input and its button; a field problem sits between them. */
+.form {
+  max-inline-size: var(--flow-max);
+}
+
+.label {
+  display: block;
+  margin-block-end: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: 700;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.input {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-inline-size: 0;
+  block-size: var(--control-h);
+  padding-inline: var(--space-3);
+  border: var(--border-control);
+  border-radius: var(--radius-control);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-text);
+  font-size: var(--text-base);
+  caret-color: var(--color-spike);
+  appearance: none;
+}
+
+/* The search field's built-in decoration would sit outside the design's own field look. */
+.input::-webkit-search-decoration {
+  appearance: none;
+}
+
+.input::placeholder {
+  color: var(--color-ink-soft);
+}
+
+.input[aria-invalid="true"] {
+  border: var(--border-invalid);
+}
+
+@media (hover: hover) {
+  .input:hover {
+    border-color: var(--color-ink);
+  }
+}
+
+@media (min-width: 48rem) {
+  .row {
+    flex-direction: row;
+  }
+
+  .input {
+    flex: 1;
+  }
+
+  /* With a problem shown, its message and hint sit right under the input and the button moves below them. */
+  .invalid {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .invalid .input {
+    flex: none;
+  }
+}

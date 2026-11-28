@@ -1,0 +1,21 @@
+.flow {
+  max-inline-size: var(--flow-max);
+}
+
+.headline {
+  composes: leadTitle from "../styles/type.module.css";
+  margin: var(--space-6) 0 var(--space-4);
+}
+
+.intro {
+  max-inline-size: var(--measure);
+  margin: 0 0 var(--space-6);
+  color: var(--color-ink-soft);
+  text-wrap: pretty;
+}
+
+.rule {
+  margin-block: var(--space-6);
+  border: 0;
+  border-top: var(--border-hair);
+}

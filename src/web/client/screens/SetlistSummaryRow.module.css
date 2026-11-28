@@ -1,0 +1,114 @@
+.row {
+  display: grid;
+  grid-template-columns: var(--col-date) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  min-block-size: var(--row-h);
+  padding-block: var(--space-3);
+  border-bottom: var(--border-hair);
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.row:focus-visible {
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+.date {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.day {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: 800;
+}
+
+.monthYear {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: 700;
+}
+
+.place {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.venue {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.city {
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.count {
+  font-variant-numeric: tabular-nums;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--color-ink-soft);
+}
+
+@media (hover: hover) {
+  /* A row shows hover with the sunk background alone; its text stays ink, not the link pink. */
+  .row:hover {
+    background: var(--color-sunk);
+    color: var(--color-ink);
+  }
+}
+
+/* On desktop the song count and Incomplete badge leave the place block for their own right-aligned column. */
+@media (min-width: 64rem) {
+  .row {
+    grid-template-columns: var(--col-date-wide) minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto;
+    align-content: center;
+    row-gap: 0;
+  }
+
+  .date,
+  .chevron {
+    grid-row: 1 / -1;
+  }
+
+  .place {
+    display: contents;
+  }
+
+  .venue,
+  .city {
+    grid-column: 2;
+  }
+
+  .meta {
+    grid-column: 3;
+    grid-row: 1 / -1;
+    justify-content: flex-end;
+    justify-self: end;
+  }
+
+  .chevron {
+    grid-column: 4;
+  }
+}

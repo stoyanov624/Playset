@@ -1,0 +1,25 @@
+// What the visitor web app asks of Playset's server; the real client and test fakes both implement it.
+import type {
+  ArtistSetlistsResponse,
+  ArtistsResponse,
+  CreatePlaylistResponse,
+  PreviewProgress,
+  PreviewResult,
+  SetlistLinksResponse,
+  SetlistResponse,
+} from "../../shared/index.js";
+
+export interface PreviewOptions {
+  onProgress: (progress: PreviewProgress) => void;
+  signal?: AbortSignal | undefined;
+}
+
+export interface PlaysetApi {
+  searchArtists: (name: string, signal?: AbortSignal) => Promise<ArtistsResponse>;
+  getArtistSetlists: (mbid: string, page: number, signal?: AbortSignal) => Promise<ArtistSetlistsResponse>;
+  readSetlistLink: (url: string, signal?: AbortSignal) => Promise<SetlistLinksResponse>;
+  getSetlist: (id: string, signal?: AbortSignal) => Promise<SetlistResponse>;
+  streamPreview: (id: string, options: PreviewOptions) => Promise<PreviewResult>;
+  /** Never cancelled: once sent, the server finishes the playlist even if the Visitor leaves. */
+  createPlaylist: (id: string, versionId: string) => Promise<CreatePlaylistResponse>;
+}
