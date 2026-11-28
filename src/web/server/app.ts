@@ -51,14 +51,16 @@ const CONTENT_SECURITY_POLICY = {
   },
 };
 
-/** The Host tokens redacted by value: the current one and a few before it, for runs still using them. */
+/**
+ * The Host tokens redacted by value: the current one and a few before it, for runs still using them. Not
+ * every hourly token is kept, so a long-running server doesn't pile them up; older ones are
+ * Spotify-shaped ("BQ…") and the redactor catches them by their shape.
+ */
 const HOST_TOKENS_KEPT = 4;
 
 export function createApp(deps: AppDeps): express.Express {
   const { config, services, records, events, hostTokens, rateLimitHits, now, logger } = deps;
 
-  // Only the newest few Host tokens are kept for redaction, so a long-running server doesn't keep every
-  // hourly token; older ones are Spotify-shaped ("BQ…") and the redactor catches them by their shape.
   const hostTokensSeen = new Set<string>();
   const redact = createRedactor(() => [
     config.setlistFmApiKey,

@@ -2,6 +2,8 @@
 // rate-limit answers per UTC day. Addresses live here only, never in the store or the log.
 
 const HOUR_MS = 60 * 60 * 1000;
+/** How often addresses that have gone quiet are swept out; often enough to stay small, rare enough to be cheap. */
+const SWEEP_EVERY_MS = 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
 /** The UTC day of a moment, as `YYYY-MM-DD`. */
@@ -41,8 +43,15 @@ export function createAddressWindow(limit: number): AddressWindow {
     return moments;
   };
 
-  /** Forgets every address whose newest moment has left the window, so addresses never seen again don't pile up. */
+  let lastSweep = Number.NEGATIVE_INFINITY;
+
+  /**
+   * Forgets every address whose newest moment has left the window, so addresses never seen again don't
+   * pile up. At most once a minute: a busy server shouldn't walk every address on every request.
+   */
   const forgetGone = (now: number) => {
+    if (now - lastSweep < SWEEP_EVERY_MS) return;
+    lastSweep = now;
     for (const [address, moments] of counted) {
       if (!inside(now)(moments[moments.length - 1]!)) counted.delete(address);
     }

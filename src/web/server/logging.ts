@@ -51,6 +51,8 @@ export interface FailureLog {
   failure(error: unknown, entry: CatalogueEntry): void;
   /** Logs a preview run that stopped because every Visitor watching it left. */
   cancelled(error: unknown): void;
+  /** Logs an unexpected failure (a bug, a broken store) of a preview whose Visitor had already left. */
+  failedAfterLeaving(error: unknown): void;
   /** Logs a usage event that couldn't be saved; the Visitor's playlist exists all the same. */
   eventNotRecorded(error: unknown): void;
 }
@@ -80,6 +82,10 @@ export function createFailureLog(logger: Logger, redact: (text: string) => strin
     },
     cancelled(error) {
       write("info", "Preview stopped, nobody is watching it", error);
+    },
+    failedAfterLeaving(error) {
+      // Nobody gets an answer, but a fault Playset didn't expect must still stand out in the log.
+      write("warn", "Preview failed after the Visitor left", error);
     },
     eventNotRecorded(error) {
       // The Visitor's answer is unharmed and the store's message says what failed; no stack is needed.

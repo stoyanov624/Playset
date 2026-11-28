@@ -52,9 +52,10 @@ const cachedPreviewShape = z.object({
 });
 
 /** Every real MatchPreview passes the check: the shape asks only for what a MatchPreview has. */
-type CachedPreviewFits = MatchPreview extends z.infer<typeof cachedPreviewShape> ? true : never;
-const cachedPreviewFits: CachedPreviewFits = true;
-void cachedPreviewFits;
+type CachedPreviewFits = MatchPreview extends z.infer<typeof cachedPreviewShape> ? true : false;
+/** Fails to compile when `CachedPreviewFits` is `false`; nothing of it is left at run time. */
+type Holds<T extends true> = T;
+export type CachedPreviewShapeHolds = Holds<CachedPreviewFits>;
 
 /** The stored cached preview, or undefined when it isn't JSON or isn't a cached preview. */
 function cachedPreviewOf(stored: string): MatchPreview | undefined {
