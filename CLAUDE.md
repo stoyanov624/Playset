@@ -20,6 +20,7 @@ Turns a setlist.fm Setlist into a Spotify Setlist Playlist, through the `playset
   - `src/core/index.ts` exports only what a front-end needs; module `index.ts` files also export internals that tests use.
 - Still Node-only in core: `spotify-auth` (`node:crypto` PKCE, `node:http` loopback receiver) and the settings file adapter.
 - `src/web/shared/` — the web API contract: zod schemas for every route and preview event, inferred types, route paths, error codes, limits. Browser-safe (imports only zod); server and client both import it.
+- `src/web/server/` — Express app for the web: `createApp(deps)` (never listens; tests use fakes), visitor routes of the contract, SSE preview (shared identical runs, abort on disconnect), per-IP/daily limits in memory, one create/update per Setlist at a time, error catalogue with visitor wording, helmet CSP, SQLite store (`better-sqlite3`: records, cached previews, usage events; no IPs). Entry `main.ts`: zod config from env/`.env` (`.env.example`), listens on 127.0.0.1.
 - `src/cli/` — thin: argument parsing (commander), prompts (@inquirer/prompts), printing, interactive shell. No domain rules.
 - `test/` — tests (`*.test.ts`) and fixtures. Shared fixture Fixture A (Arctic Monkeys) is an Incomplete Setlist (its blank-name song is an Unknown Song) and has medleys.
 
