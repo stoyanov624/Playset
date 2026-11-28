@@ -30,7 +30,9 @@ export function clientRoutes(clientDir: string, logger: Logger): Router {
       return;
     }
     res.set("Cache-Control", "no-cache");
-    res.sendFile(indexHtml, { cacheControl: false }, (error) => {
+    // A root keeps send's dot-segment check on the file name only, so a client folder under a
+    // dot-folder (e.g. ~/.local/…) is still served.
+    res.sendFile("index.html", { root: resolve(clientDir), cacheControl: false }, (error) => {
       if (error !== undefined) next(error);
     });
   });

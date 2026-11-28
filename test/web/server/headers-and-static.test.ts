@@ -1,4 +1,7 @@
 // Every answer's headers, the body limit, unknown /api paths and the built client files (X2).
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { expectCatalogueError } from "./fixtures/catalogue";
@@ -230,6 +233,34 @@ describe("the built client (AC-6)", () => {
     const res = await h.get("/api/setlist-links?url=https://www.setlist.fm/setlist/pearl-jam/2026/moda-center-portland-or-2bf1c8e4.html");
     expect(res.status).toBe(200);
     expect(res.body).toStrictEqual({ setlistId: "2bf1c8e4" });
+  });
+});
+
+describe("a client folder under a dot-folder (AC-6)", () => {
+  it("AC-6: the client is served when its folder sits under a dot-folder (e.g. ~/.local/…)", async () => {
+    const root = await mkdtemp(join(tmpdir(), "playset-"));
+    try {
+      const clientDir = join(root, ".hidden", "web");
+      const indexHtml = '<!doctype html><html><body><div id="root">dot-folder client</div></body></html>';
+      const assetJs = 'console.log("dot-folder asset")';
+      await mkdir(join(clientDir, "assets"), { recursive: true });
+      await writeFile(join(clientDir, "index.html"), indexHtml);
+      await writeFile(join(clientDir, "assets", "app.js"), assetJs);
+
+      const h = makeHarness({ clientDir });
+      for (const path of ["/", "/setlists/abc12345"]) {
+        const res = await h.get(path);
+        expect(res.status, path).toBe(200);
+        expect(String(res.headers["content-type"])).toMatch(/^text\/html/);
+        expect(res.text).toBe(indexHtml);
+      }
+      const asset = await h.get("/assets/app.js");
+      expect(asset.status).toBe(200);
+      expect(String(asset.headers["content-type"])).toMatch(/javascript/);
+      expect(asset.text).toBe(assetJs);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 
