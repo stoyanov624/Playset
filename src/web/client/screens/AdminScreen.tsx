@@ -1,5 +1,4 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { adminPageQuerySchema, type AdminStatusResponse } from "../../shared/index.js";
 import { ApiCallError, type PlaysetApi } from "../api/index.js";
@@ -29,9 +28,6 @@ async function readStatus(api: PlaysetApi, signal: AbortSignal): Promise<AdminAn
   }
 }
 
-// Each opening of the page is its own request, so the numbers and the Host Account are current.
-let openings = 0;
-
 /** `/admin`: the Host Account's status, config and usage for its admin, and the way to log in and out. */
 export function AdminScreen() {
   const api = useApi();
@@ -40,11 +36,13 @@ export function AdminScreen() {
   const [searchParams] = useSearchParams();
   useDocumentTitle("Admin – Playset");
 
-  const [opening] = useState(() => (openings += 1));
+  // Each opening of the page is its own request, so the numbers and the Host Account are current:
+  // the answer is dropped once the page is left, and a new opening asks again.
   const answer = useQuery({
-    queryKey: ["admin-status", opening],
+    queryKey: ["admin-status"],
     queryFn: ({ signal }) => readStatus(api, signal),
     gcTime: 0,
+    refetchOnMount: "always",
   });
   const shownError = useShownError(answer.error, answer.isFetching);
 

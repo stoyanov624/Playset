@@ -2,7 +2,12 @@ import type { ErrorCode } from "../../shared/index.js";
 import { AlertBox } from "../components/AlertBox.js";
 import { Heading } from "../components/Heading.js";
 
-/** The login comes back with only a code, so the words are the page's own. */
+/**
+ * The login comes back with only a code, so the words are the page's own. The server's admin login
+ * callback (web contract) sends NOT_ADMIN for another account, INVALID_INPUT for a denied consent or a missing,
+ * wrong or unreadable answer, UPSTREAM_UNAVAILABLE when Spotify can't be reached, and INTERNAL otherwise;
+ * a code without its own words here gets the general one.
+ */
 function wording(code: ErrorCode): { title: string; body: string } {
   switch (code) {
     case "NOT_ADMIN":

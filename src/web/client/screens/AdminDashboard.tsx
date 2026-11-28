@@ -4,6 +4,7 @@ import { Heading } from "../components/Heading.js";
 import { counted, formatCount } from "../format.js";
 import { AdminHostAccount } from "./AdminHostAccount.js";
 import { AdminUsageTable } from "./AdminUsageTable.js";
+import admin from "./admin.module.css";
 import styles from "./AdminDashboard.module.css";
 
 /** The Host Account's state, the required config (names only) and the usage numbers. */
@@ -15,7 +16,7 @@ export function AdminDashboard({ status }: { status: AdminStatusResponse }) {
       <div className={styles.overview}>
         <div>
           <AdminHostAccount hostAccount={status.hostAccount} />
-          <Heading level={2} className={styles.section}>
+          <Heading level={2} className={admin.section}>
             Config
           </Heading>
           {status.config.length === 0 ? (
@@ -25,9 +26,9 @@ export function AdminDashboard({ status }: { status: AdminStatusResponse }) {
               {status.config.map((item) => (
                 <li key={item.name} className={styles.configItem}>
                   {item.present ? (
-                    <CircleCheck size={20} aria-hidden="true" className={styles.icon} />
+                    <CircleCheck size={20} aria-hidden="true" className={admin.icon} />
                   ) : (
-                    <CircleX size={20} aria-hidden="true" className={`${styles.icon} ${styles.missing}`} />
+                    <CircleX size={20} aria-hidden="true" className={`${admin.icon} ${styles.missing}`} />
                   )}
                   <span className={styles.configName}>{item.name}</span>{" "}
                   {item.present ? <span>present</span> : <span className={styles.missing}>missing</span>}
@@ -37,7 +38,7 @@ export function AdminDashboard({ status }: { status: AdminStatusResponse }) {
           )}
         </div>
         <div>
-          <Heading level={2} className={styles.section}>
+          <Heading level={2} className={admin.section}>
             Usage
           </Heading>
           <dl className={styles.usage}>
@@ -57,12 +58,12 @@ export function AdminDashboard({ status }: { status: AdminStatusResponse }) {
         </div>
       </div>
 
-      <Heading level={2} className={styles.section}>
+      <Heading level={2} className={admin.section}>
         Last 30 days
       </Heading>
       {quietDays ? <p className={styles.empty}>Nothing in the last 30 days.</p> : <AdminUsageTable days={usage.perDay} />}
 
-      <Heading level={2} className={styles.section}>
+      <Heading level={2} className={admin.section}>
         Top Artists
       </Heading>
       {usage.topArtists.length === 0 ? (

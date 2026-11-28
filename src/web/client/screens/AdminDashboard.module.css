@@ -1,8 +1,3 @@
-.section {
-  composes: sectionTitle from "../styles/type.module.css";
-  margin: var(--space-6) 0 var(--space-3);
-}
-
 /* Host Account and Config on the left, Usage on the right, once there is room for both. */
 @media (min-width: 64rem) {
   .overview {
@@ -14,16 +9,6 @@
 
 .overview > div {
   min-inline-size: 0;
-}
-
-.configItem {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-}
-
-.icon {
-  flex-shrink: 0;
 }
 
 .config,
@@ -39,6 +24,9 @@
 }
 
 .configItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
   padding-block: var(--space-2);
   border-bottom: var(--border-hair);
 }

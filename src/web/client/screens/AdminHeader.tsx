@@ -11,6 +11,7 @@ export interface AdminHeaderProps {
 /** "Admin" after the wordmark and, when logged in, "Log out" at the header's end. */
 export function AdminHeader({ logOut }: AdminHeaderProps) {
   const slot = useHeaderSlot();
+  // The slot exists only after the Layout's first commit, so "Admin" joins the header one commit later.
   if (slot === null) return null;
   return createPortal(
     <>

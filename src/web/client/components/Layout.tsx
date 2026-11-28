@@ -23,39 +23,40 @@ export function Layout() {
     <AnnouncerContext.Provider value={announce}>
       <NavigatedContext.Provider value={navigated}>
         <HeaderSlotContext.Provider value={headerSlot}>
-        <a href="#main" className={styles.skip}>
-          Skip to content
-        </a>
-        <header className={styles.header}>
-          <div className={`${styles.container} ${styles.headerRow}`}>
-            <Link to="/" className={styles.wordmark} translate="no">
-              Playset
-            </Link>{" "}
-            <div ref={setHeaderSlot} className={styles.headerSlot} />
-          </div>
-        </header>
-        <main id="main" tabIndex={-1} className={`${styles.container} ${styles.main}`}>
-          <Outlet />
-          <VisuallyHidden live="polite">
-            <span key={announcement.count}>{announcement.text}</span>
-          </VisuallyHidden>
-        </main>
-        <footer className={styles.footer}>
-          <div className={`${styles.container} ${styles.footerItems}`}>
-            <p>
-              Setlists from{" "}
-              <a href="https://www.setlist.fm/" translate="no">
-                setlist.fm
-              </a>
-            </p>
-            <p>Playlists are created in {PLAYSET_SPOTIFY_ACCOUNT} and are public.</p>
-            <p>
-              <Link to="/terms" className={styles.target}>
-                Terms and Privacy
-              </Link>
-            </p>
-          </div>
-        </footer>
+          <a href="#main" className={styles.skip}>
+            Skip to content
+          </a>
+          <header className={styles.header}>
+            <div className={`${styles.container} ${styles.headerRow}`}>
+              {/* The space keeps the wordmark and the slot's "Admin" two words when read without styles. */}
+              <Link to="/" className={styles.wordmark} translate="no">
+                Playset
+              </Link>{" "}
+              <div ref={setHeaderSlot} className={styles.headerSlot} />
+            </div>
+          </header>
+          <main id="main" tabIndex={-1} className={`${styles.container} ${styles.main}`}>
+            <Outlet />
+            <VisuallyHidden live="polite">
+              <span key={announcement.count}>{announcement.text}</span>
+            </VisuallyHidden>
+          </main>
+          <footer className={styles.footer}>
+            <div className={`${styles.container} ${styles.footerItems}`}>
+              <p>
+                Setlists from{" "}
+                <a href="https://www.setlist.fm/" translate="no">
+                  setlist.fm
+                </a>
+              </p>
+              <p>Playlists are created in {PLAYSET_SPOTIFY_ACCOUNT} and are public.</p>
+              <p>
+                <Link to="/terms" className={styles.target}>
+                  Terms and Privacy
+                </Link>
+              </p>
+            </div>
+          </footer>
         </HeaderSlotContext.Provider>
       </NavigatedContext.Provider>
     </AnnouncerContext.Provider>
