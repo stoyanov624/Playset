@@ -1,6 +1,6 @@
 # PRD 0016 — Visitor API server
 
-Status: Approved
+Status: Implemented
 Slice: 16
 Depends on: 0015 (and 0012, 0014)
 Module: src/web/server
