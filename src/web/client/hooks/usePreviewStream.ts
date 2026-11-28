@@ -8,17 +8,17 @@ import { useApi } from "../context/api.js";
 const PROGRESS_ANNOUNCE_GAP_MS = 5000;
 
 /**
- * The streamed preview of a Setlist, with its latest Matching progress. `round` asks for a fresh
+ * The streamed preview of a Setlist, with its latest Matching progress. `freshPreviewCount` asks for a fresh
  * one; the preview is never reused from an earlier visit, as the Setlist may have changed.
  */
-export function usePreviewStream(id: string, round: number, enabled: boolean) {
+export function usePreviewStream(id: string, freshPreviewCount: number, enabled: boolean) {
   const api = useApi();
   const announce = useAnnounce();
   const [progress, setProgress] = useState<PreviewProgress | null>(null);
   const lastAnnouncement = useRef<number | null>(null);
 
   const query = useQuery({
-    queryKey: ["preview", id, round],
+    queryKey: ["preview", id, freshPreviewCount],
     queryFn: ({ signal }) => {
       // Each attempt, a retry included, starts counting from nothing.
       setProgress(null);

@@ -1,10 +1,11 @@
-import { Search } from "lucide-react";
 import type { ApiCallError } from "../api/index.js";
 import { AlertActions } from "./AlertActions.js";
 import { AlertBox } from "./AlertBox.js";
 import { Heading } from "./Heading.js";
 import { LinkButton } from "./LinkButton.js";
+import { PlaylistsUnavailableAlert } from "./PlaylistsUnavailableAlert.js";
 import { RetryControl } from "./RetryControl.js";
+import { SearchLink } from "./SearchLink.js";
 
 export interface ScreenErrorProps {
   error: ApiCallError;
@@ -21,14 +22,13 @@ export function ScreenError({ error, headingLevel, retrying, onRetry, elsewhere 
   if (error.code === "PLAYLISTS_UNAVAILABLE") {
     const way = elsewhere ?? { to: "/", label: "Search for an Artist" };
     return (
-      <AlertBox tone="caution" title={<Heading level={headingLevel} focusWhen>Playlist creation is temporarily unavailable</Heading>}>
-        <p>{error.hint ?? error.message}</p>
+      <PlaylistsUnavailableAlert error={error} headingLevel={headingLevel}>
         <AlertActions>
           <LinkButton to={way.to} state={way.state} variant="secondary">
             {way.label}
           </LinkButton>
         </AlertActions>
-      </AlertBox>
+      </PlaylistsUnavailableAlert>
     );
   }
   return (
@@ -36,12 +36,11 @@ export function ScreenError({ error, headingLevel, retrying, onRetry, elsewhere 
       {error.hint === undefined ? null : <p>{error.hint}</p>}
       {error.code === "NOT_FOUND" ? (
         <AlertActions>
-          <LinkButton to="/" variant="secondary" icon={<Search size={20} aria-hidden="true" />}>
-            Search for an Artist
-          </LinkButton>
+          <SearchLink />
         </AlertActions>
       ) : (
-        <RetryControl waitSeconds={error.code === "RATE_LIMITED" ? error.retryAfterSeconds : undefined} retrying={retrying} onRetry={onRetry} />
+        // The wait is only ever set on a rate-limit answer.
+        <RetryControl waitSeconds={error.retryAfterSeconds} retrying={retrying} onRetry={onRetry} />
       )}
     </AlertBox>
   );

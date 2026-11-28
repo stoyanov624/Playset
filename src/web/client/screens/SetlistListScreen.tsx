@@ -1,5 +1,4 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { useLocation } from "react-router";
 import type { SetlistSummary } from "../../shared/index.js";
@@ -7,15 +6,15 @@ import { ActionError } from "../components/ActionError.js";
 import { BackLink } from "../components/BackLink.js";
 import { Button } from "../components/Button.js";
 import { Heading } from "../components/Heading.js";
-import { LinkButton } from "../components/LinkButton.js";
 import { LoadingLine } from "../components/LoadingLine.js";
 import { ScreenError } from "../components/ScreenError.js";
+import { SearchLink } from "../components/SearchLink.js";
 import { useAnnounce } from "../context/announcer.js";
 import { useApi } from "../context/api.js";
 import { counted } from "../format.js";
 import { useDocumentTitle } from "../hooks/useDocumentTitle.js";
 import { useShownError } from "../hooks/useShownError.js";
-import { readArtistName } from "../navigation-state.js";
+import { readArtistName, type SetlistState } from "../navigation-state.js";
 import { SetlistSummaryRow } from "./SetlistSummaryRow.js";
 import styles from "./SetlistListScreen.module.css";
 
@@ -82,7 +81,74 @@ export function SetlistListScreen({ mbid }: { mbid: string }) {
     if (!list.isFetchingNextPage) void list.fetchNextPage();
   }
 
-  const fromList = { fromList: { mbid, artistName: name } };
+  const fromList: SetlistState = { fromList: { mbid, artistName: name } };
+
+  function morePart() {
+    if (morePagesError !== null) {
+      return (
+        <ActionError key={morePagesError.key} error={morePagesError.error} retrying={morePagesError.retrying} onRetry={loadMore} />
+      );
+    }
+    if (list.hasNextPage) {
+      return (
+        <div className={styles.more}>
+          <Button variant="secondary" wide busy={list.isFetchingNextPage} onActivate={loadMore}>
+            {list.isFetchingNextPage ? "Loading…" : "Load more Setlists"}
+          </Button>
+        </div>
+      );
+    }
+    if (listIsEmpty) return null;
+    return (
+      <p ref={endLine} tabIndex={-1} className={styles.end}>
+        That's every Setlist on setlist.fm.
+      </p>
+    );
+  }
+
+  function listPart() {
+    if (firstPageError !== null) {
+      return (
+        <ScreenError
+          key={firstPageError.key}
+          error={firstPageError.error}
+          headingLevel={2}
+          retrying={firstPageError.retrying}
+          onRetry={() => void list.refetch()}
+        />
+      );
+    }
+    if (list.data === undefined) return <LoadingLine text="Loading Setlists…" />;
+    return (
+      <>
+        {listIsEmpty && !hasNextPage ? (
+          <section>
+            <h2 ref={emptyHeading} tabIndex={-1} className={styles.emptyHeading}>
+              No Setlists with songs yet
+            </h2>
+            <p className={styles.text}>setlist.fm has no Setlist with songs for this Artist.</p>
+            <SearchLink>Search for another Artist</SearchLink>
+          </section>
+        ) : null}
+        {listIsEmpty && hasNextPage ? (
+          <p className={styles.text}>No Setlists with songs among the newest ones. Load more to look further back.</p>
+        ) : null}
+        {listIsEmpty ? null : (
+          <ol className={styles.rows}>
+            {setlists.map((setlist, index) => (
+              <SetlistSummaryRow
+                key={setlist.id}
+                setlist={setlist}
+                state={fromList}
+                linkRef={index === firstNewIndex ? firstNewRow : undefined}
+              />
+            ))}
+          </ol>
+        )}
+        {morePart()}
+      </>
+    );
+  }
 
   return (
     <div className={styles.flow}>
@@ -91,64 +157,7 @@ export function SetlistListScreen({ mbid }: { mbid: string }) {
         {name ?? "Setlists"}
       </Heading>
       <p className={styles.subtitle}>Setlists on setlist.fm, newest first</p>
-      {firstPageError !== null ? (
-        <ScreenError
-          key={firstPageError.key}
-          error={firstPageError.error}
-          headingLevel={2}
-          retrying={firstPageError.retrying}
-          onRetry={() => void list.refetch()}
-        />
-      ) : list.data === undefined ? (
-        <LoadingLine text="Loading Setlists…" />
-      ) : (
-        <>
-          {setlists.length === 0 && !list.hasNextPage ? (
-            <section>
-              <h2 ref={emptyHeading} tabIndex={-1} className={styles.emptyHeading}>
-                No Setlists with songs yet
-              </h2>
-              <p className={styles.text}>setlist.fm has no Setlist with songs for this Artist.</p>
-              <LinkButton to="/" variant="secondary" icon={<Search size={20} aria-hidden="true" />}>
-                Search for another Artist
-              </LinkButton>
-            </section>
-          ) : null}
-          {setlists.length === 0 && list.hasNextPage ? (
-            <p className={styles.text}>No Setlists with songs among the newest ones. Load more to look further back.</p>
-          ) : null}
-          {setlists.length === 0 ? null : (
-            <ol className={styles.rows}>
-              {setlists.map((setlist, index) => (
-                <SetlistSummaryRow
-                  key={setlist.id}
-                  setlist={setlist}
-                  state={fromList}
-                  linkRef={index === firstNewIndex ? firstNewRow : undefined}
-                />
-              ))}
-            </ol>
-          )}
-          {morePagesError !== null ? (
-            <ActionError
-              key={morePagesError.key}
-              error={morePagesError.error}
-              retrying={morePagesError.retrying}
-              onRetry={loadMore}
-            />
-          ) : list.hasNextPage ? (
-            <div className={styles.more}>
-              <Button variant="secondary" wide busy={list.isFetchingNextPage} onActivate={loadMore}>
-                {list.isFetchingNextPage ? "Loading…" : "Load more Setlists"}
-              </Button>
-            </div>
-          ) : setlists.length === 0 ? null : (
-            <p ref={endLine} tabIndex={-1} className={styles.end}>
-              That's every Setlist on setlist.fm.
-            </p>
-          )}
-        </>
-      )}
+      {listPart()}
     </div>
   );
 }

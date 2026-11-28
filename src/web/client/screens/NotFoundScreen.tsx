@@ -1,7 +1,6 @@
-import { Search } from "lucide-react";
 import { BackLink } from "../components/BackLink.js";
 import { Heading } from "../components/Heading.js";
-import { LinkButton } from "../components/LinkButton.js";
+import { SearchLink } from "../components/SearchLink.js";
 import { useDocumentTitle } from "../hooks/useDocumentTitle.js";
 import styles from "./page.module.css";
 
@@ -14,9 +13,7 @@ export function NotFoundScreen() {
         Page not found
       </Heading>
       <p className={styles.text}>There's nothing at this address.</p>
-      <LinkButton to="/" variant="secondary" icon={<Search size={20} aria-hidden="true" />}>
-        Search for an Artist
-      </LinkButton>
+      <SearchLink />
     </div>
   );
 }

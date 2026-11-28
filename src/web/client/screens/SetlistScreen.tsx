@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router";
-import { asApiCallError } from "../api/index.js";
 import { BackLink } from "../components/BackLink.js";
 import { Heading } from "../components/Heading.js";
 import { IncompleteAlert } from "../components/IncompleteAlert.js";
@@ -37,11 +36,11 @@ export function SetlistScreen({ id }: { id: string }) {
   const location = useLocation();
   const [fromList] = useState(() => readFromList(location.state));
   // Each "Load fresh preview" asks for the status and the preview anew.
-  const [round, setRound] = useState(0);
+  const [freshPreviewCount, setFreshPreviewCount] = useState(0);
 
   // The status is never reused from an earlier visit: the Setlist may have changed.
   const statusQuery = useQuery({
-    queryKey: ["setlist", id, round],
+    queryKey: ["setlist", id, freshPreviewCount],
     queryFn: ({ signal }) => api.getSetlist(id, signal),
     staleTime: 0,
     gcTime: 0,
@@ -51,8 +50,15 @@ export function SetlistScreen({ id }: { id: string }) {
   const wantsPreview = status !== undefined && status.playlist.status !== "current";
   const update = status?.playlist.status === "outdated";
 
-  const preview = usePreviewStream(id, round, wantsPreview);
+  const preview = usePreviewStream(id, freshPreviewCount, wantsPreview);
   const result = preview.query.data;
+  // "Try again" keeps the alert, its button busy, until the new stream shows progress or its result;
+  // a fresh preview is another request, so it drops the old failure at once.
+  const previewError = useShownError(
+    preview.query.error,
+    preview.query.isFetching && preview.progress === null,
+    String(freshPreviewCount),
+  );
   const counts = useMemo(() => (result === undefined ? null : countPreview(result)), [result]);
 
   useEffect(() => {
@@ -65,7 +71,7 @@ export function SetlistScreen({ id }: { id: string }) {
   function loadFreshPreview() {
     playlist.reset();
     preview.clearProgress();
-    setRound((current) => current + 1);
+    setFreshPreviewCount((current) => current + 1);
   }
 
   useDocumentTitle(status === undefined ? "Setlist – Playset" : `${status.show.artist}, ${formatShowDate(status.show.date)} – Playset`);
@@ -82,15 +88,19 @@ export function SetlistScreen({ id }: { id: string }) {
 
   function previewPart() {
     if (!wantsPreview) return null;
-    if (preview.query.error !== null && !preview.query.isFetching) {
+    if (previewError !== null) {
       return (
         <div className={styles.flow}>
           <ScreenError
-            key={preview.query.errorUpdatedAt}
-            error={asApiCallError(preview.query.error)}
+            key={previewError.key}
+            error={previewError.error}
             headingLevel={2}
-            retrying={false}
-            onRetry={() => void preview.query.refetch()}
+            retrying={previewError.retrying}
+            onRetry={() => {
+              // A stream that failed after some progress must not count as the new one's progress.
+              preview.clearProgress();
+              void preview.query.refetch();
+            }}
             elsewhere={listLink}
           />
         </div>
