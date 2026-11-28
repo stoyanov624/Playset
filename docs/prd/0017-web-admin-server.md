@@ -141,7 +141,7 @@ The callback checks, in this order, and the first failure decides the redirect: 
 ### Admin cookie
 
 - **AC-20** — Given an admin cookie set at time T, when `GET /api/admin/status` is asked with it, then it is accepted while the clock is before T + 12 hours and rejected from T + 12 hours on. Given no admin cookie, an empty one, a value changed by one character, a value not made by the app, a cookie signed with another cookie secret, or a login cookie sent under the admin cookie's name, then the app answers E-26 and reads no usage. The check uses the injected clock, not only the browser's `Max-Age`.
-- **AC-21** — Given any admin cookie or login cookie value the app sets, then it contains none of: the Host Account id, an access token, a refresh token, the authorization code, the cookie secret. No answer, `Location` or header of the admin routes contains the Host Account id, a token, the code or the code verifier.
+- **AC-21** — Given any admin cookie or login cookie value the app sets, then it contains none of: the Host Account id, an access token, a refresh token, the authorization code, the cookie secret. No answer, `Location` or header of the admin routes contains the Host Account id, a token, the code or the code verifier — except the `Set-Cookie` of the signed `playset_login` cookie, which carries the code verifier by design (AC-13).
 
 ### Admin status — `GET /api/admin/status`
 
