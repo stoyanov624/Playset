@@ -237,3 +237,49 @@ describe("the source through the app (AC-9, AC-15)", () => {
     expect(a.login.calls()).toBe(0);
   });
 });
+
+describe("a new Host login saved while a refresh runs (AC-10, AC-11)", () => {
+  // The admin may finish a new login while a refresh of the old login is still waiting on Spotify.
+  // The new login is what the admin page reported as connected, so it must survive either outcome.
+  const NEW_LOGIN: StoredHostToken = {
+    ...T,
+    accessToken: "BQDhost-new-login",
+    refreshToken: "AQChost-new-login",
+    expiresAt: 1795883400000,
+  };
+
+  it("AC-10: the refresh succeeds after a new login was saved → the store keeps the new login; the waiting ask and the next ask get its token, no further refresh", async () => {
+    const { source, login, store, log } = await setup({ ...T, expiresAt: 1795876230000 });
+    const gate = makeGate();
+    login.state.refreshGate = gate;
+    login.state.refreshWith = { grant: REFRESHED };
+    const waiting = source.getAccessToken();
+    await waitUntil(() => login.state.refreshCalls.length >= 1, "the refresh to start");
+    await flush();
+    await store.save(NEW_LOGIN);
+    gate.release();
+    await expect(waiting).resolves.toBe("BQDhost-new-login");
+    expect(await store.read()).toStrictEqual(NEW_LOGIN);
+    await expect(source.getAccessToken()).resolves.toBe("BQDhost-new-login");
+    expect(login.state.refreshCalls).toEqual([HOST_REFRESH]);
+    expectNoSecretsLogged(log);
+  });
+
+  it("AC-11: the refresh ends with invalid_grant after a new login was saved → the store keeps the new login, no login-ended warning; the waiting ask and the next ask get its token", async () => {
+    const { source, login, store, log } = await setup({ ...T, expiresAt: 1795870000000 });
+    const gate = makeGate();
+    login.state.refreshGate = gate;
+    login.state.refreshWith = { fails: await tokenError("invalid_grant") };
+    const waiting = source.getAccessToken();
+    await waitUntil(() => login.state.refreshCalls.length >= 1, "the refresh to start");
+    await flush();
+    await store.save(NEW_LOGIN);
+    gate.release();
+    await expect(waiting).resolves.toBe("BQDhost-new-login");
+    expect(await store.read()).toStrictEqual(NEW_LOGIN);
+    expect(log.calls.filter((c) => c.message === ENDED)).toEqual([]);
+    await expect(source.getAccessToken()).resolves.toBe("BQDhost-new-login");
+    expect(login.state.refreshCalls).toEqual([HOST_REFRESH]);
+    expectNoSecretsLogged(log);
+  });
+});
