@@ -1,6 +1,6 @@
 # PRD 0018 — Visitor web app
 
-Status: Approved
+Status: Implemented
 Slice: 18
 Depends on: 0013 (design lock, `docs/design.md`; not a PRD file), 0015
 Module: src/web/client
